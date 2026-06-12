@@ -212,11 +212,13 @@ button {
   justify-self: center;
   width: 38px;
   height: 38px;
+  padding: 0;
   border: 1px solid #46483a;
   border-radius: 6px;
   background: #181a14;
   color: #f0eee4;
   cursor: pointer;
+  line-height: 0;
 }
 
 .item-selector__item:hover,
@@ -289,11 +291,13 @@ button {
 .layout-recipe-row__remove {
   display: grid;
   place-items: center;
+  padding: 0;
   border: 1px solid transparent;
   border-radius: 5px;
   background: transparent;
   color: #a7a18d;
   cursor: pointer;
+  line-height: 0;
 }
 
 .layout-card__collapse,
@@ -554,11 +558,13 @@ button {
   place-items: center;
   width: 36px;
   height: 36px;
+  padding: 0;
   border: 1px solid #57523d;
   border-radius: 6px;
   background: #25261f;
   color: #e8a83d;
   cursor: pointer;
+  line-height: 0;
 }
 
 .icon-button:hover {
