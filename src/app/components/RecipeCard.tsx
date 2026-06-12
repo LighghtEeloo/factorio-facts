@@ -83,6 +83,13 @@ export function RecipeCard({
 
       {isConcise ? (
         <div className="recipe-compact-meta">
+          <span
+            className="text-pill text-pill--time"
+            data-tooltip={`Craft time: ${formatTime(recipe.energy_required)}`}
+          >
+            <Timer size={13} aria-hidden="true" />
+            {formatTime(recipe.energy_required)}
+          </span>
           {metadata.producers.map((producerId) => (
             <IconPill data={data} id={producerId} key={producerId} type="producer" />
           ))}

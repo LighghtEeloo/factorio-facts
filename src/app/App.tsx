@@ -34,7 +34,7 @@ export function App() {
   const [selectedItemId, setSelectedItemId] = useState("iron-plate");
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
-  const [viewMode, setViewMode] = useState<ViewMode>("detailed");
+  const [viewMode, setViewMode] = useState<ViewMode>("concise");
   const selectedItem = explorerData.itemById.get(selectedItemId) ?? explorerData.items[0];
 
   if (!selectedItem) {
@@ -148,16 +148,6 @@ function ViewModeToggle({ value, onChange }: ViewModeToggleProps) {
   return (
     <div className="view-toggle" role="group" aria-label="Recipe detail level">
       <button
-        aria-pressed={value === "detailed"}
-        className={value === "detailed" ? "view-toggle__button--active" : ""}
-        type="button"
-        title="Detailed recipe cards"
-        onClick={() => onChange("detailed")}
-      >
-        <ListTree size={15} aria-hidden="true" />
-        Detailed
-      </button>
-      <button
         aria-pressed={value === "concise"}
         className={value === "concise" ? "view-toggle__button--active" : ""}
         type="button"
@@ -166,6 +156,16 @@ function ViewModeToggle({ value, onChange }: ViewModeToggleProps) {
       >
         <Rows3 size={15} aria-hidden="true" />
         Concise
+      </button>
+      <button
+        aria-pressed={value === "detailed"}
+        className={value === "detailed" ? "view-toggle__button--active" : ""}
+        type="button"
+        title="Detailed recipe cards"
+        onClick={() => onChange("detailed")}
+      >
+        <ListTree size={15} aria-hidden="true" />
+        Detailed
       </button>
     </div>
   );

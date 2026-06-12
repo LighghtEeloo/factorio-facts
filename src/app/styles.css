@@ -443,7 +443,7 @@ button {
 }
 
 .item-chip--concise {
-  grid-template-columns: 22px minmax(0, auto);
+  grid-template-columns: 22px auto auto;
   gap: 3px;
   min-height: 28px;
   min-width: 28px;
@@ -460,6 +460,12 @@ button {
   color: #d7b65f;
   font-size: 0.76rem;
   font-variant-numeric: tabular-nums;
+}
+
+.item-chip__times {
+  color: #9f9a86;
+  font-size: 0.72rem;
+  line-height: 1;
 }
 
 .item-chip--concise .item-chip__amount {
@@ -503,8 +509,10 @@ button {
 
 .icon-pill,
 .text-pill {
-  display: inline-grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   min-width: 28px;
   min-height: 28px;
   border: 1px solid #46483a;
@@ -524,6 +532,12 @@ button {
   padding: 0 8px;
   color: #a9c992;
   font-size: 0.68rem;
+}
+
+.text-pill--time {
+  border-color: #5c563e;
+  color: #d7b65f;
+  font-variant-numeric: tabular-nums;
 }
 
 .filters {

@@ -21,7 +21,8 @@ export function ItemChip({
 }: ItemChipProps) {
   const icon = data.iconById.get(getIconIdForItem(item));
   const isConcise = variant === "concise";
-  const title = amount === undefined ? item.name : `${formatAmount(amount)} ${item.name}`;
+  const amountText = amount === undefined ? undefined : formatAmount(amount);
+  const title = amountText === undefined ? item.name : `${amountText}x ${item.name}`;
 
   return (
     <button
@@ -38,8 +39,15 @@ export function ItemChip({
         label={item.name}
         size={isConcise ? 22 : 24}
       />
-      {amount !== undefined ? (
-        <span className="item-chip__amount">{formatAmount(amount)}</span>
+      {amountText !== undefined && isConcise ? (
+        <span className="item-chip__times" aria-hidden="true">
+          &times;
+        </span>
+      ) : null}
+      {amountText !== undefined ? (
+        <span className="item-chip__amount">
+          {isConcise ? amountText : `${amountText}x`}
+        </span>
       ) : null}
       {isConcise ? null : <span className="item-chip__name">{item.name}</span>}
     </button>
@@ -48,8 +56,8 @@ export function ItemChip({
 
 function formatAmount(amount: number): string {
   if (Number.isInteger(amount)) {
-    return `${amount}x`;
+    return `${amount}`;
   }
 
-  return `${Number(amount.toFixed(3))}x`;
+  return `${Number(amount.toFixed(3))}`;
 }

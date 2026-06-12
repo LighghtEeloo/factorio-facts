@@ -25,7 +25,7 @@ Search scores exact id/name matches first, prefix matches second, then token con
 The viewer has two global density modes:
 
 - Detailed: full recipe cards for deliberate inspection.
-- Concise: compact recipe cards for scanning, using icon-only item, producer/building, and surface pills with hover/focus tooltips.
+- Concise: the default compact recipe card mode for scanning, using icon-only item, producer/building, time, and surface pills with hover/focus tooltips. Amounts are shown as icon, times marker, then number.
 
 Each detailed recipe card shows:
 
