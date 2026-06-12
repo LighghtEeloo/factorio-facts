@@ -4,6 +4,7 @@ import {
   ArrowUpFromLine,
   Database,
   ListTree,
+  Package,
   Rows3,
 } from "lucide-react";
 import type { RecipePrototype } from "../factorio/prototypes";
@@ -29,11 +30,10 @@ const defaultFilters: FilterState = {
   includeLocked: true,
 };
 
-const defaultSelectedItemId = "iron-plate";
 const defaultViewMode: ViewMode = "concise";
 
 interface AppUrlState {
-  selectedItemId: string;
+  selectedItemId: string | null;
   filters: FilterState;
   viewMode: ViewMode;
 }
@@ -43,21 +43,25 @@ export function App() {
   const [selectedItemId, setSelectedItemId] = useState(initialUrlState.selectedItemId);
   const [filters, setFilters] = useState<FilterState>(initialUrlState.filters);
   const [viewMode, setViewMode] = useState<ViewMode>(initialUrlState.viewMode);
-  const selectedItem = explorerData.itemById.get(selectedItemId) ?? explorerData.items[0];
+  const selectedItem = selectedItemId
+    ? explorerData.itemById.get(selectedItemId) ?? null
+    : null;
 
-  if (!selectedItem) {
+  if (!explorerData.items.length) {
     throw new Error("FactorioLab data did not include any items");
   }
 
   const madeBy = useMemo(
-    () => filterRecipes(explorerData.madeBy(selectedItem.id), filters),
-    [filters, selectedItem.id],
+    () => (selectedItem ? filterRecipes(explorerData.madeBy(selectedItem.id), filters) : []),
+    [filters, selectedItem],
   );
   const usedIn = useMemo(
-    () => filterRecipes(explorerData.usedIn(selectedItem.id), filters),
-    [filters, selectedItem.id],
+    () => (selectedItem ? filterRecipes(explorerData.usedIn(selectedItem.id), filters) : []),
+    [filters, selectedItem],
   );
-  const selectedIcon = explorerData.iconById.get(getIconIdForItem(selectedItem));
+  const selectedIcon = selectedItem
+    ? explorerData.iconById.get(getIconIdForItem(selectedItem))
+    : undefined;
 
   useEffect(() => {
     updateUrlFromAppState({ selectedItemId, filters, viewMode });
@@ -85,57 +89,69 @@ export function App() {
       <ItemSearch
         data={explorerData}
         onSelect={selectItem}
-        selectedItemId={selectedItem.id}
+        selectedItemId={selectedItem?.id ?? null}
       />
 
-      <section className="workspace">
-        <header className="workspace-header app-panel">
-          <div className="selected-item">
-            <IconSprite
-              atlas={explorerData.atlas}
-              icon={selectedIcon}
-              label={selectedItem.name}
-              size={48}
-            />
+      <section className={`workspace ${selectedItem ? "" : "workspace--empty"}`}>
+        {selectedItem ? (
+          <>
+            <header className="workspace-header app-panel">
+              <div className="selected-item">
+                <IconSprite
+                  atlas={explorerData.atlas}
+                  icon={selectedIcon}
+                  label={selectedItem.name}
+                  size={48}
+                />
+                <div>
+                  <h1>{selectedItem.name}</h1>
+                  <span>{selectedItem.id}</span>
+                </div>
+              </div>
+
+              <div className="workspace-stats">
+                <span>
+                  <ArrowDownToLine size={16} aria-hidden="true" />
+                  {madeBy.length} made by
+                </span>
+                <span>
+                  <ArrowUpFromLine size={16} aria-hidden="true" />
+                  {usedIn.length} used in
+                </span>
+                <ViewModeToggle value={viewMode} onChange={setViewMode} />
+              </div>
+            </header>
+
+            <div className="recipe-grid">
+              <RecipeColumn
+                data={explorerData}
+                onSelectItem={selectItem}
+                recipes={madeBy}
+                selectedItemId={selectedItem.id}
+                viewMode={viewMode}
+                variant="made-by"
+                title="Made by"
+              />
+              <RecipeColumn
+                data={explorerData}
+                onSelectItem={selectItem}
+                recipes={usedIn}
+                selectedItemId={selectedItem.id}
+                viewMode={viewMode}
+                variant="used-in"
+                title="Used in"
+              />
+            </div>
+          </>
+        ) : (
+          <div className="workspace-empty app-panel">
+            <Package size={40} aria-hidden="true" />
             <div>
-              <h1>{selectedItem.name}</h1>
-              <span>{selectedItem.id}</span>
+              <h1>Select item</h1>
+              <span>No item selected</span>
             </div>
           </div>
-
-          <div className="workspace-stats">
-            <span>
-              <ArrowDownToLine size={16} aria-hidden="true" />
-              {madeBy.length} made by
-            </span>
-            <span>
-              <ArrowUpFromLine size={16} aria-hidden="true" />
-              {usedIn.length} used in
-            </span>
-            <ViewModeToggle value={viewMode} onChange={setViewMode} />
-          </div>
-        </header>
-
-        <div className="recipe-grid">
-          <RecipeColumn
-            data={explorerData}
-            onSelectItem={selectItem}
-            recipes={madeBy}
-            selectedItemId={selectedItem.id}
-            viewMode={viewMode}
-            variant="made-by"
-            title="Made by"
-          />
-          <RecipeColumn
-            data={explorerData}
-            onSelectItem={selectItem}
-            recipes={usedIn}
-            selectedItemId={selectedItem.id}
-            viewMode={viewMode}
-            variant="used-in"
-            title="Used in"
-          />
-        </div>
+        )}
 
         <footer className="data-footnote">
           <span className="data-footnote__version">{explorerData.versionLabel}</span>
@@ -230,7 +246,7 @@ function readAppStateFromUrl(): AppUrlState {
 function updateUrlFromAppState(state: AppUrlState) {
   const params = new URLSearchParams();
 
-  if (state.selectedItemId !== defaultSelectedItemId) {
+  if (state.selectedItemId) {
     params.set("item", state.selectedItemId);
   }
 
@@ -274,8 +290,8 @@ function updateUrlFromAppState(state: AppUrlState) {
   }
 }
 
-function parseItemId(value: string | null): string {
-  return value && explorerData.itemById.has(value) ? value : defaultSelectedItemId;
+function parseItemId(value: string | null): string | null {
+  return value && explorerData.itemById.has(value) ? value : null;
 }
 
 function parseViewMode(value: string | null): ViewMode {

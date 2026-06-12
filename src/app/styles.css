@@ -225,6 +225,10 @@ button {
   gap: 12px;
 }
 
+.workspace--empty {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
 .workspace-header {
   display: grid;
   grid-template-areas: "selected stats";
@@ -233,6 +237,34 @@ button {
   column-gap: 12px;
   min-height: 76px;
   padding: 12px;
+}
+
+.workspace-empty {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  min-height: 0;
+  padding: 24px;
+  text-align: center;
+}
+
+.workspace-empty svg {
+  color: #d7b65f;
+}
+
+.workspace-empty h1 {
+  margin: 0;
+  color: #f0eee4;
+  font-size: 1.18rem;
+  letter-spacing: 0;
+}
+
+.workspace-empty span {
+  display: block;
+  margin-top: 4px;
+  color: #a7a18d;
+  font-size: 0.78rem;
 }
 
 .selected-item {

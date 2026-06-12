@@ -9,7 +9,7 @@ import { IconSprite } from "./IconSprite";
 
 interface ItemSearchProps {
   data: RecipeExplorerData;
-  selectedItemId: string;
+  selectedItemId: string | null;
   onSelect(itemId: string): void;
 }
 
@@ -18,13 +18,19 @@ export function ItemSearch({
   selectedItemId,
   onSelect,
 }: ItemSearchProps) {
-  const [isSelectorOpen, setIsSelectorOpen] = useState(false);
+  const [isSelectorOpen, setIsSelectorOpen] = useState(selectedItemId === null);
   const [selectorQuery, setSelectorQuery] = useState("");
   const selectorSearchRef = useRef<HTMLInputElement | null>(null);
   const selectorGroups = useMemo(
     () => groupItemsByCategory(data, searchItems(data.items, selectorQuery)),
     [data, selectorQuery],
   );
+
+  useEffect(() => {
+    if (selectedItemId === null) {
+      setIsSelectorOpen(true);
+    }
+  }, [selectedItemId]);
 
   useEffect(() => {
     if (!isSelectorOpen) {
