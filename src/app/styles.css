@@ -99,6 +99,17 @@ button {
   color: #85806c;
 }
 
+.search-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  align-items: center;
+  gap: 6px;
+}
+
+.item-selector-button {
+  color: #c9ced6;
+}
+
 .item-list {
   display: grid;
   align-content: start;
@@ -161,6 +172,103 @@ button {
 
 .item-row__kind {
   color: #8aa477;
+}
+
+.item-selector-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(9, 10, 7, 0.68);
+}
+
+.item-selector {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 10px;
+  width: min(720px, calc(100vw - 36px));
+  height: min(760px, calc(100vh - 36px));
+  overflow: hidden;
+  padding: 12px;
+}
+
+.item-selector__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.item-selector__header h2 {
+  margin: 0;
+  color: #e4d6a7;
+  font-size: 0.92rem;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.item-selector__search {
+  min-height: 40px;
+}
+
+.item-selector__content {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.item-selector__group {
+  display: grid;
+  gap: 7px;
+}
+
+.item-selector__group h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  color: #c9c4b3;
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+.item-selector__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
+  gap: 5px;
+}
+
+.item-selector__item {
+  display: grid;
+  place-items: center;
+  justify-self: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid #46483a;
+  border-radius: 6px;
+  background: #181a14;
+  color: #f0eee4;
+  cursor: pointer;
+}
+
+.item-selector__item:hover,
+.item-selector__item:focus-visible {
+  border-color: #756a45;
+  background: #25261f;
+  outline: 0;
+}
+
+.item-selector__item--selected {
+  border-color: #e0a649;
+  background: #302a1b;
+  box-shadow: inset 0 0 0 1px #e0a649;
 }
 
 .workspace {
