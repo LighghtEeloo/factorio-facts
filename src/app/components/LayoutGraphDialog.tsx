@@ -156,6 +156,7 @@ export function LayoutGraphDialog({
               nodesConnectable={false}
               onNodeDragStop={handleNodeDragStop}
               onNodesChange={handleNodesChange}
+              proOptions={{ hideAttribution: true }}
             >
               <Background color="#4b4735" gap={34} />
               <Controls showInteractive={false} />
@@ -163,6 +164,7 @@ export function LayoutGraphDialog({
                 maskColor="rgba(12, 13, 10, 0.62)"
                 nodeColor="#d7b65f"
                 pannable
+                style={{ width: 100, height: 75 }}
                 zoomable
               />
             </ReactFlow>
