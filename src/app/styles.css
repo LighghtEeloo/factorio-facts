@@ -1151,10 +1151,20 @@ button {
   cursor: grabbing;
 }
 
+.layout-graph-flow-shell .react-flow__edge {
+  cursor: pointer;
+}
+
 .layout-graph-edge {
   stroke: #9f8b48;
   stroke-width: 2;
   opacity: 0.74;
+}
+
+.layout-graph-edge--selected {
+  stroke: #f0c96e;
+  stroke-width: 3;
+  opacity: 1;
 }
 
 .layout-graph-edge-label {
@@ -1167,10 +1177,20 @@ button {
   border-radius: 999px;
   background: rgba(21, 23, 16, 0.92);
   padding: 3px;
+  color: #f0eee4;
+  cursor: pointer;
   pointer-events: all;
 }
 
+.layout-graph-edge-label:hover,
+.layout-graph-edge-label--selected {
+  border-color: #e0a649;
+  background: rgba(48, 42, 27, 0.96);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.26);
+}
+
 .layout-graph-node {
+  position: relative;
   display: grid;
   grid-template-rows: minmax(24px, auto) 78px minmax(24px, auto);
   align-items: center;
@@ -1178,6 +1198,108 @@ button {
   gap: 4px;
   width: 168px;
   cursor: grab;
+}
+
+.layout-graph-endpoints {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.layout-graph-endpoint-button {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid #d7b65f;
+  border-radius: 999px;
+  background: #151710;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.32);
+  cursor: pointer;
+  padding: 0;
+  pointer-events: all;
+}
+
+.layout-graph-endpoints--target .layout-graph-endpoint-button {
+  border-color: #8aa477;
+}
+
+.layout-graph-endpoint-button span {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #7d7868;
+}
+
+.layout-graph-endpoint-button:hover,
+.layout-graph-endpoint-button:focus-visible {
+  outline: 0;
+  transform: scale(1.14);
+}
+
+.layout-graph-endpoint-button[aria-pressed="true"] {
+  background: #302a1b;
+  border-color: #f0c96e;
+}
+
+.layout-graph-endpoints--target .layout-graph-endpoint-button[aria-pressed="true"] {
+  border-color: #b7d58f;
+}
+
+.layout-graph-endpoint-button[aria-pressed="true"] span {
+  background: #f0c96e;
+}
+
+.layout-graph-endpoints--target
+  .layout-graph-endpoint-button[aria-pressed="true"]
+  span {
+  background: #b7d58f;
+}
+
+.layout-graph-endpoint-button--top {
+  top: -9px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.layout-graph-endpoint-button--right {
+  top: 50%;
+  right: -9px;
+  transform: translateY(-50%);
+}
+
+.layout-graph-endpoint-button--bottom {
+  bottom: -9px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.layout-graph-endpoint-button--left {
+  top: 50%;
+  left: -9px;
+  transform: translateY(-50%);
+}
+
+.layout-graph-endpoint-button--top:hover,
+.layout-graph-endpoint-button--top:focus-visible {
+  transform: translateX(-50%) scale(1.14);
+}
+
+.layout-graph-endpoint-button--right:hover,
+.layout-graph-endpoint-button--right:focus-visible {
+  transform: translateY(-50%) scale(1.14);
+}
+
+.layout-graph-endpoint-button--bottom:hover,
+.layout-graph-endpoint-button--bottom:focus-visible {
+  transform: translateX(-50%) scale(1.14);
+}
+
+.layout-graph-endpoint-button--left:hover,
+.layout-graph-endpoint-button--left:focus-visible {
+  transform: translateY(-50%) scale(1.14);
 }
 
 .react-flow__node.selected .layout-graph-node__main {
@@ -1192,14 +1314,23 @@ button {
   height: 10px;
   border: 1px solid #151710;
   background: #d7b65f;
+  pointer-events: none;
 }
 
-.layout-graph-handle--in {
-  left: -6px;
+.layout-graph-handle--top {
+  top: -6px;
 }
 
-.layout-graph-handle--out {
+.layout-graph-handle--right {
   right: -6px;
+}
+
+.layout-graph-handle--bottom {
+  bottom: -6px;
+}
+
+.layout-graph-handle--left {
+  left: -6px;
 }
 
 .layout-graph-node__main {
@@ -1261,6 +1392,15 @@ button {
 .layout-graph-token:hover {
   border-color: #e0a649;
   background: #302a1b;
+}
+
+.layout-graph-token--static {
+  cursor: default;
+}
+
+.layout-graph-token--static:hover {
+  border-color: #4c4c3f;
+  background: #191b15;
 }
 
 .layout-graph-more {

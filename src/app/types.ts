@@ -7,9 +7,16 @@ export interface RecipeLayoutEntry {
 
 export type LayoutReorderPlacement = "before" | "after";
 
+export type GraphSide = "top" | "right" | "bottom" | "left";
+
 export interface GraphNodePosition {
   x: number;
   y: number;
+}
+
+export interface GraphEdgePorts {
+  sourceSide: GraphSide;
+  targetSide: GraphSide;
 }
 
 export interface RecipeLayout {
@@ -17,6 +24,7 @@ export interface RecipeLayout {
   name: string;
   entries: RecipeLayoutEntry[];
   graphPositions: Record<string, GraphNodePosition>;
+  edgePorts: Record<string, GraphEdgePorts>;
   collapsed: boolean;
 }
 

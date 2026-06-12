@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Maximize2, Minimize2, RotateCcw, X } from "lucide-react";
+import {
+  Maximize2,
+  Minimize2,
+  RotateCcw,
+  X,
+} from "lucide-react";
 import {
   applyNodeChanges,
   Background,
@@ -34,7 +39,9 @@ import {
   type RecipeExplorerData,
 } from "../data/factoriolab";
 import type {
+  GraphEdgePorts,
   GraphNodePosition,
+  GraphSide,
   RecipeLayout,
   RecipeLayoutEntry,
 } from "../types";
@@ -44,6 +51,11 @@ const graphColumnGap = 310;
 const graphBaseX = 96;
 const graphBaseY = 88;
 const graphRowGap = 170;
+const graphSides = ["top", "right", "bottom", "left"] as const satisfies readonly GraphSide[];
+const defaultGraphEdgePorts: GraphEdgePorts = {
+  sourceSide: "right",
+  targetSide: "left",
+};
 
 const nodeTypes = {
   recipe: RecipeNode,
@@ -57,6 +69,7 @@ interface LayoutGraphDialogProps {
   data: RecipeExplorerData;
   layout: RecipeLayout;
   onClose(): void;
+  onEdgePortsChange(edgeId: string, ports: GraphEdgePorts): void;
   onNodePositionChange(entryId: string, position: GraphNodePosition): void;
   onResetGraphPositions(): void;
   onSelectItem(itemId: string): void;
@@ -66,24 +79,56 @@ export function LayoutGraphDialog({
   data,
   layout,
   onClose,
+  onEdgePortsChange,
   onNodePositionChange,
   onResetGraphPositions,
   onSelectItem,
 }: LayoutGraphDialogProps) {
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const graph = useMemo(
-    () => buildLayoutGraph(data, layout, onSelectItem),
+    () => buildLayoutGraph(data, layout, onSelectItem, setSelectedEdgeId),
     [data, layout, onSelectItem],
   );
   const [nodes, setNodes] = useState<RecipeFlowNode[]>(graph.nodes);
-  const [edges, setEdges] = useState<ItemFlowEdgeType[]>(graph.edges);
+  const edges = useMemo(
+    () =>
+      graph.edges.map((edge) => ({
+        ...edge,
+        selected: edge.id === selectedEdgeId,
+      })),
+    [graph.edges, selectedEdgeId],
+  );
+  const selectedEdge = edges.find((edge) => edge.id === selectedEdgeId) ?? null;
+  const graphNodes = useMemo(
+    () =>
+      nodes.map((node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          endpointSelector: getEndpointSelectorForNode(
+            node.id,
+            selectedEdge,
+            onEdgePortsChange,
+          ),
+        },
+      })),
+    [nodes, onEdgePortsChange, selectedEdge],
+  );
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const hasSavedPositions = Object.keys(layout.graphPositions).length > 0;
+  const hasSavedGraphState =
+    Object.keys(layout.graphPositions).length > 0 ||
+    Object.keys(layout.edgePorts).length > 0;
   const title = layout.name.trim() || "Untitled layout";
 
   useEffect(() => {
     setNodes(graph.nodes);
-    setEdges(graph.edges);
-  }, [graph.edges, graph.nodes]);
+  }, [graph.nodes]);
+
+  useEffect(() => {
+    if (selectedEdgeId && !graph.edges.some((edge) => edge.id === selectedEdgeId)) {
+      setSelectedEdgeId(null);
+    }
+  }, [graph.edges, selectedEdgeId]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -134,7 +179,7 @@ export function LayoutGraphDialog({
               aria-label="Reset layout graph"
               className="icon-button"
               data-tooltip="Reset graph"
-              disabled={!hasSavedPositions}
+              disabled={!hasSavedGraphState}
               type="button"
               onClick={onResetGraphPositions}
             >
@@ -183,11 +228,14 @@ export function LayoutGraphDialog({
               fitView
               fitViewOptions={{ padding: 0.18 }}
               minZoom={0.25}
-              nodes={nodes}
+              nodes={graphNodes}
               nodeTypes={nodeTypes}
               nodesConnectable={false}
+              onEdgeClick={(_event, edge) => setSelectedEdgeId(edge.id)}
+              onNodeClick={() => setSelectedEdgeId(null)}
               onNodeDragStop={handleNodeDragStop}
               onNodesChange={handleNodesChange}
+              onPaneClick={() => setSelectedEdgeId(null)}
               proOptions={{ hideAttribution: true }}
             >
               <Background color="#4b4735" gap={34} />
@@ -211,10 +259,17 @@ export function LayoutGraphDialog({
 
 interface RecipeNodeData extends Record<string, unknown> {
   data: RecipeExplorerData;
+  endpointSelector?: GraphEndpointSelector | null;
   externalInputs: IngredientPrototype[];
   externalOutputs: ProductPrototype[];
   onSelectItem(itemId: string): void;
   recipe: RecipePrototype;
+}
+
+interface GraphEndpointSelector {
+  activeSide: GraphSide;
+  kind: "source" | "target";
+  onSelectSide(side: GraphSide): void;
 }
 
 type RecipeFlowNode = Node<RecipeNodeData, "recipe">;
@@ -222,21 +277,51 @@ type RecipeFlowNode = Node<RecipeNodeData, "recipe">;
 function RecipeNode({ data }: NodeProps<RecipeFlowNode>) {
   const metadata = getRecipeMetadata(data.recipe);
   const icon = data.data.iconById.get(getRecipeIconId(data.recipe));
+  const endpointSelector = data.endpointSelector;
 
   return (
     <article className="layout-graph-node">
-      <Handle
-        className="layout-graph-handle layout-graph-handle--in"
-        id="in"
-        position={Position.Left}
-        type="target"
-      />
-      <Handle
-        className="layout-graph-handle layout-graph-handle--out"
-        id="out"
-        position={Position.Right}
-        type="source"
-      />
+      {graphSides.map((side) => (
+        <Handle
+          className={`layout-graph-handle layout-graph-handle--${side}`}
+          id={getGraphHandleId("target", side)}
+          key={`target-${side}`}
+          position={getGraphHandlePosition(side)}
+          type="target"
+        />
+      ))}
+      {graphSides.map((side) => (
+        <Handle
+          className={`layout-graph-handle layout-graph-handle--${side}`}
+          id={getGraphHandleId("source", side)}
+          key={`source-${side}`}
+          position={getGraphHandlePosition(side)}
+          type="source"
+        />
+      ))}
+      {endpointSelector ? (
+        <div
+          className={`layout-graph-endpoints layout-graph-endpoints--${endpointSelector.kind}`}
+        >
+          {graphSides.map((side) => (
+            <button
+              aria-label={`Attach ${endpointSelector.kind === "source" ? "start" : "end"} to ${metadata.name} ${side}`}
+              aria-pressed={endpointSelector.activeSide === side}
+              className={`layout-graph-endpoint-button layout-graph-endpoint-button--${side} nodrag nopan`}
+              data-tooltip={`${endpointSelector.kind === "source" ? "Start" : "End"} ${side}`}
+              key={side}
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                endpointSelector.onSelectSide(side);
+              }}
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <span />
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       <div className="layout-graph-node__ports layout-graph-node__ports--in">
         {data.externalInputs.map((entry) => (
@@ -279,15 +364,57 @@ function RecipeNode({ data }: NodeProps<RecipeFlowNode>) {
 interface ItemFlowEdgeData extends Record<string, unknown> {
   data: RecipeExplorerData;
   items: ProductPrototype[];
-  onSelectItem(itemId: string): void;
+  onFocusEdge(edgeId: string): void;
+  ports: GraphEdgePorts;
+  sourceName: string;
+  targetName: string;
 }
 
 type ItemFlowEdgeType = Edge<ItemFlowEdgeData, "item-flow">;
+
+function getEndpointSelectorForNode(
+  nodeId: string,
+  edge: ItemFlowEdgeType | null,
+  onEdgePortsChange: (edgeId: string, ports: GraphEdgePorts) => void,
+): GraphEndpointSelector | null {
+  if (!edge?.data) {
+    return null;
+  }
+
+  const ports = edge.data.ports;
+
+  if (nodeId === edge.source) {
+    return {
+      activeSide: ports.sourceSide,
+      kind: "source",
+      onSelectSide: (sourceSide) =>
+        onEdgePortsChange(edge.id, {
+          ...ports,
+          sourceSide,
+        }),
+    };
+  }
+
+  if (nodeId === edge.target) {
+    return {
+      activeSide: ports.targetSide,
+      kind: "target",
+      onSelectSide: (targetSide) =>
+        onEdgePortsChange(edge.id, {
+          ...ports,
+          targetSide,
+        }),
+    };
+  }
+
+  return null;
+}
 
 function ItemFlowEdge({
   data,
   id,
   markerEnd,
+  selected,
   sourcePosition,
   sourceX,
   sourceY,
@@ -308,31 +435,39 @@ function ItemFlowEdge({
   return (
     <>
       <BaseEdge
-        className="layout-graph-edge"
+        className={`layout-graph-edge ${selected ? "layout-graph-edge--selected" : ""}`}
         id={id}
         path={path}
         {...(markerEnd ? { markerEnd } : {})}
       />
       {edgeData ? (
         <EdgeLabelRenderer>
-          <div
-            className="layout-graph-edge-label nodrag nopan"
+          <button
+            aria-label={`Focus edge from ${edgeData.sourceName} to ${edgeData.targetName}`}
+            className={`layout-graph-edge-label nodrag nopan ${
+              selected ? "layout-graph-edge-label--selected" : ""
+            }`}
             style={{
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
             }}
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              edgeData.onFocusEdge(id);
+            }}
+            onFocus={() => edgeData.onFocusEdge(id)}
           >
             {edgeData.items.slice(0, 3).map((entry) => (
               <GraphItemToken
                 data={edgeData.data}
                 entry={entry}
                 key={`${id}-${entry.type}:${entry.name}`}
-                onSelectItem={edgeData.onSelectItem}
               />
             ))}
             {edgeData.items.length > 3 ? (
               <span className="layout-graph-more">+{edgeData.items.length - 3}</span>
             ) : null}
-          </div>
+          </button>
         </EdgeLabelRenderer>
       ) : null}
     </>
@@ -342,13 +477,26 @@ function ItemFlowEdge({
 interface GraphItemTokenProps {
   data: RecipeExplorerData;
   entry: IngredientPrototype | ProductPrototype;
-  onSelectItem(itemId: string): void;
+  onSelectItem?: (itemId: string) => void;
 }
 
 function GraphItemToken({ data, entry, onSelectItem }: GraphItemTokenProps) {
   const item = data.itemById.get(entry.name);
   const label = item?.name ?? formatId(entry.name);
   const icon = item ? data.iconById.get(getIconIdForItem(item)) : data.iconById.get(entry.name);
+  const content = <IconSprite atlas={data.atlas} icon={icon} label={label} size={22} />;
+
+  if (!item || !onSelectItem) {
+    return (
+      <span
+        aria-label={label}
+        className="layout-graph-token layout-graph-token--static nodrag nopan"
+        data-tooltip={`${label} (${entry.name})`}
+      >
+        {content}
+      </span>
+    );
+  }
 
   return (
     <button
@@ -356,13 +504,9 @@ function GraphItemToken({ data, entry, onSelectItem }: GraphItemTokenProps) {
       className="layout-graph-token nodrag nopan"
       data-tooltip={`${label} (${entry.name})`}
       type="button"
-      onClick={() => {
-        if (item) {
-          onSelectItem(item.id);
-        }
-      }}
+      onClick={() => onSelectItem(item.id)}
     >
-      <IconSprite atlas={data.atlas} icon={icon} label={label} size={22} />
+      {content}
     </button>
   );
 }
@@ -394,6 +538,7 @@ function buildLayoutGraph(
   data: RecipeExplorerData,
   layout: RecipeLayout,
   onSelectItem: (itemId: string) => void,
+  onFocusEdge: (edgeId: string) => void,
 ): LayoutGraphModel {
   const entries = getGraphEntries(data, layout);
   const graphNodes: GraphNodeModel[] = entries.map(({ entry, recipe, sortKey }) => ({
@@ -413,7 +558,7 @@ function buildLayoutGraph(
   attachExternalItems(graphNodes);
 
   return {
-    edges: buildFlowEdges(data, edgeDrafts, onSelectItem),
+    edges: buildFlowEdges(data, graphNodes, edgeDrafts, layout.edgePorts, onFocusEdge),
     nodes: graphNodes.map((node) => ({
       id: node.id,
       type: "recipe",
@@ -616,16 +761,38 @@ function attachExternalItems(nodes: GraphNodeModel[]) {
 
 function buildFlowEdges(
   data: RecipeExplorerData,
+  nodes: GraphNodeModel[],
   edgeDrafts: GraphEdgeDraft[],
-  onSelectItem: (itemId: string) => void,
+  edgePorts: Record<string, GraphEdgePorts>,
+  onFocusEdge: (edgeId: string) => void,
 ): ItemFlowEdgeType[] {
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+
   return edgeDrafts.map((edge) => ({
+    ...buildFlowEdge(
+      data,
+      edge,
+      nodeById,
+      edgePorts[edge.id] ?? defaultGraphEdgePorts,
+      onFocusEdge,
+    ),
+  }));
+}
+
+function buildFlowEdge(
+  data: RecipeExplorerData,
+  edge: GraphEdgeDraft,
+  nodeById: Map<string, GraphNodeModel>,
+  ports: GraphEdgePorts,
+  onFocusEdge: (edgeId: string) => void,
+): ItemFlowEdgeType {
+  return {
     id: edge.id,
     type: "item-flow",
     source: edge.sourceId,
     target: edge.targetId,
-    sourceHandle: "out",
-    targetHandle: "in",
+    sourceHandle: getGraphHandleId("source", ports.sourceSide),
+    targetHandle: getGraphHandleId("target", ports.targetSide),
     markerEnd: {
       type: MarkerType.ArrowClosed,
       color: "#d7b65f",
@@ -633,9 +800,33 @@ function buildFlowEdges(
     data: {
       data,
       items: edge.items,
-      onSelectItem,
+      onFocusEdge,
+      ports,
+      sourceName: getGraphNodeName(nodeById.get(edge.sourceId)),
+      targetName: getGraphNodeName(nodeById.get(edge.targetId)),
     },
-  }));
+  };
+}
+
+function getGraphHandleId(kind: "source" | "target", side: GraphSide): string {
+  return `${kind}-${side}`;
+}
+
+function getGraphHandlePosition(side: GraphSide): Position {
+  switch (side) {
+    case "top":
+      return Position.Top;
+    case "right":
+      return Position.Right;
+    case "bottom":
+      return Position.Bottom;
+    case "left":
+      return Position.Left;
+  }
+}
+
+function getGraphNodeName(node: GraphNodeModel | undefined): string {
+  return node ? getRecipeMetadata(node.recipe).name : "Unknown recipe";
 }
 
 function compareGraphEntries(left: GraphEntry, right: GraphEntry): number {
