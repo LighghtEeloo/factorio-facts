@@ -1,47 +1,59 @@
 # factorio-facts
 
-## Goal
+## Purpose
 
-factorio-facts is a TypeScript tool for exploring Factorio Space Age recipe dependencies. The primary workflow is selecting an item or fluid and seeing which recipes produce it and which recipes consume it, so a player can reason about factory layout without needing production ratios or optimizer-style calculations.
+factorio-facts is a local TypeScript app for exploring Factorio Space Age recipe dependencies. It helps a player select an item or fluid, see which recipes make it and which recipes use it, and collect recipe instances into small planning layouts. It is not a production-ratio solver.
 
-## Data Strategy
+## Data
 
-Use Factorio's own prototype data as the source of truth. Official online docs define the prototype schema and document the `data.raw` dump mechanism; they do not provide a complete machine-readable Space Age recipe list. For vanilla Space Age, recipes should come from a user-provided `data.raw` JSON dump produced by Factorio with the official Space Age-related mods enabled and unrelated community mods disabled. Treat `data.raw.recipe` as the canonical recipe collection.
+Factorio prototype data is the source of truth. Official docs define the schema and `data.raw` dump mechanism, but they do not publish a complete machine-readable Space Age recipe list. For reliable vanilla Space Age data, ingest a user-provided `data.raw` JSON dump from Factorio with the official Space Age-related mods enabled and unrelated community mods disabled. Treat `data.raw.recipe` as canonical.
 
-FactorioLab data and icons may be used as a bootstrap source for the first UI and illustration pass. Keep this behind an adapter because FactorioLab uses an app-specific calculator schema rather than raw `RecipePrototype`. If vendoring FactorioLab files, include the upstream MIT license notice and preserve a clear source/attribution record. Treat Factorio-derived icons as a public-distribution licensing checkpoint before shipping.
+The current UI may use vendored FactorioLab data and icons as a bootstrap source. Keep that path behind `src/factoriolab/adapter.ts` because FactorioLab uses an app-specific calculator schema, not raw `RecipePrototype`. Preserve upstream attribution and license notices, and treat Factorio-derived icon redistribution as a shipping checkpoint.
 
-Keep imported recipes close to Factorio's `RecipePrototype` shape. Preserve fields such as `ingredients`, `results`, `category`, `enabled`, `hidden`, and `surface_conditions`; do not flatten away Space Age details that may become useful for filtering by planet, surface property, or crafting context.
+Keep imported recipes close to Factorio's `RecipePrototype` shape. Preserve fields such as `ingredients`, `results`, `category`, `enabled`, `hidden`, and `surface_conditions`; avoid flattening Space Age details that may matter for filtering by surface, planet, or crafting context.
 
-## Implementation Strategy
+## Model
 
-Model recipe relationships as a graph, not a strict tree. A recipe can have many inputs and many outputs, and the same item can be produced or consumed by multiple recipes. The first useful graph layer should answer:
+Model dependencies as a graph, not a strict tree. Recipes can have many inputs, many outputs, alternate producers, fluids, surfaces, spoilage behavior, and recycling paths. The core questions are:
 
-- `madeBy(itemOrFluid)`: recipes that produce the selected item or fluid.
-- `usedIn(itemOrFluid)`: recipes that consume the selected item or fluid.
+- `madeBy(itemOrFluid)`: recipes that produce the selected prototype.
+- `usedIn(itemOrFluid)`: recipes that consume the selected prototype.
 - `connectedRecipes(itemOrFluid)`: both directions for the selected prototype.
 
-Avoid ratio calculations in the first version. Keep amounts and probabilities in the model for labels and future work, but optimize the first UI for clarity, searching, filtering, and expansion.
+Keep ingredient/result amounts and probabilities for labels and future work, but avoid ratio calculations unless the project explicitly adds that feature.
 
-## Source Layout
+## App Behavior
 
-- `src/factorio/prototypes.ts`: TypeScript interfaces for the Factorio recipe prototype subset we consume.
-- `src/factorio/recipe-book.ts`: Helpers for extracting recipes from a `data.raw` dump and indexing item/fluid relationships.
-- `src/factoriolab/adapter.ts`: Adapter from vendored FactorioLab Space Age data into the graph-ready recipe model.
-- `src/app/`: Vite/React recipe explorer UI.
-- `data/vendor/factoriolab/`: Vendored FactorioLab bootstrap data and upstream attribution.
-- `docs/data-source.md`: Notes on obtaining reliable recipe data.
-- `docs/ui-ux.md`: Current UI/UX design notes.
+The app is a three-pane Vite/React workbench:
+
+- Left: item selector entry point and layout management.
+- Center: selected item context plus `Made by` and `Used in` recipe columns.
+- Right: filters for surface, category, and recipe flags.
+
+Layouts are ordered lists of recipe instances. Duplicate recipes are allowed. The focused layout receives new recipe instances, row numbers act as reorder handles, populated layouts can open a React Flow graph, and graph node positions are persisted in the URL.
+
+## Source Map
+
+- `src/factorio/prototypes.ts`: Factorio prototype interfaces consumed by the app.
+- `src/factorio/recipe-book.ts`: extraction and relationship indexing for `data.raw`.
+- `src/factoriolab/adapter.ts`: FactorioLab-to-recipe-model bootstrap adapter.
+- `src/app/`: Vite/React UI, URL state, filters, layouts, and graph dialog.
+- `data/vendor/factoriolab/`: vendored FactorioLab bootstrap data and attribution.
+- `docs/data-source.md`: reliable recipe data notes.
+- `docs/ui-ux.md`: current UI and interaction design notes.
 
 ## Tooling
 
 - Use the user's `fnm` Node/npm setup.
-- Install dependencies locally in this repo with `npm install`.
+- Install dependencies locally with `npm install`.
 - Use local npm scripts; do not rely on global TypeScript.
-- Verify TypeScript with `npm run check`.
-- Build the app with `npm run build`.
-- Inspect bootstrap recipes with `npm run inspect:factoriolab -- <item-id>`.
+- Run `npm run check` for TypeScript verification.
+- Run `npm run build` for a production build.
+- Run `npm run inspect:factoriolab -- <item-id>` to inspect bootstrap recipe data.
 - Do not run Factorio locally unless explicitly asked.
 
-## Working Notes
+## Maintenance Notes
 
-Prefer small, typed data transforms over ad hoc string parsing. When adding fields from Factorio prototypes, consult the official prototype docs and keep unknown fields preserved when practical, because Factorio and Space Age data evolves over time.
+Prefer small, typed data transforms over ad hoc string parsing. When adding Factorio prototype fields, consult the official prototype docs and preserve unknown fields when practical because Factorio and Space Age data can evolve.
+
+review and update AGENTS.md and other documentation whenever codebase changes.
