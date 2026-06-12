@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import {
   Maximize2,
   Minimize2,
@@ -17,6 +24,7 @@ import {
   Position,
   ReactFlow,
   getBezierPath,
+  useReactFlow,
   type Edge,
   type EdgeProps,
   type EdgeTypes,
@@ -39,6 +47,7 @@ import {
   type RecipeExplorerData,
 } from "../data/factoriolab";
 import type {
+  GraphEdgeRoute,
   GraphEdgePorts,
   GraphNodePosition,
   GraphSide,
@@ -70,6 +79,8 @@ interface LayoutGraphDialogProps {
   layout: RecipeLayout;
   onClose(): void;
   onEdgePortsChange(edgeId: string, ports: GraphEdgePorts): void;
+  onEdgeRouteChange(edgeId: string, route: GraphEdgeRoute): void;
+  onEdgeRouteReset(edgeId: string): void;
   onNodePositionChange(entryId: string, position: GraphNodePosition): void;
   onResetGraphPositions(): void;
   onSelectItem(itemId: string): void;
@@ -80,14 +91,24 @@ export function LayoutGraphDialog({
   layout,
   onClose,
   onEdgePortsChange,
+  onEdgeRouteChange,
+  onEdgeRouteReset,
   onNodePositionChange,
   onResetGraphPositions,
   onSelectItem,
 }: LayoutGraphDialogProps) {
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const graph = useMemo(
-    () => buildLayoutGraph(data, layout, onSelectItem, setSelectedEdgeId),
-    [data, layout, onSelectItem],
+    () =>
+      buildLayoutGraph(
+        data,
+        layout,
+        onSelectItem,
+        setSelectedEdgeId,
+        onEdgeRouteChange,
+        onEdgeRouteReset,
+      ),
+    [data, layout, onEdgeRouteChange, onEdgeRouteReset, onSelectItem],
   );
   const [nodes, setNodes] = useState<RecipeFlowNode[]>(graph.nodes);
   const edges = useMemo(
@@ -117,7 +138,8 @@ export function LayoutGraphDialog({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const hasSavedGraphState =
     Object.keys(layout.graphPositions).length > 0 ||
-    Object.keys(layout.edgePorts).length > 0;
+    Object.keys(layout.edgePorts).length > 0 ||
+    Object.keys(layout.edgeRoutes).length > 0;
   const title = layout.name.trim() || "Untitled layout";
 
   useEffect(() => {
@@ -365,7 +387,10 @@ interface ItemFlowEdgeData extends Record<string, unknown> {
   data: RecipeExplorerData;
   items: ProductPrototype[];
   onFocusEdge(edgeId: string): void;
+  onRouteChange(edgeId: string, route: GraphEdgeRoute): void;
+  onRouteReset(edgeId: string): void;
   ports: GraphEdgePorts;
+  route: GraphEdgeRoute | null;
   sourceName: string;
   targetName: string;
 }
@@ -422,7 +447,13 @@ function ItemFlowEdge({
   targetX,
   targetY,
 }: EdgeProps<ItemFlowEdgeType>) {
-  const [path, labelX, labelY] = getBezierPath({
+  const reactFlow = useReactFlow<RecipeFlowNode, ItemFlowEdgeType>();
+  const dragMovedRef = useRef(false);
+  const draggingPointerIdRef = useRef<number | null>(null);
+  const lastRouteRef = useRef<GraphEdgeRoute | null>(null);
+  const [draftRoute, setDraftRoute] = useState<GraphEdgeRoute | null>(null);
+  const [isRouteDragging, setIsRouteDragging] = useState(false);
+  const [bezierPath, bezierLabelX, bezierLabelY] = getBezierPath({
     sourceX,
     sourceY,
     sourcePosition,
@@ -431,6 +462,113 @@ function ItemFlowEdge({
     targetPosition,
   });
   const edgeData = data;
+  const route = draftRoute ?? edgeData?.route ?? null;
+  const path = route
+    ? getRoutedEdgePath(
+        sourceX,
+        sourceY,
+        sourcePosition,
+        route,
+        targetX,
+        targetY,
+        targetPosition,
+      )
+    : bezierPath;
+  const labelX = route?.x ?? bezierLabelX;
+  const labelY = route?.y ?? bezierLabelY;
+
+  useEffect(() => {
+    if (!isRouteDragging || !edgeData) {
+      return;
+    }
+
+    const activeEdgeData = edgeData;
+
+    function handlePointerMove(event: PointerEvent) {
+      if (draggingPointerIdRef.current !== event.pointerId) {
+        return;
+      }
+
+      event.preventDefault();
+      dragMovedRef.current = true;
+      const nextRoute = getRouteFromClientPoint(event.clientX, event.clientY);
+
+      lastRouteRef.current = nextRoute;
+      setDraftRoute(nextRoute);
+    }
+
+    function handlePointerEnd(event: PointerEvent) {
+      if (draggingPointerIdRef.current !== event.pointerId) {
+        return;
+      }
+
+      event.preventDefault();
+      const finalRoute = dragMovedRef.current
+        ? lastRouteRef.current ?? getRouteFromClientPoint(event.clientX, event.clientY)
+        : null;
+
+      draggingPointerIdRef.current = null;
+      dragMovedRef.current = false;
+      lastRouteRef.current = null;
+      setIsRouteDragging(false);
+
+      if (finalRoute) {
+        setDraftRoute(finalRoute);
+        activeEdgeData.onRouteChange(id, finalRoute);
+      }
+    }
+
+    window.addEventListener("pointermove", handlePointerMove, { passive: false });
+    window.addEventListener("pointerup", handlePointerEnd);
+    window.addEventListener("pointercancel", handlePointerEnd);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerEnd);
+      window.removeEventListener("pointercancel", handlePointerEnd);
+    };
+  }, [edgeData, id, isRouteDragging, reactFlow]);
+
+  useEffect(() => {
+    if (isRouteDragging) {
+      return;
+    }
+
+    setDraftRoute(null);
+    setIsRouteDragging(false);
+    dragMovedRef.current = false;
+    draggingPointerIdRef.current = null;
+    lastRouteRef.current = null;
+  }, [edgeData?.route?.x, edgeData?.route?.y, id, isRouteDragging]);
+
+  function getRouteFromClientPoint(clientX: number, clientY: number): GraphEdgeRoute {
+    const position = reactFlow.screenToFlowPosition(
+      {
+        x: clientX,
+        y: clientY,
+      },
+      { snapToGrid: false },
+    );
+
+    return {
+      x: Math.round(position.x),
+      y: Math.round(position.y),
+    };
+  }
+
+  function startRouteDrag(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (!edgeData) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    edgeData.onFocusEdge(id);
+    draggingPointerIdRef.current = event.pointerId;
+    dragMovedRef.current = false;
+    lastRouteRef.current = edgeData.route;
+    setIsRouteDragging(true);
+  }
 
   return (
     <>
@@ -446,7 +584,8 @@ function ItemFlowEdge({
             aria-label={`Focus edge from ${edgeData.sourceName} to ${edgeData.targetName}`}
             className={`layout-graph-edge-label nodrag nopan ${
               selected ? "layout-graph-edge-label--selected" : ""
-            }`}
+            } ${isRouteDragging ? "layout-graph-edge-label--dragging" : ""}`}
+            data-tooltip={selected ? "Drag to bend edge" : "Focus or drag edge"}
             style={{
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
             }}
@@ -456,6 +595,7 @@ function ItemFlowEdge({
               edgeData.onFocusEdge(id);
             }}
             onFocus={() => edgeData.onFocusEdge(id)}
+            onPointerDown={startRouteDrag}
           >
             {edgeData.items.slice(0, 3).map((entry) => (
               <GraphItemToken
@@ -468,6 +608,25 @@ function ItemFlowEdge({
               <span className="layout-graph-more">+{edgeData.items.length - 3}</span>
             ) : null}
           </button>
+          {selected && edgeData.route ? (
+            <button
+              aria-label={`Reset edge route from ${edgeData.sourceName} to ${edgeData.targetName}`}
+              className="layout-graph-edge-route-reset nodrag nopan"
+              data-tooltip="Reset edge route"
+              style={{
+                transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY - 34}px)`,
+              }}
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                edgeData.onFocusEdge(id);
+                edgeData.onRouteReset(id);
+              }}
+              onPointerDown={(event) => event.stopPropagation()}
+            >
+              <RotateCcw size={12} aria-hidden="true" />
+            </button>
+          ) : null}
         </EdgeLabelRenderer>
       ) : null}
     </>
@@ -539,6 +698,8 @@ function buildLayoutGraph(
   layout: RecipeLayout,
   onSelectItem: (itemId: string) => void,
   onFocusEdge: (edgeId: string) => void,
+  onEdgeRouteChange: (edgeId: string, route: GraphEdgeRoute) => void,
+  onEdgeRouteReset: (edgeId: string) => void,
 ): LayoutGraphModel {
   const entries = getGraphEntries(data, layout);
   const graphNodes: GraphNodeModel[] = entries.map(({ entry, recipe, sortKey }) => ({
@@ -558,7 +719,16 @@ function buildLayoutGraph(
   attachExternalItems(graphNodes);
 
   return {
-    edges: buildFlowEdges(data, graphNodes, edgeDrafts, layout.edgePorts, onFocusEdge),
+    edges: buildFlowEdges(
+      data,
+      graphNodes,
+      edgeDrafts,
+      layout.edgePorts,
+      layout.edgeRoutes,
+      onFocusEdge,
+      onEdgeRouteChange,
+      onEdgeRouteReset,
+    ),
     nodes: graphNodes.map((node) => ({
       id: node.id,
       type: "recipe",
@@ -764,7 +934,10 @@ function buildFlowEdges(
   nodes: GraphNodeModel[],
   edgeDrafts: GraphEdgeDraft[],
   edgePorts: Record<string, GraphEdgePorts>,
+  edgeRoutes: Record<string, GraphEdgeRoute>,
   onFocusEdge: (edgeId: string) => void,
+  onEdgeRouteChange: (edgeId: string, route: GraphEdgeRoute) => void,
+  onEdgeRouteReset: (edgeId: string) => void,
 ): ItemFlowEdgeType[] {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
 
@@ -774,7 +947,10 @@ function buildFlowEdges(
       edge,
       nodeById,
       edgePorts[edge.id] ?? defaultGraphEdgePorts,
+      edgeRoutes[edge.id] ?? null,
       onFocusEdge,
+      onEdgeRouteChange,
+      onEdgeRouteReset,
     ),
   }));
 }
@@ -784,7 +960,10 @@ function buildFlowEdge(
   edge: GraphEdgeDraft,
   nodeById: Map<string, GraphNodeModel>,
   ports: GraphEdgePorts,
+  route: GraphEdgeRoute | null,
   onFocusEdge: (edgeId: string) => void,
+  onEdgeRouteChange: (edgeId: string, route: GraphEdgeRoute) => void,
+  onEdgeRouteReset: (edgeId: string) => void,
 ): ItemFlowEdgeType {
   return {
     id: edge.id,
@@ -801,11 +980,149 @@ function buildFlowEdge(
       data,
       items: edge.items,
       onFocusEdge,
+      onRouteChange: onEdgeRouteChange,
+      onRouteReset: onEdgeRouteReset,
       ports,
+      route,
       sourceName: getGraphNodeName(nodeById.get(edge.sourceId)),
       targetName: getGraphNodeName(nodeById.get(edge.targetId)),
     },
   };
+}
+
+function getRoutedEdgePath(
+  sourceX: number,
+  sourceY: number,
+  sourcePosition: Position,
+  route: GraphEdgeRoute,
+  targetX: number,
+  targetY: number,
+  targetPosition: Position,
+): string {
+  const source = { x: sourceX, y: sourceY };
+  const target = { x: targetX, y: targetY };
+  const sourceDirection = getPositionVector(sourcePosition);
+  const targetDirection = getPositionVector(targetPosition);
+  const sourceDistance = getDistance(source, route);
+  const targetDistance = getDistance(route, target);
+  const sourceControlOffset = getEndpointControlOffset(
+    source,
+    route,
+    sourcePosition,
+    sourceDistance,
+  );
+  const targetControlOffset = getEndpointControlOffset(
+    target,
+    route,
+    targetPosition,
+    targetDistance,
+  );
+  const routeTangent = getRouteTangent(source, route, target);
+  const routeSourceOffset = getRouteControlOffset(sourceDistance);
+  const routeTargetOffset = getRouteControlOffset(targetDistance);
+  const sourceControl = {
+    x: source.x + sourceDirection.x * sourceControlOffset,
+    y: source.y + sourceDirection.y * sourceControlOffset,
+  };
+  const routeEntryControl = {
+    x: route.x - routeTangent.x * routeSourceOffset,
+    y: route.y - routeTangent.y * routeSourceOffset,
+  };
+  const routeExitControl = {
+    x: route.x + routeTangent.x * routeTargetOffset,
+    y: route.y + routeTangent.y * routeTargetOffset,
+  };
+  const targetControl = {
+    x: target.x + targetDirection.x * targetControlOffset,
+    y: target.y + targetDirection.y * targetControlOffset,
+  };
+
+  return [
+    `M ${source.x},${source.y}`,
+    `C ${sourceControl.x},${sourceControl.y}`,
+    `${routeEntryControl.x},${routeEntryControl.y}`,
+    `${route.x},${route.y}`,
+    `C ${routeExitControl.x},${routeExitControl.y}`,
+    `${targetControl.x},${targetControl.y}`,
+    `${target.x},${target.y}`,
+  ].join(" ");
+}
+
+interface GraphPoint {
+  x: number;
+  y: number;
+}
+
+function getPositionVector(position: Position): GraphPoint {
+  switch (position) {
+    case Position.Top:
+      return { x: 0, y: -1 };
+    case Position.Right:
+      return { x: 1, y: 0 };
+    case Position.Bottom:
+      return { x: 0, y: 1 };
+    case Position.Left:
+      return { x: -1, y: 0 };
+  }
+}
+
+function getEndpointControlOffset(
+  endpoint: GraphPoint,
+  route: GraphPoint,
+  position: Position,
+  distance: number,
+): number {
+  if (distance === 0) {
+    return 0;
+  }
+
+  const axisDistance =
+    position === Position.Left || position === Position.Right
+      ? Math.abs(route.x - endpoint.x)
+      : Math.abs(route.y - endpoint.y);
+  const offset = Math.max(42, axisDistance * 0.55, distance * 0.24);
+
+  return Math.min(220, offset, distance * 0.9);
+}
+
+function getRouteControlOffset(distance: number): number {
+  if (distance === 0) {
+    return 0;
+  }
+
+  return Math.min(160, Math.max(18, distance * 0.35), distance * 0.65);
+}
+
+function getRouteTangent(
+  source: GraphPoint,
+  route: GraphPoint,
+  target: GraphPoint,
+): GraphPoint {
+  const incoming = normalizeVector(route.x - source.x, route.y - source.y);
+  const outgoing = normalizeVector(target.x - route.x, target.y - route.y);
+  const combined = normalizeVector(
+    (incoming?.x ?? 0) + (outgoing?.x ?? 0),
+    (incoming?.y ?? 0) + (outgoing?.y ?? 0),
+  );
+
+  return combined ?? outgoing ?? incoming ?? { x: 1, y: 0 };
+}
+
+function normalizeVector(x: number, y: number): GraphPoint | null {
+  const length = Math.hypot(x, y);
+
+  if (!length) {
+    return null;
+  }
+
+  return {
+    x: x / length,
+    y: y / length,
+  };
+}
+
+function getDistance(left: GraphPoint, right: GraphPoint): number {
+  return Math.hypot(right.x - left.x, right.y - left.y);
 }
 
 function getGraphHandleId(kind: "source" | "target", side: GraphSide): string {

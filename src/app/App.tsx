@@ -15,6 +15,7 @@ import {
 } from "./data/factoriolab";
 import type {
   FilterState,
+  GraphEdgeRoute,
   GraphEdgePorts,
   GraphNodePosition,
   GraphSide,
@@ -162,6 +163,7 @@ export function App() {
               entries: layout.entries.filter((entry) => entry.id !== entryId),
               graphPositions: omitGraphPosition(layout.graphPositions, entryId),
               edgePorts: omitGraphEdgePorts(layout.edgePorts, entryId),
+              edgeRoutes: omitGraphEdgeRoutes(layout.edgeRoutes, entryId),
             }
           : layout,
       ),
@@ -281,11 +283,48 @@ export function App() {
     );
   }
 
+  function updateLayoutGraphEdgeRoute(
+    layoutId: string,
+    edgeId: string,
+    route: GraphEdgeRoute,
+  ) {
+    setLayouts((currentLayouts) =>
+      currentLayouts.map((layout) =>
+        layout.id === layoutId
+          ? {
+              ...layout,
+              edgeRoutes: {
+                ...layout.edgeRoutes,
+                [edgeId]: {
+                  x: Math.round(route.x),
+                  y: Math.round(route.y),
+                },
+              },
+            }
+          : layout,
+      ),
+    );
+  }
+
+  function resetLayoutGraphEdgeRoute(layoutId: string, edgeId: string) {
+    setLayouts((currentLayouts) =>
+      currentLayouts.map((layout) => {
+        if (layout.id !== layoutId) {
+          return layout;
+        }
+
+        const { [edgeId]: _removedRoute, ...edgeRoutes } = layout.edgeRoutes;
+
+        return { ...layout, edgeRoutes };
+      }),
+    );
+  }
+
   function resetLayoutGraph(layoutId: string) {
     setLayouts((currentLayouts) =>
       currentLayouts.map((layout) =>
         layout.id === layoutId
-          ? { ...layout, graphPositions: {}, edgePorts: {} }
+          ? { ...layout, graphPositions: {}, edgePorts: {}, edgeRoutes: {} }
           : layout,
       ),
     );
@@ -397,6 +436,12 @@ export function App() {
           onClose={() => setGraphLayoutId(null)}
           onEdgePortsChange={(edgeId, ports) =>
             updateLayoutGraphEdgePorts(graphLayout.id, edgeId, ports)
+          }
+          onEdgeRouteChange={(edgeId, route) =>
+            updateLayoutGraphEdgeRoute(graphLayout.id, edgeId, route)
+          }
+          onEdgeRouteReset={(edgeId) =>
+            resetLayoutGraphEdgeRoute(graphLayout.id, edgeId)
           }
           onNodePositionChange={(entryId, position) =>
             updateLayoutGraphNodePosition(graphLayout.id, entryId, position)
@@ -553,6 +598,7 @@ interface SerializedLayout {
   i?: unknown;
   n?: unknown;
   p?: unknown;
+  r?: unknown;
 }
 
 interface SerializedLayoutEntry {
@@ -614,6 +660,7 @@ function parseLayout(
     i: rawId,
     n: rawName,
     p: rawGraphPositions,
+    r: rawEdgeRoutes,
   } = rawLayout as SerializedLayout;
   const id = getUniqueId(
     typeof rawId === "string" && rawId ? rawId : `layout-${index + 1}`,
@@ -633,6 +680,7 @@ function parseLayout(
       entries,
       graphPositions: parseGraphPositions(rawGraphPositions, entries),
       edgePorts: parseGraphEdgePorts(rawEdgePorts, entries),
+      edgeRoutes: parseGraphEdgeRoutes(rawEdgeRoutes, entries),
       collapsed: rawCollapsed === 1 || rawCollapsed === true,
     },
   ];
@@ -701,6 +749,60 @@ function parseGraphEdgePorts(
   return edgePorts;
 }
 
+function parseGraphEdgeRoutes(
+  value: unknown,
+  entries: RecipeLayoutEntry[],
+): Record<string, GraphEdgeRoute> {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  const entryIds = new Set(entries.map((entry) => entry.id));
+  const edgeRoutes: Record<string, GraphEdgeRoute> = {};
+
+  for (const [edgeId, rawRoute] of Object.entries(value)) {
+    const edgeEntryIds = parseGraphEdgeId(edgeId);
+
+    if (
+      !edgeEntryIds ||
+      !entryIds.has(edgeEntryIds.sourceId) ||
+      !entryIds.has(edgeEntryIds.targetId)
+    ) {
+      continue;
+    }
+
+    const route = parseGraphPoint(rawRoute);
+
+    if (route) {
+      edgeRoutes[edgeId] = route;
+    }
+  }
+
+  return edgeRoutes;
+}
+
+function parseGraphPoint(value: unknown): GraphEdgeRoute | null {
+  let rawX: unknown;
+  let rawY: unknown;
+
+  if (Array.isArray(value)) {
+    rawX = value[0];
+    rawY = value[1];
+  } else if (isRecord(value)) {
+    rawX = value.x;
+    rawY = value.y;
+  }
+
+  if (typeof rawX !== "number" || typeof rawY !== "number") {
+    return null;
+  }
+
+  return {
+    x: Math.round(rawX),
+    y: Math.round(rawY),
+  };
+}
+
 function parseGraphEdgePortValue(value: unknown): GraphEdgePorts | null {
   let rawSourceSide: unknown;
   let rawTargetSide: unknown;
@@ -766,6 +868,7 @@ function serializeLayoutState(layouts: RecipeLayout[], focusedLayoutId: string):
       e: layout.entries.map((entry) => [entry.id, entry.recipeId]),
       h: serializeGraphEdgePorts(layout),
       p: serializeGraphPositions(layout),
+      r: serializeGraphEdgeRoutes(layout),
     })),
   });
 }
@@ -810,6 +913,29 @@ function serializeGraphEdgePorts(
   return Object.keys(edgePorts).length ? edgePorts : undefined;
 }
 
+function serializeGraphEdgeRoutes(
+  layout: RecipeLayout,
+): Record<string, [number, number]> | undefined {
+  const entryIds = new Set(layout.entries.map((entry) => entry.id));
+  const edgeRoutes: Record<string, [number, number]> = {};
+
+  for (const [edgeId, route] of Object.entries(layout.edgeRoutes)) {
+    const edgeEntryIds = parseGraphEdgeId(edgeId);
+
+    if (
+      !edgeEntryIds ||
+      !entryIds.has(edgeEntryIds.sourceId) ||
+      !entryIds.has(edgeEntryIds.targetId)
+    ) {
+      continue;
+    }
+
+    edgeRoutes[edgeId] = [Math.round(route.x), Math.round(route.y)];
+  }
+
+  return Object.keys(edgeRoutes).length ? edgeRoutes : undefined;
+}
+
 function isDefaultLayoutState(
   layouts: RecipeLayout[],
   focusedLayoutId: string,
@@ -824,7 +950,8 @@ function isDefaultLayoutState(
     !layout.collapsed &&
     layout.entries.length === 0 &&
     Object.keys(layout.graphPositions).length === 0 &&
-    Object.keys(layout.edgePorts).length === 0
+    Object.keys(layout.edgePorts).length === 0 &&
+    Object.keys(layout.edgeRoutes).length === 0
   );
 }
 
@@ -841,6 +968,7 @@ function createEmptyLayout(id: string): RecipeLayout {
     entries: [],
     graphPositions: {},
     edgePorts: {},
+    edgeRoutes: {},
     collapsed: false,
   };
 }
@@ -888,6 +1016,27 @@ function omitGraphEdgePorts(
   }
 
   return remainingPorts;
+}
+
+function omitGraphEdgeRoutes(
+  edgeRoutes: Record<string, GraphEdgeRoute>,
+  entryId: string,
+): Record<string, GraphEdgeRoute> {
+  const remainingRoutes: Record<string, GraphEdgeRoute> = {};
+
+  for (const [edgeId, route] of Object.entries(edgeRoutes)) {
+    const edgeEntryIds = parseGraphEdgeId(edgeId);
+
+    if (
+      edgeEntryIds &&
+      edgeEntryIds.sourceId !== entryId &&
+      edgeEntryIds.targetId !== entryId
+    ) {
+      remainingRoutes[edgeId] = route;
+    }
+  }
+
+  return remainingRoutes;
 }
 
 function parseGraphEdgeId(edgeId: string): { sourceId: string; targetId: string } | null {

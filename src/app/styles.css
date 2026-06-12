@@ -1178,7 +1178,7 @@ button {
   background: rgba(21, 23, 16, 0.92);
   padding: 3px;
   color: #f0eee4;
-  cursor: pointer;
+  cursor: grab;
   pointer-events: all;
 }
 
@@ -1187,6 +1187,40 @@ button {
   border-color: #e0a649;
   background: rgba(48, 42, 27, 0.96);
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.26);
+}
+
+.layout-graph-edge-label:active,
+.layout-graph-edge-label--dragging {
+  cursor: grabbing;
+}
+
+.layout-graph-edge-label--dragging {
+  border-color: #f0c96e;
+  background: rgba(55, 44, 24, 0.98);
+}
+
+.layout-graph-edge-route-reset {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid #4c4c3f;
+  border-radius: 999px;
+  background: rgba(21, 23, 16, 0.94);
+  padding: 0;
+  color: #d7b65f;
+  cursor: pointer;
+  line-height: 0;
+  pointer-events: all;
+}
+
+.layout-graph-edge-route-reset:hover,
+.layout-graph-edge-route-reset:focus-visible {
+  border-color: #e0a649;
+  background: rgba(48, 42, 27, 0.96);
+  color: #f0eee4;
+  outline: 0;
 }
 
 .layout-graph-node {

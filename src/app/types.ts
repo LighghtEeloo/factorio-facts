@@ -19,12 +19,18 @@ export interface GraphEdgePorts {
   targetSide: GraphSide;
 }
 
+export interface GraphEdgeRoute {
+  x: number;
+  y: number;
+}
+
 export interface RecipeLayout {
   id: string;
   name: string;
   entries: RecipeLayoutEntry[];
   graphPositions: Record<string, GraphNodePosition>;
   edgePorts: Record<string, GraphEdgePorts>;
+  edgeRoutes: Record<string, GraphEdgeRoute>;
   collapsed: boolean;
 }
 

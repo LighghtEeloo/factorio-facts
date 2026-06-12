@@ -30,7 +30,7 @@ Each layout is an ordered list of recipe instances, not a set of recipe ids. The
 
 The left panel lets users create, focus, rename, collapse, and graph populated layouts. Empty layouts show delete in the same action slot where populated layouts show graph. Collapsed layouts keep their recipes but hide the list for scanning.
 
-Layout state is serialized into the URL once it differs from the default empty layout. The URL stores layout ids, entry ids, names, collapsed flags, focused layout id, ordered recipe entries, graph node positions, and graph edge endpoint choices so duplicate recipe instances and manual graph cleanup survive reloads.
+Layout state is serialized into the URL once it differs from the default empty layout. The URL stores layout ids, entry ids, names, collapsed flags, focused layout id, ordered recipe entries, graph node positions, graph edge endpoint choices, and graph edge bend points so duplicate recipe instances and manual graph cleanup survive reloads.
 
 ## Layout Graphs
 
@@ -38,7 +38,7 @@ A layout graph popup renders recipe instances as vertices using React Flow (`@xy
 
 Graph rendering treats the layout contents as a multiset of recipe instances. The sidebar list order is useful for managing entries, but it does not determine graph geometry; vertices are ranked from inferred producer-to-consumer relationships and sorted by stable recipe identity within each rank.
 
-Users can drag recipe vertices in the graph. Dragged positions are stored by layout entry id in the URL, so manual graph arrangement survives reloads and sharing. Edges can be focused from the line or item-flow label; when an edge is focused, its source and target nodes show clickable endpoint targets on all four sides so users can choose where the edge starts and ends. The graph popup reset button clears saved positions and edge endpoint choices, returning the layout to automatic graph placement and default right-to-left edge routing.
+Users can drag recipe vertices in the graph. Dragged positions are stored by layout entry id in the URL, so manual graph arrangement survives reloads and sharing. Edges can be focused from the line or item-flow label; dragging the item-flow label creates or moves a Bezier bend point for that edge while preserving the source and target handle tangents. A small reset button above a focused routed edge clears only that edge's bend point. When an edge is focused, its source and target nodes show clickable endpoint targets on all four sides so users can choose where the edge starts and ends. The graph popup reset button clears saved positions, edge endpoint choices, and bend points, returning the layout to automatic graph placement and default right-to-left edge routing.
 
 Products that are made by a recipe instance but not consumed by another layout recipe remain attached to that recipe vertex as dangling outputs. Ingredients that are consumed but not made inside the layout remain attached as dangling inputs. This keeps graph semantics close to the underlying bipartite model without forcing users into a full ratio solver.
 
