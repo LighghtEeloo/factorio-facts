@@ -130,6 +130,21 @@ button {
   background: rgba(9, 10, 7, 0.68);
 }
 
+.popup-backdrop--fullscreen {
+  padding: 0;
+}
+
+.popup-dialog--fullscreen {
+  border-radius: 0;
+}
+
+.popup-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
 .item-selector {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
@@ -1035,6 +1050,11 @@ button {
   background: rgba(9, 10, 7, 0.68);
 }
 
+.item-selector-backdrop.popup-backdrop--fullscreen,
+.layout-graph-backdrop.popup-backdrop--fullscreen {
+  padding: 0;
+}
+
 .layout-graph-dialog {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -1043,6 +1063,12 @@ button {
   height: min(760px, calc(100vh - 36px));
   overflow: hidden;
   padding: 12px;
+}
+
+.item-selector.popup-dialog--fullscreen,
+.layout-graph-dialog.popup-dialog--fullscreen {
+  width: 100vw;
+  height: 100vh;
 }
 
 .layout-graph-dialog__header {

@@ -4,6 +4,8 @@ import {
   ChevronRight,
   CircleDot,
   Cog,
+  Maximize2,
+  Minimize2,
   Network,
   Package,
   Plus,
@@ -52,6 +54,7 @@ export function LayoutSidebar({
   onToggleLayoutCollapsed,
 }: LayoutSidebarProps) {
   const [isSelectorOpen, setIsSelectorOpen] = useState(selectedItemId === null);
+  const [isSelectorFullscreen, setIsSelectorFullscreen] = useState(false);
   const [selectorQuery, setSelectorQuery] = useState("");
   const selectorSearchRef = useRef<HTMLInputElement | null>(null);
   const selectorGroups = useMemo(
@@ -82,6 +85,7 @@ export function LayoutSidebar({
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setIsSelectorOpen(false);
+        setIsSelectorFullscreen(false);
       }
     }
 
@@ -92,6 +96,7 @@ export function LayoutSidebar({
   function selectFromPicker(itemId: string) {
     onSelect(itemId);
     setIsSelectorOpen(false);
+    setIsSelectorFullscreen(false);
     setSelectorQuery("");
   }
 
@@ -148,30 +153,54 @@ export function LayoutSidebar({
 
       {isSelectorOpen ? (
         <div
-          className="item-selector-backdrop"
+          className={`item-selector-backdrop ${isSelectorFullscreen ? "popup-backdrop--fullscreen" : ""}`}
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) {
               setIsSelectorOpen(false);
+              setIsSelectorFullscreen(false);
             }
           }}
         >
           <section
             aria-labelledby="item-selector-title"
             aria-modal="true"
-            className="item-selector app-panel"
+            className={`item-selector app-panel ${isSelectorFullscreen ? "popup-dialog--fullscreen" : ""}`}
             role="dialog"
           >
             <header className="item-selector__header">
               <h2 id="item-selector-title">Select item</h2>
-              <button
-                aria-label="Close item selector"
-                className="icon-button"
-                data-tooltip="Close"
-                type="button"
-                onClick={() => setIsSelectorOpen(false)}
-              >
-                <X size={18} aria-hidden="true" />
-              </button>
+              <div className="popup-header-actions">
+                <button
+                  aria-label={
+                    isSelectorFullscreen
+                      ? "Exit fullscreen item selector"
+                      : "Fullscreen item selector"
+                  }
+                  aria-pressed={isSelectorFullscreen}
+                  className="icon-button"
+                  data-tooltip={isSelectorFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                  type="button"
+                  onClick={() => setIsSelectorFullscreen((current) => !current)}
+                >
+                  {isSelectorFullscreen ? (
+                    <Minimize2 size={18} aria-hidden="true" />
+                  ) : (
+                    <Maximize2 size={18} aria-hidden="true" />
+                  )}
+                </button>
+                <button
+                  aria-label="Close item selector"
+                  className="icon-button"
+                  data-tooltip="Close"
+                  type="button"
+                  onClick={() => {
+                    setIsSelectorOpen(false);
+                    setIsSelectorFullscreen(false);
+                  }}
+                >
+                  <X size={18} aria-hidden="true" />
+                </button>
+              </div>
             </header>
 
             <div className="search-box item-selector__search">

@@ -20,6 +20,8 @@ Clicking any item chip selects that item and refreshes both recipe columns. This
 
 Search scores exact id/name matches first, prefix matches second, then token containment. Prototype ids stay visible because Factorio players often know ids from mods, command output, or calculators.
 
+Popups use a shared header pattern with close and fullscreen controls. Fullscreen mode lets dense surfaces such as the item selector and layout graph fill the viewport without changing the underlying app state.
+
 ## Layouts
 
 Layouts are lightweight recipe collections for planning a factory subsection. There is always one focused layout; if the URL does not provide any layout state, the app creates an empty unnamed layout automatically.

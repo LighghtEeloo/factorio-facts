@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { X } from "lucide-react";
+import { Maximize2, Minimize2, X } from "lucide-react";
 import {
   applyNodeChanges,
   Background,
@@ -74,6 +74,7 @@ export function LayoutGraphDialog({
   );
   const [nodes, setNodes] = useState<RecipeFlowNode[]>(graph.nodes);
   const [edges, setEdges] = useState<ItemFlowEdgeType[]>(graph.edges);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const title = layout.name.trim() || "Untitled layout";
 
   useEffect(() => {
@@ -105,7 +106,7 @@ export function LayoutGraphDialog({
 
   return (
     <div
-      className="layout-graph-backdrop"
+      className={`layout-graph-backdrop ${isFullscreen ? "popup-backdrop--fullscreen" : ""}`}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
           onClose();
@@ -115,7 +116,7 @@ export function LayoutGraphDialog({
       <section
         aria-labelledby="layout-graph-title"
         aria-modal="true"
-        className="layout-graph-dialog app-panel"
+        className={`layout-graph-dialog app-panel ${isFullscreen ? "popup-dialog--fullscreen" : ""}`}
         role="dialog"
       >
         <header className="layout-graph-dialog__header">
@@ -125,15 +126,33 @@ export function LayoutGraphDialog({
               {layout.entries.length} {layout.entries.length === 1 ? "recipe" : "recipes"}
             </span>
           </div>
-          <button
-            aria-label="Close layout graph"
-            className="icon-button"
-            data-tooltip="Close"
-            type="button"
-            onClick={onClose}
-          >
-            <X size={18} aria-hidden="true" />
-          </button>
+          <div className="popup-header-actions">
+            <button
+              aria-label={
+                isFullscreen ? "Exit fullscreen layout graph" : "Fullscreen layout graph"
+              }
+              aria-pressed={isFullscreen}
+              className="icon-button"
+              data-tooltip={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+              type="button"
+              onClick={() => setIsFullscreen((current) => !current)}
+            >
+              {isFullscreen ? (
+                <Minimize2 size={18} aria-hidden="true" />
+              ) : (
+                <Maximize2 size={18} aria-hidden="true" />
+              )}
+            </button>
+            <button
+              aria-label="Close layout graph"
+              className="icon-button"
+              data-tooltip="Close"
+              type="button"
+              onClick={onClose}
+            >
+              <X size={18} aria-hidden="true" />
+            </button>
+          </div>
         </header>
 
         {nodes.length ? (
