@@ -1,7 +1,8 @@
-import { ArrowRight, Factory, MapPin, Timer } from "lucide-react";
+import { ArrowRight, Factory, ListPlus, MapPin, Timer } from "lucide-react";
 import type { RecipePrototype } from "../../factorio/prototypes";
 import {
   getIconIdForItem,
+  getRecipeIconId,
   getRecipeMetadata,
   type RecipeExplorerData,
 } from "../data/factoriolab";
@@ -14,6 +15,8 @@ interface RecipeCardProps {
   recipe: RecipePrototype;
   selectedItemId: string;
   viewMode: ViewMode;
+  focusedLayoutRecipeCount: number;
+  onAddToLayout(recipeId: string): void;
   onSelectItem(itemId: string): void;
 }
 
@@ -22,17 +25,18 @@ export function RecipeCard({
   recipe,
   selectedItemId,
   viewMode,
+  focusedLayoutRecipeCount,
+  onAddToLayout,
   onSelectItem,
 }: RecipeCardProps) {
   const metadata = getRecipeMetadata(recipe);
-  const recipeIconId = metadata.icon ?? recipe.results?.[0]?.name ?? recipe.name;
-  const icon = data.iconById.get(recipeIconId);
+  const icon = data.iconById.get(getRecipeIconId(recipe));
   const locations = metadata.locations.length ? metadata.locations.join(", ") : "all surfaces";
   const producerText = metadata.producers.length ? metadata.producers.join(", ") : "natural";
   const isConcise = viewMode === "concise";
 
   return (
-    <article className={`recipe-card recipe-card--${viewMode}`}>
+    <article className={`recipe-card recipe-card--${viewMode}`} data-recipe-id={recipe.name}>
       <header className="recipe-card__header">
         <div className="recipe-card__identity">
           <IconSprite
@@ -47,41 +51,62 @@ export function RecipeCard({
           </div>
         </div>
 
-        <div className="recipe-card__meta">
-          <span
-            className={isConcise ? "text-pill text-pill--time" : undefined}
-            data-tooltip={isConcise ? `Craft time: ${formatTime(recipe.energy_required)}` : undefined}
-            title={isConcise ? undefined : "Craft time"}
+        <div className="recipe-card__side">
+          <button
+            aria-label="Add recipe to focused layout"
+            className={`icon-button recipe-card__layout-button ${focusedLayoutRecipeCount > 0 ? "recipe-card__layout-button--duplicate" : ""}`}
+            data-tooltip={
+              focusedLayoutRecipeCount > 0
+                ? `Add another copy (${focusedLayoutRecipeCount} in layout)`
+                : "Add to focused layout"
+            }
+            type="button"
+            onClick={() => onAddToLayout(recipe.name)}
           >
-            <Timer size={14} aria-hidden="true" />
-            {formatTime(recipe.energy_required)}
-          </span>
-          {isConcise ? (
-            <>
-              {metadata.producers.map((producerId) => (
-                <IconPill data={data} id={producerId} key={producerId} type="producer" />
-              ))}
-              {metadata.locations.map((locationId) => (
-                <IconPill data={data} id={locationId} key={locationId} type="surface" />
-              ))}
-              {metadata.producers.length ? null : (
-                <span className="text-pill" data-tooltip="Natural source">
-                  natural
+            <ListPlus size={16} aria-hidden="true" />
+            {focusedLayoutRecipeCount > 0 ? (
+              <span className="recipe-card__layout-count" aria-hidden="true">
+                {focusedLayoutRecipeCount}
+              </span>
+            ) : null}
+          </button>
+
+          <div className="recipe-card__meta">
+            <span
+              className={isConcise ? "text-pill text-pill--time" : undefined}
+              data-tooltip={isConcise ? `Craft time: ${formatTime(recipe.energy_required)}` : undefined}
+              title={isConcise ? undefined : "Craft time"}
+            >
+              <Timer size={14} aria-hidden="true" />
+              {formatTime(recipe.energy_required)}
+            </span>
+            {isConcise ? (
+              <>
+                {metadata.producers.map((producerId) => (
+                  <IconPill data={data} id={producerId} key={producerId} type="producer" />
+                ))}
+                {metadata.locations.map((locationId) => (
+                  <IconPill data={data} id={locationId} key={locationId} type="surface" />
+                ))}
+                {metadata.producers.length ? null : (
+                  <span className="text-pill" data-tooltip="Natural source">
+                    natural
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                <span title="Producer">
+                  <Factory size={14} aria-hidden="true" />
+                  {producerText}
                 </span>
-              )}
-            </>
-          ) : (
-            <>
-              <span title="Producer">
-                <Factory size={14} aria-hidden="true" />
-                {producerText}
-              </span>
-              <span title="Surface">
-                <MapPin size={14} aria-hidden="true" />
-                {locations}
-              </span>
-            </>
-          )}
+                <span title="Surface">
+                  <MapPin size={14} aria-hidden="true" />
+                  {locations}
+                </span>
+              </>
+            )}
+          </div>
         </div>
       </header>
 

@@ -13,10 +13,17 @@ import {
   getIconIdForItem,
   getRecipeMetadata,
 } from "./data/factoriolab";
-import type { FilterState, ViewMode } from "./types";
+import type {
+  FilterState,
+  GraphNodePosition,
+  RecipeLayout,
+  RecipeLayoutEntry,
+  ViewMode,
+} from "./types";
 import { FilterPanel } from "./components/FilterPanel";
 import { IconSprite } from "./components/IconSprite";
-import { ItemSearch } from "./components/ItemSearch";
+import { LayoutGraphDialog } from "./components/LayoutGraphDialog";
+import { LayoutSidebar } from "./components/LayoutSidebar";
 import { RecipeColumn } from "./components/RecipeColumn";
 import { TooltipLayer } from "./components/TooltipLayer";
 import "./styles.css";
@@ -31,10 +38,16 @@ const defaultFilters: FilterState = {
 };
 
 const defaultViewMode: ViewMode = "concise";
+const defaultLayoutId = "layout-1";
+
+let nextLayoutSequence = 2;
+let nextLayoutEntrySequence = 1;
 
 interface AppUrlState {
   selectedItemId: string | null;
   filters: FilterState;
+  focusedLayoutId: string;
+  layouts: RecipeLayout[];
   viewMode: ViewMode;
 }
 
@@ -42,9 +55,16 @@ export function App() {
   const initialUrlState = useMemo(readAppStateFromUrl, []);
   const [selectedItemId, setSelectedItemId] = useState(initialUrlState.selectedItemId);
   const [filters, setFilters] = useState<FilterState>(initialUrlState.filters);
+  const [focusedLayoutId, setFocusedLayoutId] = useState(initialUrlState.focusedLayoutId);
+  const [layouts, setLayouts] = useState<RecipeLayout[]>(initialUrlState.layouts);
+  const [graphLayoutId, setGraphLayoutId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>(initialUrlState.viewMode);
   const selectedItem = selectedItemId
     ? explorerData.itemById.get(selectedItemId) ?? null
+    : null;
+  const focusedLayout = layouts.find((layout) => layout.id === focusedLayoutId) ?? layouts[0];
+  const graphLayout = graphLayoutId
+    ? layouts.find((layout) => layout.id === graphLayoutId) ?? null
     : null;
 
   if (!explorerData.items.length) {
@@ -64,8 +84,8 @@ export function App() {
     : undefined;
 
   useEffect(() => {
-    updateUrlFromAppState({ selectedItemId, filters, viewMode });
-  }, [filters, selectedItemId, viewMode]);
+    updateUrlFromAppState({ selectedItemId, filters, focusedLayoutId, layouts, viewMode });
+  }, [filters, focusedLayoutId, layouts, selectedItemId, viewMode]);
 
   useEffect(() => {
     function handlePopState() {
@@ -73,6 +93,9 @@ export function App() {
 
       setSelectedItemId(nextState.selectedItemId);
       setFilters(nextState.filters);
+      setFocusedLayoutId(nextState.focusedLayoutId);
+      setLayouts(nextState.layouts);
+      setGraphLayoutId(null);
       setViewMode(nextState.viewMode);
     }
 
@@ -84,10 +107,133 @@ export function App() {
     setSelectedItemId(itemId);
   }
 
+  function createLayout() {
+    const layout = createEmptyLayout(createLayoutId());
+
+    setLayouts((currentLayouts) => [...currentLayouts, layout]);
+    setFocusedLayoutId(layout.id);
+  }
+
+  function renameLayout(layoutId: string, name: string) {
+    setLayouts((currentLayouts) =>
+      currentLayouts.map((layout) =>
+        layout.id === layoutId ? { ...layout, name } : layout,
+      ),
+    );
+  }
+
+  function focusLayout(layoutId: string) {
+    setFocusedLayoutId(layoutId);
+  }
+
+  function toggleLayoutCollapsed(layoutId: string) {
+    setLayouts((currentLayouts) =>
+      currentLayouts.map((layout) =>
+        layout.id === layoutId ? { ...layout, collapsed: !layout.collapsed } : layout,
+      ),
+    );
+  }
+
+  function addRecipeToFocusedLayout(recipeId: string) {
+    if (!focusedLayout || !explorerData.recipeById.has(recipeId)) {
+      return;
+    }
+
+    const entry = createLayoutEntry(recipeId);
+
+    setLayouts((currentLayouts) =>
+      currentLayouts.map((layout) =>
+        layout.id === focusedLayout.id
+          ? { ...layout, collapsed: false, entries: [...layout.entries, entry] }
+          : layout,
+      ),
+    );
+  }
+
+  function removeRecipeFromLayout(layoutId: string, entryId: string) {
+    setLayouts((currentLayouts) =>
+      currentLayouts.map((layout) =>
+        layout.id === layoutId
+          ? {
+              ...layout,
+              entries: layout.entries.filter((entry) => entry.id !== entryId),
+              graphPositions: omitGraphPosition(layout.graphPositions, entryId),
+            }
+          : layout,
+      ),
+    );
+  }
+
+  function clearLayout(layoutId: string) {
+    setLayouts((currentLayouts) =>
+      currentLayouts.map((layout) =>
+        layout.id === layoutId
+          ? { ...layout, entries: [], graphPositions: {} }
+          : layout,
+      ),
+    );
+  }
+
+  function deleteLayout(layoutId: string) {
+    const remainingLayouts = layouts.filter((layout) => layout.id !== layoutId);
+    const nextLayouts = remainingLayouts.length
+      ? remainingLayouts
+      : [createEmptyLayout(createLayoutId())];
+    const nextFocusedLayoutId = nextLayouts.some((layout) => layout.id === focusedLayoutId)
+      ? focusedLayoutId
+      : nextLayouts[0]?.id ?? defaultLayoutId;
+
+    setLayouts(nextLayouts);
+    setFocusedLayoutId(nextFocusedLayoutId);
+
+    if (graphLayoutId === layoutId) {
+      setGraphLayoutId(null);
+    }
+  }
+
+  function getFocusedLayoutRecipeCount(recipeId: string): number {
+    return (
+      focusedLayout?.entries.filter((entry) => entry.recipeId === recipeId).length ?? 0
+    );
+  }
+
+  function updateLayoutGraphNodePosition(
+    layoutId: string,
+    entryId: string,
+    position: GraphNodePosition,
+  ) {
+    setLayouts((currentLayouts) =>
+      currentLayouts.map((layout) =>
+        layout.id === layoutId
+          ? {
+              ...layout,
+              graphPositions: {
+                ...layout.graphPositions,
+                [entryId]: {
+                  x: Math.round(position.x),
+                  y: Math.round(position.y),
+                },
+              },
+            }
+          : layout,
+      ),
+    );
+  }
+
   return (
     <main className="app-shell">
-      <ItemSearch
+      <LayoutSidebar
         data={explorerData}
+        focusedLayoutId={focusedLayout?.id ?? defaultLayoutId}
+        layouts={layouts}
+        onClearLayout={clearLayout}
+        onCreateLayout={createLayout}
+        onDeleteLayout={deleteLayout}
+        onFocusLayout={focusLayout}
+        onOpenLayoutGraph={setGraphLayoutId}
+        onRemoveRecipeFromLayout={removeRecipeFromLayout}
+        onRenameLayout={renameLayout}
+        onToggleLayoutCollapsed={toggleLayoutCollapsed}
         onSelect={selectItem}
         selectedItemId={selectedItem?.id ?? null}
       />
@@ -125,6 +271,8 @@ export function App() {
             <div className="recipe-grid">
               <RecipeColumn
                 data={explorerData}
+                getFocusedLayoutRecipeCount={getFocusedLayoutRecipeCount}
+                onAddRecipeToLayout={addRecipeToFocusedLayout}
                 onSelectItem={selectItem}
                 recipes={madeBy}
                 selectedItemId={selectedItem.id}
@@ -134,6 +282,8 @@ export function App() {
               />
               <RecipeColumn
                 data={explorerData}
+                getFocusedLayoutRecipeCount={getFocusedLayoutRecipeCount}
+                onAddRecipeToLayout={addRecipeToFocusedLayout}
                 onSelectItem={selectItem}
                 recipes={usedIn}
                 selectedItemId={selectedItem.id}
@@ -169,6 +319,20 @@ export function App() {
         onChange={setFilters}
         onReset={() => setFilters(defaultFilters)}
       />
+      {graphLayout ? (
+        <LayoutGraphDialog
+          data={explorerData}
+          layout={graphLayout}
+          onClose={() => setGraphLayoutId(null)}
+          onNodePositionChange={(entryId, position) =>
+            updateLayoutGraphNodePosition(graphLayout.id, entryId, position)
+          }
+          onSelectItem={(itemId) => {
+            selectItem(itemId);
+            setGraphLayoutId(null);
+          }}
+        />
+      ) : null}
       <TooltipLayer />
     </main>
   );
@@ -210,6 +374,7 @@ function readAppStateFromUrl(): AppUrlState {
   const params = new URLSearchParams(window.location.search);
   const selectedItemId = parseItemId(params.get("item"));
   const viewMode = parseViewMode(params.get("view"));
+  const layoutState = parseLayoutState(params.get("layouts"));
 
   return {
     selectedItemId,
@@ -239,6 +404,8 @@ function readAppStateFromUrl(): AppUrlState {
         defaultFilters.includeLocked,
       ),
     },
+    focusedLayoutId: layoutState.focusedLayoutId,
+    layouts: layoutState.layouts,
     viewMode,
   };
 }
@@ -281,6 +448,10 @@ function updateUrlFromAppState(state: AppUrlState) {
     defaultFilters.includeLocked,
   );
 
+  if (!isDefaultLayoutState(state.layouts, state.focusedLayoutId)) {
+    params.set("layouts", serializeLayoutState(state.layouts, state.focusedLayoutId));
+  }
+
   const nextSearch = params.toString().replaceAll("%2C", ",");
   const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}${window.location.hash}`;
   const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
@@ -288,6 +459,278 @@ function updateUrlFromAppState(state: AppUrlState) {
   if (nextUrl !== currentUrl) {
     window.history.replaceState(null, "", nextUrl);
   }
+}
+
+interface ParsedLayoutState {
+  focusedLayoutId: string;
+  layouts: RecipeLayout[];
+}
+
+interface SerializedLayoutState {
+  f?: unknown;
+  l?: unknown;
+}
+
+interface SerializedLayout {
+  c?: unknown;
+  e?: unknown;
+  i?: unknown;
+  n?: unknown;
+  p?: unknown;
+}
+
+interface SerializedLayoutEntry {
+  i?: unknown;
+  r?: unknown;
+}
+
+function parseLayoutState(value: string | null): ParsedLayoutState {
+  if (!value) {
+    const layout = createEmptyLayout(defaultLayoutId);
+
+    return { focusedLayoutId: layout.id, layouts: [layout] };
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+
+    if (!isRecord(parsed)) {
+      return defaultLayoutState();
+    }
+
+    const { f: rawFocusedLayoutId, l: rawLayouts } = parsed as SerializedLayoutState;
+    const seenLayoutIds = new Set<string>();
+    const layouts = Array.isArray(rawLayouts)
+      ? rawLayouts.flatMap((rawLayout, index) =>
+          parseLayout(rawLayout, index, seenLayoutIds),
+        )
+      : [];
+
+    if (!layouts.length) {
+      return defaultLayoutState();
+    }
+
+    const focusedLayoutId =
+      typeof rawFocusedLayoutId === "string" &&
+      layouts.some((layout) => layout.id === rawFocusedLayoutId)
+        ? rawFocusedLayoutId
+        : layouts[0]?.id ?? defaultLayoutId;
+
+    return { focusedLayoutId, layouts };
+  } catch {
+    return defaultLayoutState();
+  }
+}
+
+function parseLayout(
+  rawLayout: unknown,
+  index: number,
+  seenLayoutIds: Set<string>,
+): RecipeLayout[] {
+  if (!isRecord(rawLayout)) {
+    return [];
+  }
+
+  const {
+    c: rawCollapsed,
+    e: rawEntries,
+    i: rawId,
+    n: rawName,
+    p: rawGraphPositions,
+  } = rawLayout as SerializedLayout;
+  const id = getUniqueId(
+    typeof rawId === "string" && rawId ? rawId : `layout-${index + 1}`,
+    seenLayoutIds,
+  );
+  const seenEntryIds = new Set<string>();
+  const entries = Array.isArray(rawEntries)
+    ? rawEntries.flatMap((rawEntry, entryIndex) =>
+        parseLayoutEntry(rawEntry, entryIndex, seenEntryIds),
+      )
+    : [];
+
+  return [
+    {
+      id,
+      name: typeof rawName === "string" ? rawName : "",
+      entries,
+      graphPositions: parseGraphPositions(rawGraphPositions, entries),
+      collapsed: rawCollapsed === 1 || rawCollapsed === true,
+    },
+  ];
+}
+
+function parseGraphPositions(
+  value: unknown,
+  entries: RecipeLayoutEntry[],
+): Record<string, GraphNodePosition> {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  const entryIds = new Set(entries.map((entry) => entry.id));
+  const graphPositions: Record<string, GraphNodePosition> = {};
+
+  for (const [entryId, rawPosition] of Object.entries(value)) {
+    if (!entryIds.has(entryId) || !Array.isArray(rawPosition)) {
+      continue;
+    }
+
+    const [rawX, rawY] = rawPosition;
+
+    if (typeof rawX !== "number" || typeof rawY !== "number") {
+      continue;
+    }
+
+    graphPositions[entryId] = {
+      x: Math.round(rawX),
+      y: Math.round(rawY),
+    };
+  }
+
+  return graphPositions;
+}
+
+function parseLayoutEntry(
+  rawEntry: unknown,
+  index: number,
+  seenEntryIds: Set<string>,
+): RecipeLayoutEntry[] {
+  let rawId: unknown;
+  let rawRecipeId: unknown;
+
+  if (Array.isArray(rawEntry)) {
+    rawId = rawEntry[0];
+    rawRecipeId = rawEntry[1];
+  } else if (isRecord(rawEntry)) {
+    const entry = rawEntry as SerializedLayoutEntry;
+
+    rawId = entry.i;
+    rawRecipeId = entry.r;
+  }
+
+  if (typeof rawRecipeId !== "string" || !explorerData.recipeById.has(rawRecipeId)) {
+    return [];
+  }
+
+  return [
+    {
+      id: getUniqueId(
+        typeof rawId === "string" && rawId ? rawId : `entry-${index + 1}`,
+        seenEntryIds,
+      ),
+      recipeId: rawRecipeId,
+    },
+  ];
+}
+
+function serializeLayoutState(layouts: RecipeLayout[], focusedLayoutId: string): string {
+  return JSON.stringify({
+    f: focusedLayoutId,
+    l: layouts.map((layout) => ({
+      i: layout.id,
+      n: layout.name,
+      c: layout.collapsed ? 1 : 0,
+      e: layout.entries.map((entry) => [entry.id, entry.recipeId]),
+      p: serializeGraphPositions(layout),
+    })),
+  });
+}
+
+function serializeGraphPositions(
+  layout: RecipeLayout,
+): Record<string, [number, number]> | undefined {
+  const entryIds = new Set(layout.entries.map((entry) => entry.id));
+  const graphPositions: Record<string, [number, number]> = {};
+
+  for (const [entryId, position] of Object.entries(layout.graphPositions)) {
+    if (!entryIds.has(entryId)) {
+      continue;
+    }
+
+    graphPositions[entryId] = [Math.round(position.x), Math.round(position.y)];
+  }
+
+  return Object.keys(graphPositions).length ? graphPositions : undefined;
+}
+
+function isDefaultLayoutState(
+  layouts: RecipeLayout[],
+  focusedLayoutId: string,
+): boolean {
+  const layout = layouts[0];
+
+  return (
+    layouts.length === 1 &&
+    focusedLayoutId === defaultLayoutId &&
+    layout?.id === defaultLayoutId &&
+    layout.name === "" &&
+    !layout.collapsed &&
+    layout.entries.length === 0 &&
+    Object.keys(layout.graphPositions).length === 0
+  );
+}
+
+function defaultLayoutState(): ParsedLayoutState {
+  const layout = createEmptyLayout(defaultLayoutId);
+
+  return { focusedLayoutId: layout.id, layouts: [layout] };
+}
+
+function createEmptyLayout(id: string): RecipeLayout {
+  return {
+    id,
+    name: "",
+    entries: [],
+    graphPositions: {},
+    collapsed: false,
+  };
+}
+
+function createLayoutEntry(recipeId: string): RecipeLayoutEntry {
+  return {
+    id: createLayoutEntryId(),
+    recipeId,
+  };
+}
+
+function createLayoutId(): string {
+  return `layout-${Date.now().toString(36)}-${nextLayoutSequence++}`;
+}
+
+function createLayoutEntryId(): string {
+  return `entry-${Date.now().toString(36)}-${nextLayoutEntrySequence++}`;
+}
+
+function omitGraphPosition(
+  graphPositions: Record<string, GraphNodePosition>,
+  entryId: string,
+): Record<string, GraphNodePosition> {
+  const { [entryId]: _removedPosition, ...remainingPositions } = graphPositions;
+
+  return remainingPositions;
+}
+
+function getUniqueId(id: string, seenIds: Set<string>): string {
+  if (!seenIds.has(id)) {
+    seenIds.add(id);
+    return id;
+  }
+
+  let suffix = 2;
+  let nextId = `${id}-${suffix}`;
+
+  while (seenIds.has(nextId)) {
+    suffix += 1;
+    nextId = `${id}-${suffix}`;
+  }
+
+  seenIds.add(nextId);
+  return nextId;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 function parseItemId(value: string | null): string | null {

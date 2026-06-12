@@ -11,6 +11,8 @@ interface RecipeColumnProps {
   title: string;
   variant: "made-by" | "used-in";
   viewMode: ViewMode;
+  getFocusedLayoutRecipeCount(recipeId: string): number;
+  onAddRecipeToLayout(recipeId: string): void;
   onSelectItem(itemId: string): void;
 }
 
@@ -21,6 +23,8 @@ export function RecipeColumn({
   title,
   variant,
   viewMode,
+  getFocusedLayoutRecipeCount,
+  onAddRecipeToLayout,
   onSelectItem,
 }: RecipeColumnProps) {
   const HeadingIcon = variant === "made-by" ? ArrowDownToLine : ArrowUpFromLine;
@@ -40,7 +44,9 @@ export function RecipeColumn({
           recipes.map((recipe) => (
             <RecipeCard
               data={data}
+              focusedLayoutRecipeCount={getFocusedLayoutRecipeCount(recipe.name)}
               key={recipe.name}
+              onAddToLayout={onAddRecipeToLayout}
               onSelectItem={onSelectItem}
               recipe={recipe}
               selectedItemId={selectedItemId}

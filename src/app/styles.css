@@ -217,6 +217,185 @@ button {
   box-shadow: inset 0 0 0 1px #e0a649;
 }
 
+.layout-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+  min-height: 0;
+  margin-top: 12px;
+}
+
+.layout-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #e4d6a7;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.layout-list {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.layout-card {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #3f4235;
+  border-radius: 8px;
+  background: #1b1d17;
+  padding: 7px;
+}
+
+.layout-card--focused {
+  border-color: #d7b65f;
+  box-shadow: inset 3px 0 0 #d7b65f;
+}
+
+.layout-card__header {
+  display: grid;
+  grid-template-columns: 24px 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.layout-card__collapse,
+.layout-card__focus-button,
+.layout-action-button,
+.layout-recipe-row__remove {
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: #a7a18d;
+  cursor: pointer;
+}
+
+.layout-card__collapse,
+.layout-card__focus-button,
+.layout-action-button {
+  width: 24px;
+  height: 24px;
+}
+
+.layout-card__collapse:hover,
+.layout-card__focus-button:hover,
+.layout-action-button:hover,
+.layout-recipe-row__remove:hover {
+  border-color: #57523d;
+  background: #25261f;
+  color: #f0eee4;
+}
+
+.layout-card__focus-button[aria-pressed="true"] {
+  color: #d7b65f;
+}
+
+.layout-card__actions {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.layout-action-button:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+.layout-card__name {
+  min-width: 0;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: #f0eee4;
+  font-size: 0.82rem;
+  font-weight: 650;
+  outline: 0;
+  padding: 0 6px;
+}
+
+.layout-card__name:focus {
+  border-color: #57523d;
+  background: #151710;
+}
+
+.layout-card__name::placeholder {
+  color: #7d7868;
+}
+
+.layout-card__recipes {
+  display: grid;
+  gap: 4px;
+}
+
+.layout-card__empty {
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  border: 1px dashed #414438;
+  border-radius: 6px;
+  color: #8f8978;
+  font-size: 0.76rem;
+}
+
+.layout-recipe-row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  min-height: 32px;
+}
+
+.layout-recipe-row__index {
+  color: #85806c;
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.layout-recipe-row__main {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 30px;
+  border: 1px solid #3f4235;
+  border-radius: 6px;
+  background: #151710;
+  color: #ddd7c4;
+  cursor: pointer;
+  padding: 2px 6px 2px 2px;
+  text-align: left;
+}
+
+.layout-recipe-row__main:hover {
+  border-color: #6d674b;
+  background: #25261f;
+}
+
+.layout-recipe-row__main span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layout-recipe-row__remove {
+  width: 24px;
+  height: 24px;
+}
+
 .workspace {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
@@ -484,6 +663,48 @@ button {
   white-space: nowrap;
 }
 
+.recipe-card__side {
+  display: flex;
+  align-items: center;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+  margin-left: auto;
+}
+
+.recipe-card__layout-button {
+  position: relative;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  color: #d7b65f;
+}
+
+.recipe-card__layout-button--duplicate {
+  border-color: #7c6b31;
+  background: #302a1b;
+}
+
+.recipe-card__layout-count {
+  position: absolute;
+  right: -5px;
+  top: -6px;
+  display: grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  border: 1px solid #1b1d17;
+  border-radius: 999px;
+  background: #d7b65f;
+  color: #151710;
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1;
+  padding: 0 3px;
+}
+
 .recipe-card__meta {
   display: flex;
   flex: 0 1 auto;
@@ -491,7 +712,6 @@ button {
   justify-content: flex-end;
   gap: 5px;
   min-width: 0;
-  margin-left: auto;
 }
 
 .recipe-card__meta > span {
@@ -802,6 +1022,198 @@ button {
   background: #34362c;
   color: #d7b65f;
   font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.layout-graph-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 920;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(9, 10, 7, 0.68);
+}
+
+.layout-graph-dialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+  width: min(1060px, calc(100vw - 36px));
+  height: min(760px, calc(100vh - 36px));
+  overflow: hidden;
+  padding: 12px;
+}
+
+.layout-graph-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.layout-graph-dialog__header h2 {
+  overflow: hidden;
+  margin: 0;
+  color: #e4d6a7;
+  font-size: 0.96rem;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layout-graph-dialog__header span {
+  color: #9f9a86;
+  font-size: 0.76rem;
+}
+
+.layout-graph-flow-shell {
+  min-height: 0;
+  border: 1px solid #393a30;
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, rgba(215, 182, 95, 0.04) 1px, transparent 1px),
+    linear-gradient(rgba(215, 182, 95, 0.04) 1px, transparent 1px),
+    #151710;
+  background-size: 34px 34px;
+  overflow: hidden;
+}
+
+.layout-graph-flow-shell .react-flow {
+  background: transparent;
+}
+
+.layout-graph-flow-shell .react-flow__renderer,
+.layout-graph-flow-shell .react-flow__pane,
+.layout-graph-flow-shell .react-flow__viewport {
+  cursor: grab;
+}
+
+.layout-graph-flow-shell .react-flow__pane:active {
+  cursor: grabbing;
+}
+
+.layout-graph-edge {
+  stroke: #9f8b48;
+  stroke-width: 2;
+  opacity: 0.74;
+}
+
+.layout-graph-edge-label {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 30px;
+  border: 1px solid #4c4c3f;
+  border-radius: 999px;
+  background: rgba(21, 23, 16, 0.92);
+  padding: 3px;
+  pointer-events: all;
+}
+
+.layout-graph-node {
+  display: grid;
+  grid-template-rows: minmax(24px, auto) 78px minmax(24px, auto);
+  align-items: center;
+  justify-items: center;
+  gap: 4px;
+  width: 168px;
+  cursor: grab;
+}
+
+.react-flow__node.selected .layout-graph-node__main {
+  border-color: #e0a649;
+  box-shadow:
+    inset 0 0 0 1px #e0a649,
+    0 12px 22px rgba(0, 0, 0, 0.22);
+}
+
+.layout-graph-handle {
+  width: 10px;
+  height: 10px;
+  border: 1px solid #151710;
+  background: #d7b65f;
+}
+
+.layout-graph-handle--in {
+  left: -6px;
+}
+
+.layout-graph-handle--out {
+  right: -6px;
+}
+
+.layout-graph-node__main {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  width: 168px;
+  height: 78px;
+  border: 1px solid #6d674b;
+  border-radius: 8px;
+  background: #24261f;
+  box-shadow: 0 12px 22px rgba(0, 0, 0, 0.22);
+  padding: 8px;
+}
+
+.layout-graph-node__main h3 {
+  overflow: hidden;
+  margin: 0;
+  color: #f0eee4;
+  font-size: 0.82rem;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layout-graph-node__main span {
+  display: block;
+  overflow: hidden;
+  color: #9f9a86;
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layout-graph-node__ports {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 3px;
+  max-width: 168px;
+  min-height: 24px;
+}
+
+.layout-graph-token {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid #4c4c3f;
+  border-radius: 999px;
+  background: #191b15;
+  color: #ede9db;
+  cursor: pointer;
+  padding: 1px;
+}
+
+.layout-graph-token:hover {
+  border-color: #e0a649;
+  background: #302a1b;
+}
+
+.layout-graph-more {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  color: #d7b65f;
+  font-size: 0.7rem;
   font-weight: 700;
 }
 

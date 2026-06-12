@@ -33,6 +33,7 @@ export interface RecipeExplorerData {
   itemKindById: ReadonlyMap<string, EntityKind>;
   locationById: ReadonlyMap<string, FactorioLabLocation>;
   locations: FactorioLabLocation[];
+  recipeById: ReadonlyMap<string, RecipePrototype>;
   recipes: RecipePrototype[];
   versionLabel: string;
   madeBy(itemId: string): RecipePrototype[];
@@ -58,6 +59,12 @@ export function getIconIdForItem(item: FactorioLabItem): string {
   return item.icon ?? item.id;
 }
 
+export function getRecipeIconId(recipe: RecipePrototype): string {
+  const metadata = getRecipeMetadata(recipe);
+
+  return metadata.icon ?? recipe.results?.[0]?.name ?? recipe.name;
+}
+
 function createExplorerData(data: FactorioLabData): RecipeExplorerData {
   const itemKindById = createItemKindLookup(data.items);
   const recipes = data.recipes.map((recipe) =>
@@ -67,6 +74,7 @@ function createExplorerData(data: FactorioLabData): RecipeExplorerData {
   const itemById = new Map(data.items.map((item) => [item.id, item]));
   const iconById = new Map(data.icons.map((icon) => [icon.id, icon]));
   const locationById = new Map(data.locations.map((location) => [location.id, location]));
+  const recipeById = new Map(recipes.map((recipe) => [recipe.name, recipe]));
 
   return {
     atlas: {
@@ -82,6 +90,7 @@ function createExplorerData(data: FactorioLabData): RecipeExplorerData {
     itemKindById,
     locationById,
     locations: data.locations,
+    recipeById,
     recipes,
     versionLabel: formatVersionLabel(data.version),
     madeBy(itemId) {

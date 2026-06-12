@@ -63,6 +63,12 @@ export function TooltipLayer() {
       hideForTarget(findTooltipTarget(event.target), event.relatedTarget);
     }
 
+    function hideActiveTooltip() {
+      activeTarget.current = null;
+      setTooltip(null);
+      setPosition(null);
+    }
+
     function syncPosition() {
       const target = activeTarget.current;
 
@@ -82,7 +88,8 @@ export function TooltipLayer() {
     document.addEventListener("pointerout", handlePointerOut);
     document.addEventListener("focusin", handleFocusIn);
     document.addEventListener("focusout", handleFocusOut);
-    document.addEventListener("click", syncPosition);
+    document.addEventListener("pointerdown", hideActiveTooltip, true);
+    document.addEventListener("click", hideActiveTooltip, true);
     window.addEventListener("resize", syncPosition);
     window.addEventListener("scroll", syncPosition, true);
 
@@ -91,7 +98,8 @@ export function TooltipLayer() {
       document.removeEventListener("pointerout", handlePointerOut);
       document.removeEventListener("focusin", handleFocusIn);
       document.removeEventListener("focusout", handleFocusOut);
-      document.removeEventListener("click", syncPosition);
+      document.removeEventListener("pointerdown", hideActiveTooltip, true);
+      document.removeEventListener("click", hideActiveTooltip, true);
       window.removeEventListener("resize", syncPosition);
       window.removeEventListener("scroll", syncPosition, true);
     };

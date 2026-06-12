@@ -1,0 +1,498 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ChevronDown,
+  ChevronRight,
+  CircleDot,
+  Cog,
+  Eraser,
+  Network,
+  Package,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
+import type { RecipePrototype } from "../../factorio/prototypes";
+import type { FactorioLabCategory, FactorioLabItem } from "../../factoriolab/types";
+import {
+  getIconIdForItem,
+  getRecipeIconId,
+  getRecipeMetadata,
+  type RecipeExplorerData,
+} from "../data/factoriolab";
+import type { RecipeLayout, RecipeLayoutEntry } from "../types";
+import { IconSprite } from "./IconSprite";
+
+interface LayoutSidebarProps {
+  data: RecipeExplorerData;
+  focusedLayoutId: string;
+  layouts: RecipeLayout[];
+  selectedItemId: string | null;
+  onClearLayout(layoutId: string): void;
+  onCreateLayout(): void;
+  onDeleteLayout(layoutId: string): void;
+  onFocusLayout(layoutId: string): void;
+  onOpenLayoutGraph(layoutId: string): void;
+  onRemoveRecipeFromLayout(layoutId: string, entryId: string): void;
+  onRenameLayout(layoutId: string, name: string): void;
+  onSelect(itemId: string): void;
+  onToggleLayoutCollapsed(layoutId: string): void;
+}
+
+export function LayoutSidebar({
+  data,
+  focusedLayoutId,
+  layouts,
+  selectedItemId,
+  onClearLayout,
+  onCreateLayout,
+  onDeleteLayout,
+  onFocusLayout,
+  onOpenLayoutGraph,
+  onRemoveRecipeFromLayout,
+  onRenameLayout,
+  onSelect,
+  onToggleLayoutCollapsed,
+}: LayoutSidebarProps) {
+  const [isSelectorOpen, setIsSelectorOpen] = useState(selectedItemId === null);
+  const [selectorQuery, setSelectorQuery] = useState("");
+  const selectorSearchRef = useRef<HTMLInputElement | null>(null);
+  const selectorGroups = useMemo(
+    () => groupItemsByCategory(data, searchItems(data.items, selectorQuery)),
+    [data, selectorQuery],
+  );
+
+  useEffect(() => {
+    if (selectedItemId === null) {
+      setIsSelectorOpen(true);
+    }
+  }, [selectedItemId]);
+
+  useEffect(() => {
+    if (!isSelectorOpen) {
+      return;
+    }
+
+    setSelectorQuery("");
+    requestAnimationFrame(() => selectorSearchRef.current?.focus());
+  }, [isSelectorOpen]);
+
+  useEffect(() => {
+    if (!isSelectorOpen) {
+      return;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsSelectorOpen(false);
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isSelectorOpen]);
+
+  function selectFromPicker(itemId: string) {
+    onSelect(itemId);
+    setIsSelectorOpen(false);
+    setSelectorQuery("");
+  }
+
+  return (
+    <aside className="sidebar app-panel">
+      <div className="brand-mark">
+        <span className="brand-mark__label">
+          <Cog size={20} aria-hidden="true" />
+          <span>Factorio Facts</span>
+        </span>
+        <button
+          aria-label="Open item selector"
+          className="icon-button item-selector-button"
+          data-tooltip="Open item selector"
+          type="button"
+          onClick={() => setIsSelectorOpen(true)}
+        >
+          <Package size={18} aria-hidden="true" />
+        </button>
+      </div>
+
+      <section className="layout-panel" aria-label="Layouts">
+        <div className="layout-panel__header">
+          <span>Layouts</span>
+          <button
+            aria-label="Create layout"
+            className="icon-button"
+            data-tooltip="Create layout"
+            type="button"
+            onClick={onCreateLayout}
+          >
+            <Plus size={18} aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className="layout-list">
+          {layouts.map((layout) => (
+            <LayoutCard
+              data={data}
+              focused={layout.id === focusedLayoutId}
+              key={layout.id}
+              layout={layout}
+              onClearLayout={onClearLayout}
+              onDeleteLayout={onDeleteLayout}
+              onFocusLayout={onFocusLayout}
+              onOpenLayoutGraph={onOpenLayoutGraph}
+              onRemoveRecipeFromLayout={onRemoveRecipeFromLayout}
+              onRenameLayout={onRenameLayout}
+              onSelectItem={onSelect}
+              onToggleLayoutCollapsed={onToggleLayoutCollapsed}
+            />
+          ))}
+        </div>
+      </section>
+
+      {isSelectorOpen ? (
+        <div
+          className="item-selector-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setIsSelectorOpen(false);
+            }
+          }}
+        >
+          <section
+            aria-labelledby="item-selector-title"
+            aria-modal="true"
+            className="item-selector app-panel"
+            role="dialog"
+          >
+            <header className="item-selector__header">
+              <h2 id="item-selector-title">Select item</h2>
+              <button
+                aria-label="Close item selector"
+                className="icon-button"
+                data-tooltip="Close"
+                type="button"
+                onClick={() => setIsSelectorOpen(false)}
+              >
+                <X size={18} aria-hidden="true" />
+              </button>
+            </header>
+
+            <div className="search-box item-selector__search">
+              <Search size={18} aria-hidden="true" />
+              <input
+                aria-label="Search selector items and fluids"
+                autoComplete="off"
+                placeholder="Search items"
+                ref={selectorSearchRef}
+                value={selectorQuery}
+                onChange={(event) => setSelectorQuery(event.target.value)}
+              />
+            </div>
+
+            <div className="item-selector__content">
+              {selectorGroups.length ? (
+                selectorGroups.map((group) => (
+                  <section className="item-selector__group" key={group.category.id}>
+                    <h3>
+                      <IconSprite
+                        atlas={data.atlas}
+                        icon={data.iconById.get(group.category.icon ?? group.category.id)}
+                        label={group.category.name}
+                        size={20}
+                      />
+                      {group.category.name}
+                    </h3>
+                    <div className="item-selector__grid">
+                      {group.items.map((item) => {
+                        const icon = data.iconById.get(getIconIdForItem(item));
+
+                        return (
+                          <button
+                            aria-label={item.name}
+                            className={`item-selector__item ${item.id === selectedItemId ? "item-selector__item--selected" : ""}`}
+                            data-tooltip={`${item.name} (${item.id})`}
+                            key={item.id}
+                            type="button"
+                            onClick={() => selectFromPicker(item.id)}
+                          >
+                            <IconSprite
+                              atlas={data.atlas}
+                              icon={icon}
+                              label={item.name}
+                              size={30}
+                            />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))
+              ) : (
+                <div className="empty-state">No items found</div>
+              )}
+            </div>
+          </section>
+        </div>
+      ) : null}
+    </aside>
+  );
+}
+
+interface LayoutCardProps {
+  data: RecipeExplorerData;
+  focused: boolean;
+  layout: RecipeLayout;
+  onClearLayout(layoutId: string): void;
+  onDeleteLayout(layoutId: string): void;
+  onFocusLayout(layoutId: string): void;
+  onOpenLayoutGraph(layoutId: string): void;
+  onRemoveRecipeFromLayout(layoutId: string, entryId: string): void;
+  onRenameLayout(layoutId: string, name: string): void;
+  onSelectItem(itemId: string): void;
+  onToggleLayoutCollapsed(layoutId: string): void;
+}
+
+function LayoutCard({
+  data,
+  focused,
+  layout,
+  onClearLayout,
+  onDeleteLayout,
+  onFocusLayout,
+  onOpenLayoutGraph,
+  onRemoveRecipeFromLayout,
+  onRenameLayout,
+  onSelectItem,
+  onToggleLayoutCollapsed,
+}: LayoutCardProps) {
+  return (
+    <article className={`layout-card ${focused ? "layout-card--focused" : ""}`}>
+      <div className="layout-card__header">
+        <button
+          aria-label={layout.collapsed ? "Expand layout recipes" : "Collapse layout recipes"}
+          className="layout-card__collapse"
+          data-tooltip={layout.collapsed ? "Expand recipes" : "Collapse recipes"}
+          type="button"
+          onClick={() => onToggleLayoutCollapsed(layout.id)}
+        >
+          {layout.collapsed ? (
+            <ChevronRight size={16} aria-hidden="true" />
+          ) : (
+            <ChevronDown size={16} aria-hidden="true" />
+          )}
+        </button>
+        <button
+          aria-label="Focus layout"
+          aria-pressed={focused}
+          className="layout-card__focus-button"
+          data-tooltip={focused ? "Focused layout" : "Focus layout"}
+          type="button"
+          onClick={() => onFocusLayout(layout.id)}
+        >
+          <CircleDot size={15} aria-hidden="true" />
+        </button>
+        <input
+          aria-label="Layout name"
+          className="layout-card__name"
+          placeholder="Untitled layout"
+          value={layout.name}
+          onChange={(event) => onRenameLayout(layout.id, event.target.value)}
+          onFocus={() => onFocusLayout(layout.id)}
+        />
+        <div className="layout-card__actions">
+          <button
+            aria-label="Open layout graph"
+            className="layout-action-button"
+            data-tooltip="Open graph"
+            type="button"
+            onClick={() => onOpenLayoutGraph(layout.id)}
+          >
+            <Network size={15} aria-hidden="true" />
+          </button>
+          <button
+            aria-label="Clear layout recipes"
+            className="layout-action-button"
+            data-tooltip="Clear recipes"
+            disabled={layout.entries.length === 0}
+            type="button"
+            onClick={() => onClearLayout(layout.id)}
+          >
+            <Eraser size={15} aria-hidden="true" />
+          </button>
+          <button
+            aria-label="Delete layout"
+            className="layout-action-button"
+            data-tooltip="Delete layout"
+            type="button"
+            onClick={() => onDeleteLayout(layout.id)}
+          >
+            <Trash2 size={15} aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+
+      {layout.collapsed ? null : (
+        <div className="layout-card__recipes">
+          {layout.entries.length ? (
+            layout.entries.map((entry, index) => {
+              const recipe = data.recipeById.get(entry.recipeId);
+
+              if (!recipe) {
+                return null;
+              }
+
+              return (
+                <LayoutRecipeRow
+                  data={data}
+                  entry={entry}
+                  index={index}
+                  key={entry.id}
+                  recipe={recipe}
+                  onRemove={() => onRemoveRecipeFromLayout(layout.id, entry.id)}
+                  onSelectItem={onSelectItem}
+                />
+              );
+            })
+          ) : (
+            <div className="layout-card__empty">No recipes yet</div>
+          )}
+        </div>
+      )}
+    </article>
+  );
+}
+
+interface LayoutRecipeRowProps {
+  data: RecipeExplorerData;
+  entry: RecipeLayoutEntry;
+  index: number;
+  recipe: RecipePrototype;
+  onRemove(): void;
+  onSelectItem(itemId: string): void;
+}
+
+function LayoutRecipeRow({
+  data,
+  entry,
+  index,
+  recipe,
+  onRemove,
+  onSelectItem,
+}: LayoutRecipeRowProps) {
+  const metadata = getRecipeMetadata(recipe);
+  const icon = data.iconById.get(getRecipeIconId(recipe));
+  const contextItemId = getRecipeContextItemId(data, recipe);
+
+  return (
+    <div className="layout-recipe-row">
+      <span className="layout-recipe-row__index">{index + 1}</span>
+      <button
+        className="layout-recipe-row__main"
+        data-layout-entry={entry.id}
+        data-tooltip={`${metadata.name} (${metadata.id})`}
+        type="button"
+        onClick={() => {
+          if (contextItemId) {
+            onSelectItem(contextItemId);
+          }
+        }}
+      >
+        <IconSprite atlas={data.atlas} icon={icon} label={metadata.name} size={24} />
+        <span>{metadata.name}</span>
+      </button>
+      <button
+        aria-label={`Remove ${metadata.name} from layout`}
+        className="layout-recipe-row__remove"
+        data-tooltip="Remove recipe"
+        type="button"
+        onClick={onRemove}
+      >
+        <X size={14} aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
+function getRecipeContextItemId(
+  data: RecipeExplorerData,
+  recipe: RecipePrototype,
+): string | null {
+  const resultItem = recipe.results?.find((entry) => data.itemById.has(entry.name));
+
+  if (resultItem) {
+    return resultItem.name;
+  }
+
+  return recipe.ingredients?.find((entry) => data.itemById.has(entry.name))?.name ?? null;
+}
+
+interface ItemCategoryGroup {
+  category: FactorioLabCategory;
+  items: FactorioLabItem[];
+}
+
+function groupItemsByCategory(
+  data: RecipeExplorerData,
+  items: FactorioLabItem[],
+): ItemCategoryGroup[] {
+  const itemsByCategory = new Map<string, FactorioLabItem[]>();
+
+  for (const item of items) {
+    const categoryItems = itemsByCategory.get(item.category) ?? [];
+
+    categoryItems.push(item);
+    itemsByCategory.set(item.category, categoryItems);
+  }
+
+  return data.categories
+    .map((category) => ({
+      category,
+      items: sortPickerItems(itemsByCategory.get(category.id) ?? []),
+    }))
+    .filter((group) => group.items.length > 0);
+}
+
+function sortPickerItems(items: FactorioLabItem[]): FactorioLabItem[] {
+  return [...items].sort(
+    (left, right) => left.row - right.row || left.name.localeCompare(right.name),
+  );
+}
+
+function searchItems(items: FactorioLabItem[], query: string): FactorioLabItem[] {
+  const normalizedQuery = normalize(query);
+
+  if (!normalizedQuery) {
+    return items;
+  }
+
+  return items
+    .map((item) => ({ item, score: scoreItem(item, normalizedQuery) }))
+    .filter((result) => result.score > 0)
+    .sort((left, right) => right.score - left.score || left.item.name.localeCompare(right.item.name))
+    .map((result) => result.item);
+}
+
+function scoreItem(item: FactorioLabItem, query: string): number {
+  const name = normalize(item.name);
+  const id = normalize(item.id);
+
+  if (id === query || name === query) {
+    return 1000;
+  }
+
+  if (name.startsWith(query) || id.startsWith(query)) {
+    return 500;
+  }
+
+  const words = query.split(/\s+/).filter(Boolean);
+  const wordScore = words.every((word) => name.includes(word) || id.includes(word))
+    ? words.length * 100
+    : 0;
+
+  return wordScore || (name.includes(query) || id.includes(query) ? 50 : 0);
+}
+
+function normalize(value: string): string {
+  return value.trim().toLowerCase().replaceAll("_", "-");
+}
