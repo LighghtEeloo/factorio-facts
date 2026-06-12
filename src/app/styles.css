@@ -630,6 +630,52 @@ button {
   padding: 0 10px;
 }
 
+.icon-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(36px, 1fr));
+  gap: 6px;
+}
+
+.filter-icon-toggle {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.filter-icon-toggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.filter-icon-toggle__frame {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  min-width: 0;
+  justify-self: center;
+  border: 1px solid #46483a;
+  border-radius: 6px;
+  background: #181a14;
+  color: #d7b65f;
+}
+
+.filter-icon-toggle:hover .filter-icon-toggle__frame,
+.filter-icon-toggle:focus-within .filter-icon-toggle__frame {
+  border-color: #756a45;
+  background: #23251d;
+}
+
+.filter-icon-toggle--checked .filter-icon-toggle__frame {
+  border-color: #d7b65f;
+  background: #302a1b;
+  box-shadow: inset 0 0 0 1px #d7b65f;
+}
+
 .toggle-group {
   display: grid;
   gap: 8px;

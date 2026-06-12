@@ -1,16 +1,15 @@
 import type { ReactNode } from "react";
 import {
-  Factory,
   Filter,
   FlaskConical,
   Lock,
-  MapPin,
   Pickaxe,
   Recycle,
   RotateCcw,
 } from "lucide-react";
 import type { RecipeExplorerData } from "../data/factoriolab";
 import type { FilterState } from "../types";
+import { IconSprite } from "./IconSprite";
 
 interface FilterPanelProps {
   data: RecipeExplorerData;
@@ -38,41 +37,53 @@ export function FilterPanel({ data, filters, onChange, onReset }: FilterPanelPro
         </button>
       </div>
 
-      <label className="field">
+      <div className="field">
         <span className="field__label">
-          <MapPin size={16} aria-hidden="true" />
           Surface
         </span>
-        <select
-          value={filters.location}
-          onChange={(event) => onChange({ ...filters, location: event.target.value })}
-        >
-          <option value="all">All surfaces</option>
+        <div className="icon-filter-grid" role="group" aria-label="Surface filters">
           {data.locations.map((location) => (
-            <option key={location.id} value={location.id}>
-              {location.name}
-            </option>
+            <IconFilterToggle
+              checked={filters.locations.includes(location.id)}
+              data={data}
+              iconId={location.icon ?? location.id}
+              id={location.id}
+              key={location.id}
+              label={location.name}
+              onChange={(checked) =>
+                onChange({
+                  ...filters,
+                  locations: toggleSelection(filters.locations, location.id, checked),
+                })
+              }
+            />
           ))}
-        </select>
-      </label>
+        </div>
+      </div>
 
-      <label className="field">
+      <div className="field">
         <span className="field__label">
-          <Factory size={16} aria-hidden="true" />
           Category
         </span>
-        <select
-          value={filters.category}
-          onChange={(event) => onChange({ ...filters, category: event.target.value })}
-        >
-          <option value="all">All categories</option>
+        <div className="icon-filter-grid" role="group" aria-label="Category filters">
           {data.categories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
-            </option>
+            <IconFilterToggle
+              checked={filters.categories.includes(category.id)}
+              data={data}
+              iconId={category.icon ?? category.id}
+              id={category.id}
+              key={category.id}
+              label={category.name}
+              onChange={(checked) =>
+                onChange({
+                  ...filters,
+                  categories: toggleSelection(filters.categories, category.id, checked),
+                })
+              }
+            />
           ))}
-        </select>
-      </label>
+        </div>
+      </div>
 
       <div className="toggle-group">
         <Toggle
@@ -102,6 +113,53 @@ export function FilterPanel({ data, filters, onChange, onReset }: FilterPanelPro
       </div>
     </aside>
   );
+}
+
+interface IconFilterToggleProps {
+  checked: boolean;
+  data: RecipeExplorerData;
+  iconId: string;
+  id: string;
+  label: string;
+  onChange(checked: boolean): void;
+}
+
+function IconFilterToggle({
+  checked,
+  data,
+  iconId,
+  id,
+  label,
+  onChange,
+}: IconFilterToggleProps) {
+  const icon = data.iconById.get(iconId);
+
+  return (
+    <label
+      className={`filter-icon-toggle ${checked ? "filter-icon-toggle--checked" : ""}`}
+      data-filter-id={id}
+      data-tooltip={label}
+    >
+      <input
+        aria-label={label}
+        checked={checked}
+        type="checkbox"
+        value={id}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span className="filter-icon-toggle__frame">
+        <IconSprite atlas={data.atlas} icon={icon} label={label} size={24} />
+      </span>
+    </label>
+  );
+}
+
+function toggleSelection(values: string[], id: string, checked: boolean): string[] {
+  if (checked) {
+    return values.includes(id) ? values : [...values, id];
+  }
+
+  return values.filter((value) => value !== id);
 }
 
 interface ToggleProps {

@@ -1,10 +1,8 @@
-export type LocationFilter = "all" | string;
-export type CategoryFilter = "all" | string;
 export type ViewMode = "detailed" | "concise";
 
 export interface FilterState {
-  location: LocationFilter;
-  category: CategoryFilter;
+  locations: string[];
+  categories: string[];
   includeMining: boolean;
   includeRecycling: boolean;
   includeTechnology: boolean;

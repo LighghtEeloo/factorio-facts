@@ -21,8 +21,8 @@ import { TooltipLayer } from "./components/TooltipLayer";
 import "./styles.css";
 
 const defaultFilters: FilterState = {
-  location: "all",
-  category: "all",
+  locations: [],
+  categories: [],
   includeMining: true,
   includeRecycling: false,
   includeTechnology: false,
@@ -205,8 +205,10 @@ function readAppStateFromUrl(): AppUrlState {
     selectedItemId,
     query: params.get("q") ?? "",
     filters: {
-      location: parseLocation(params.get("surface")),
-      category: parseCategory(params.get("category")),
+      locations: parseIdList(params, "surface", (id) => explorerData.locationById.has(id)),
+      categories: parseIdList(params, "category", (id) =>
+        explorerData.categories.some((category) => category.id === id),
+      ),
       includeMining: parseBooleanParam(
         params,
         "mining",
@@ -247,8 +249,8 @@ function updateUrlFromAppState(state: AppUrlState) {
     params.set("view", state.viewMode);
   }
 
-  setDefaultedParam(params, "surface", state.filters.location, defaultFilters.location);
-  setDefaultedParam(params, "category", state.filters.category, defaultFilters.category);
+  setListParam(params, "surface", state.filters.locations);
+  setListParam(params, "category", state.filters.categories);
   setBooleanParam(
     params,
     "mining",
@@ -274,7 +276,7 @@ function updateUrlFromAppState(state: AppUrlState) {
     defaultFilters.includeLocked,
   );
 
-  const nextSearch = params.toString();
+  const nextSearch = params.toString().replaceAll("%2C", ",");
   const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}${window.location.hash}`;
   const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
 
@@ -289,24 +291,6 @@ function parseItemId(value: string | null): string {
 
 function parseViewMode(value: string | null): ViewMode {
   return value === "detailed" || value === "concise" ? value : defaultViewMode;
-}
-
-function parseLocation(value: string | null): FilterState["location"] {
-  if (value === null || value === defaultFilters.location) {
-    return defaultFilters.location;
-  }
-
-  return explorerData.locationById.has(value) ? value : defaultFilters.location;
-}
-
-function parseCategory(value: string | null): FilterState["category"] {
-  if (value === null || value === defaultFilters.category) {
-    return defaultFilters.category;
-  }
-
-  return explorerData.categories.some((category) => category.id === value)
-    ? value
-    : defaultFilters.category;
 }
 
 function parseBooleanParam(
@@ -327,14 +311,30 @@ function parseBooleanParam(
   return defaultValue;
 }
 
-function setDefaultedParam(
+function parseIdList(
   params: URLSearchParams,
   key: string,
-  value: string,
-  defaultValue: string,
-) {
-  if (value !== defaultValue) {
-    params.set(key, value);
+  isAllowed: (id: string) => boolean,
+): string[] {
+  const values = params
+    .getAll(key)
+    .flatMap((value) => value.split(","))
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const uniqueValues = new Set<string>();
+
+  for (const value of values) {
+    if (isAllowed(value)) {
+      uniqueValues.add(value);
+    }
+  }
+
+  return [...uniqueValues];
+}
+
+function setListParam(params: URLSearchParams, key: string, values: string[]) {
+  if (values.length > 0) {
+    params.set(key, values.join(","));
   }
 }
 
@@ -353,14 +353,17 @@ function filterRecipes(recipes: RecipePrototype[], filters: FilterState): Recipe
   return recipes.filter((recipe) => {
     const metadata = getRecipeMetadata(recipe);
 
-    if (filters.category !== "all" && metadata.category !== filters.category) {
+    if (
+      filters.categories.length > 0 &&
+      !filters.categories.includes(metadata.category)
+    ) {
       return false;
     }
 
     if (
-      filters.location !== "all" &&
+      filters.locations.length > 0 &&
       metadata.locations.length > 0 &&
-      !metadata.locations.includes(filters.location)
+      !filters.locations.some((location) => metadata.locations.includes(location))
     ) {
       return false;
     }
