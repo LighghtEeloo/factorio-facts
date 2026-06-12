@@ -1350,27 +1350,31 @@ button {
 }
 
 .layout-graph-handle {
-  width: 10px;
-  height: 10px;
-  border: 1px solid #151710;
-  background: #d7b65f;
+  width: 0;
+  min-width: 0;
+  height: 0;
+  min-height: 0;
+  border: 0;
+  background: transparent;
+  opacity: 0;
   pointer-events: none;
+  visibility: hidden;
 }
 
 .layout-graph-handle--top {
-  top: -6px;
+  top: 0;
 }
 
 .layout-graph-handle--right {
-  right: -6px;
+  right: 0;
 }
 
 .layout-graph-handle--bottom {
-  bottom: -6px;
+  bottom: 0;
 }
 
 .layout-graph-handle--left {
-  left: -6px;
+  left: 0;
 }
 
 .layout-graph-node__main {
