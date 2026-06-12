@@ -4,7 +4,6 @@ import {
   ArrowUpFromLine,
   Database,
   ListTree,
-  RotateCcw,
   Rows3,
 } from "lucide-react";
 import type { RecipePrototype } from "../factorio/prototypes";
@@ -90,23 +89,8 @@ export function App() {
               <ArrowUpFromLine size={16} aria-hidden="true" />
               {usedIn.length} used in
             </span>
-            <span>
-              <Database size={16} aria-hidden="true" />
-              {explorerData.recipes.length} recipes
-            </span>
+            <ViewModeToggle value={viewMode} onChange={setViewMode} />
           </div>
-
-          <ViewModeToggle value={viewMode} onChange={setViewMode} />
-
-          <button
-            className="icon-button"
-            aria-label="Reset filters"
-            data-tooltip="Reset filters"
-            type="button"
-            onClick={() => setFilters(defaultFilters)}
-          >
-            <RotateCcw size={18} aria-hidden="true" />
-          </button>
         </header>
 
         <div className="recipe-grid">
@@ -130,10 +114,22 @@ export function App() {
           />
         </div>
 
-        <footer className="data-footnote">{explorerData.versionLabel}</footer>
+        <footer className="data-footnote">
+          <span className="data-footnote__version">{explorerData.versionLabel}</span>
+          <span className="data-footnote__separator">/</span>
+          <span className="data-footnote__recipes">
+            <Database size={14} aria-hidden="true" />
+            {explorerData.recipes.length} recipes
+          </span>
+        </footer>
       </section>
 
-      <FilterPanel data={explorerData} filters={filters} onChange={setFilters} />
+      <FilterPanel
+        data={explorerData}
+        filters={filters}
+        onChange={setFilters}
+        onReset={() => setFilters(defaultFilters)}
+      />
       <TooltipLayer />
     </main>
   );

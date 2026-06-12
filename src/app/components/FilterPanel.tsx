@@ -7,6 +7,7 @@ import {
   MapPin,
   Pickaxe,
   Recycle,
+  RotateCcw,
 } from "lucide-react";
 import type { RecipeExplorerData } from "../data/factoriolab";
 import type { FilterState } from "../types";
@@ -15,14 +16,26 @@ interface FilterPanelProps {
   data: RecipeExplorerData;
   filters: FilterState;
   onChange(filters: FilterState): void;
+  onReset(): void;
 }
 
-export function FilterPanel({ data, filters, onChange }: FilterPanelProps) {
+export function FilterPanel({ data, filters, onChange, onReset }: FilterPanelProps) {
   return (
     <aside className="filters app-panel">
       <div className="panel-title">
-        <Filter size={18} aria-hidden="true" />
-        <h2>Filters</h2>
+        <span className="panel-title__label">
+          <Filter size={18} aria-hidden="true" />
+          <h2>Filters</h2>
+        </span>
+        <button
+          aria-label="Reset filters"
+          className="icon-button"
+          data-tooltip="Reset filters"
+          type="button"
+          onClick={onReset}
+        >
+          <RotateCcw size={18} aria-hidden="true" />
+        </button>
       </div>
 
       <label className="field">

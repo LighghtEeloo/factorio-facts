@@ -109,5 +109,5 @@ function formatVersionLabel(version: FactorioLabData["version"]): string {
   return Object.entries(version)
     .filter(([, value]) => value)
     .map(([mod, value]) => `${mod} ${value}`)
-    .join(" / ");
+    .join(" + ");
 }
