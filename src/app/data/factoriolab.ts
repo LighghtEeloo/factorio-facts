@@ -31,6 +31,7 @@ export interface RecipeExplorerData {
   itemById: ReadonlyMap<string, FactorioLabItem>;
   items: FactorioLabItem[];
   itemKindById: ReadonlyMap<string, EntityKind>;
+  locationById: ReadonlyMap<string, FactorioLabLocation>;
   locations: FactorioLabLocation[];
   recipes: RecipePrototype[];
   versionLabel: string;
@@ -65,6 +66,7 @@ function createExplorerData(data: FactorioLabData): RecipeExplorerData {
   const recipeBook = createRecipeBook(recipes);
   const itemById = new Map(data.items.map((item) => [item.id, item]));
   const iconById = new Map(data.icons.map((icon) => [icon.id, icon]));
+  const locationById = new Map(data.locations.map((location) => [location.id, location]));
 
   return {
     atlas: {
@@ -78,6 +80,7 @@ function createExplorerData(data: FactorioLabData): RecipeExplorerData {
     itemById,
     items: [...data.items].sort((left, right) => left.name.localeCompare(right.name)),
     itemKindById,
+    locationById,
     locations: data.locations,
     recipes,
     versionLabel: formatVersionLabel(data.version),

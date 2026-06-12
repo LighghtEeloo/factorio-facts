@@ -1,16 +1,24 @@
 import { useMemo, useState } from "react";
-import { Database, GitBranch, RotateCcw } from "lucide-react";
+import {
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  Database,
+  ListTree,
+  RotateCcw,
+  Rows3,
+} from "lucide-react";
 import type { RecipePrototype } from "../factorio/prototypes";
 import {
   explorerData,
   getIconIdForItem,
   getRecipeMetadata,
 } from "./data/factoriolab";
-import type { FilterState } from "./types";
+import type { FilterState, ViewMode } from "./types";
 import { FilterPanel } from "./components/FilterPanel";
 import { IconSprite } from "./components/IconSprite";
 import { ItemSearch } from "./components/ItemSearch";
 import { RecipeColumn } from "./components/RecipeColumn";
+import { TooltipLayer } from "./components/TooltipLayer";
 import "./styles.css";
 
 const defaultFilters: FilterState = {
@@ -26,6 +34,7 @@ export function App() {
   const [selectedItemId, setSelectedItemId] = useState("iron-plate");
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
+  const [viewMode, setViewMode] = useState<ViewMode>("detailed");
   const selectedItem = explorerData.itemById.get(selectedItemId) ?? explorerData.items[0];
 
   if (!selectedItem) {
@@ -74,11 +83,11 @@ export function App() {
 
           <div className="workspace-stats">
             <span>
-              <GitBranch size={16} aria-hidden="true" />
+              <ArrowDownToLine size={16} aria-hidden="true" />
               {madeBy.length} made by
             </span>
             <span>
-              <GitBranch size={16} aria-hidden="true" />
+              <ArrowUpFromLine size={16} aria-hidden="true" />
               {usedIn.length} used in
             </span>
             <span>
@@ -87,10 +96,13 @@ export function App() {
             </span>
           </div>
 
+          <ViewModeToggle value={viewMode} onChange={setViewMode} />
+
           <button
             className="icon-button"
+            aria-label="Reset filters"
+            data-tooltip="Reset filters"
             type="button"
-            title="Reset filters"
             onClick={() => setFilters(defaultFilters)}
           >
             <RotateCcw size={18} aria-hidden="true" />
@@ -103,6 +115,8 @@ export function App() {
             onSelectItem={selectItem}
             recipes={madeBy}
             selectedItemId={selectedItem.id}
+            viewMode={viewMode}
+            variant="made-by"
             title="Made by"
           />
           <RecipeColumn
@@ -110,6 +124,8 @@ export function App() {
             onSelectItem={selectItem}
             recipes={usedIn}
             selectedItemId={selectedItem.id}
+            viewMode={viewMode}
+            variant="used-in"
             title="Used in"
           />
         </div>
@@ -118,7 +134,40 @@ export function App() {
       </section>
 
       <FilterPanel data={explorerData} filters={filters} onChange={setFilters} />
+      <TooltipLayer />
     </main>
+  );
+}
+
+interface ViewModeToggleProps {
+  value: ViewMode;
+  onChange(value: ViewMode): void;
+}
+
+function ViewModeToggle({ value, onChange }: ViewModeToggleProps) {
+  return (
+    <div className="view-toggle" role="group" aria-label="Recipe detail level">
+      <button
+        aria-pressed={value === "detailed"}
+        className={value === "detailed" ? "view-toggle__button--active" : ""}
+        type="button"
+        title="Detailed recipe cards"
+        onClick={() => onChange("detailed")}
+      >
+        <ListTree size={15} aria-hidden="true" />
+        Detailed
+      </button>
+      <button
+        aria-pressed={value === "concise"}
+        className={value === "concise" ? "view-toggle__button--active" : ""}
+        type="button"
+        title="Concise icon pills"
+        onClick={() => onChange("concise")}
+      >
+        <Rows3 size={15} aria-hidden="true" />
+        Concise
+      </button>
+    </div>
   );
 }
 

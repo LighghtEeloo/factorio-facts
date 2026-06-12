@@ -11,7 +11,11 @@ interface IconSpriteProps {
 export function IconSprite({ atlas, icon, label, size = 32 }: IconSpriteProps) {
   if (!icon) {
     return (
-      <span className="icon-sprite icon-sprite--missing" aria-label={label}>
+      <span
+        className="icon-sprite icon-sprite--missing"
+        aria-label={label}
+        style={{ width: size, height: size }}
+      >
         {label.slice(0, 1).toUpperCase()}
       </span>
     );

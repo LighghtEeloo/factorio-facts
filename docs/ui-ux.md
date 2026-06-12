@@ -9,7 +9,7 @@ factorio-facts is a recipe relationship workbench. The first screen is the worki
 The first milestone uses a three-pane layout:
 
 - Left: searchable item/fluid index with icon, display name, and prototype id.
-- Center: selected item context plus two recipe columns, `Made by` and `Used in`.
+- Center: selected item context plus two recipe columns, `Made by` and `Used in`. The column headings and header counters use different direction icons so producers and consumers are visually distinct.
 - Right: filters for surface, FactorioLab category, and recipe flags.
 
 This keeps the graph readable. The underlying model is still bipartite (`item/fluid -> recipe -> item/fluid`), but the UI exposes one-hop relationships as clickable recipe cards before adding any larger graph canvas.
@@ -22,7 +22,12 @@ Search scores exact id/name matches first, prefix matches second, then token con
 
 ## Recipe Cards
 
-Each recipe card shows:
+The viewer has two global density modes:
+
+- Detailed: full recipe cards for deliberate inspection.
+- Concise: compact recipe cards for scanning, using icon-only item, producer/building, and surface pills with hover/focus tooltips.
+
+Each detailed recipe card shows:
 
 - Recipe icon and name.
 - Prototype id.
