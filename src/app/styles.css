@@ -212,9 +212,9 @@ button {
   gap: 8px;
 }
 
-.workspace-stats span,
-.recipe-card__meta span,
-.recipe-tags span {
+.workspace-stats > span,
+.recipe-card__meta > span,
+.recipe-tags > span {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -408,13 +408,16 @@ button {
   margin-left: auto;
 }
 
-.recipe-card__meta span {
+.recipe-card__meta > span {
   max-width: 100%;
   min-width: 0;
   overflow: hidden;
-  padding: 0 7px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.recipe-card__meta > span:not(.icon-pill):not(.text-pill) {
+  padding: 0 7px;
 }
 
 .recipe-card--concise .recipe-card__meta {
@@ -473,6 +476,14 @@ button {
   min-height: 28px;
   min-width: 28px;
   padding: 2px 5px 2px 2px;
+}
+
+.item-chip--icon-only {
+  grid-template-columns: 22px;
+  width: 28px;
+  height: 28px;
+  padding: 2px;
+  border-radius: 999px;
 }
 
 .item-chip:hover,
@@ -545,8 +556,15 @@ button {
   background: #181a14;
 }
 
-.icon-pill--producer {
+.recipe-card__meta > .icon-pill {
+  width: 28px;
+  height: 28px;
+  padding: 2px;
+}
+
+.recipe-card__meta > .icon-pill--producer {
   border-color: #61583a;
+  border-radius: 6px;
 }
 
 .icon-pill--surface {

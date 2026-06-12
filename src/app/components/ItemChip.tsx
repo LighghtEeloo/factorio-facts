@@ -22,12 +22,13 @@ export function ItemChip({
   const icon = data.iconById.get(getIconIdForItem(item));
   const isConcise = variant === "concise";
   const amountText = amount === undefined ? undefined : formatAmount(amount);
+  const isIconOnly = isConcise && amountText === undefined;
   const title = amountText === undefined ? item.name : `${amountText}x ${item.name}`;
 
   return (
     <button
       aria-label={`${title} (${item.id})`}
-      className={`item-chip item-chip--${variant} ${isSelected ? "item-chip--selected" : ""}`}
+      className={`item-chip item-chip--${variant} ${isIconOnly ? "item-chip--icon-only" : ""} ${isSelected ? "item-chip--selected" : ""}`}
       data-tooltip={isConcise ? `${title} (${item.id})` : undefined}
       type="button"
       onClick={() => onSelect(item.id)}
