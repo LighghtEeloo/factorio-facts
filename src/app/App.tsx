@@ -36,6 +36,8 @@ import "./styles.css";
 const defaultFilters: FilterState = {
   locations: [],
   categories: [],
+  madeByNoByproducts: false,
+  usedInNoCoInputs: false,
   includeMining: true,
   includeRecycling: false,
   includeTechnology: false,
@@ -77,11 +79,23 @@ export function App() {
   }
 
   const madeBy = useMemo(
-    () => (selectedItem ? filterRecipes(explorerData.madeBy(selectedItem.id), filters) : []),
+    () =>
+      selectedItem
+        ? filterRecipes(explorerData.madeBy(selectedItem.id), filters, {
+            direction: "made-by",
+            selectedItemId: selectedItem.id,
+          })
+        : [],
     [filters, selectedItem],
   );
   const usedIn = useMemo(
-    () => (selectedItem ? filterRecipes(explorerData.usedIn(selectedItem.id), filters) : []),
+    () =>
+      selectedItem
+        ? filterRecipes(explorerData.usedIn(selectedItem.id), filters, {
+            direction: "used-in",
+            selectedItemId: selectedItem.id,
+          })
+        : [],
     [filters, selectedItem],
   );
   const selectedIcon = selectedItem
@@ -534,6 +548,16 @@ function readAppStateFromUrl(): AppUrlState {
       categories: parseIdList(params, "category", (id) =>
         explorerData.categories.some((category) => category.id === id),
       ),
+      madeByNoByproducts: parseBooleanParam(
+        params,
+        "no-byproducts",
+        defaultFilters.madeByNoByproducts,
+      ),
+      usedInNoCoInputs: parseBooleanParam(
+        params,
+        "no-co-inputs",
+        defaultFilters.usedInNoCoInputs,
+      ),
       includeMining: parseBooleanParam(
         params,
         "mining",
@@ -574,6 +598,18 @@ function updateUrlFromAppState(state: AppUrlState) {
 
   setListParam(params, "surface", state.filters.locations);
   setListParam(params, "category", state.filters.categories);
+  setBooleanParam(
+    params,
+    "no-byproducts",
+    state.filters.madeByNoByproducts,
+    defaultFilters.madeByNoByproducts,
+  );
+  setBooleanParam(
+    params,
+    "no-co-inputs",
+    state.filters.usedInNoCoInputs,
+    defaultFilters.usedInNoCoInputs,
+  );
   setBooleanParam(
     params,
     "mining",
@@ -1268,7 +1304,16 @@ function setBooleanParam(
   }
 }
 
-function filterRecipes(recipes: RecipePrototype[], filters: FilterState): RecipePrototype[] {
+interface RecipeRelationshipFilter {
+  direction: "made-by" | "used-in";
+  selectedItemId: string;
+}
+
+function filterRecipes(
+  recipes: RecipePrototype[],
+  filters: FilterState,
+  relationship: RecipeRelationshipFilter,
+): RecipePrototype[] {
   return recipes.filter((recipe) => {
     const metadata = getRecipeMetadata(recipe);
 
@@ -1303,6 +1348,34 @@ function filterRecipes(recipes: RecipePrototype[], filters: FilterState): Recipe
       return false;
     }
 
+    if (
+      relationship.direction === "made-by" &&
+      filters.madeByNoByproducts &&
+      !isOnlyRecipeOutput(recipe, relationship.selectedItemId)
+    ) {
+      return false;
+    }
+
+    if (
+      relationship.direction === "used-in" &&
+      filters.usedInNoCoInputs &&
+      !isOnlyRecipeInput(recipe, relationship.selectedItemId)
+    ) {
+      return false;
+    }
+
     return true;
   });
+}
+
+function isOnlyRecipeOutput(recipe: RecipePrototype, selectedItemId: string): boolean {
+  const results = recipe.results ?? [];
+
+  return results.length === 1 && results[0]?.name === selectedItemId;
+}
+
+function isOnlyRecipeInput(recipe: RecipePrototype, selectedItemId: string): boolean {
+  const ingredients = recipe.ingredients ?? [];
+
+  return ingredients.length === 1 && ingredients[0]?.name === selectedItemId;
 }

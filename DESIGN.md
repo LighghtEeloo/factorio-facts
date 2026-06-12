@@ -141,6 +141,8 @@ No ratio solving is attempted. Amounts are preserved for labels and future calcu
 
 Surface filters include recipes that have no explicit location metadata, because FactorioLab treats those as broadly available in this bootstrap dataset.
 
+Relationship filters are direction-specific. `No byproducts` applies only to `Made by` and keeps recipes where the selected item or fluid is the only output. `No co-inputs` applies only to `Used in` and keeps recipes where the selected item or fluid is the only input.
+
 Recycling and technology recipes are hidden by default to reduce visual noise for common intermediates such as iron plate. Mining and locked recipes are included by default because they are often important for understanding source materials and progression.
 
 The current hidden/internal filter is approximated through FactorioLab recipe flags. A future raw `data.raw.recipe` importer should replace this with real prototype fields such as `hidden`, `hidden_in_factoriopedia`, and related visibility fields.

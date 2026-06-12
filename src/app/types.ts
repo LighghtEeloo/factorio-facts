@@ -45,6 +45,8 @@ export interface RecipeLayout {
 export interface FilterState {
   locations: string[];
   categories: string[];
+  madeByNoByproducts: boolean;
+  usedInNoCoInputs: boolean;
   includeMining: boolean;
   includeRecycling: boolean;
   includeTechnology: boolean;

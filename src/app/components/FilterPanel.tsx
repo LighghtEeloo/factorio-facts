@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import {
+  ArrowDownToLine,
+  ArrowUpFromLine,
   Filter,
   FlaskConical,
   Lock,
@@ -85,31 +87,62 @@ export function FilterPanel({ data, filters, onChange, onReset }: FilterPanelPro
         </div>
       </div>
 
-      <div className="toggle-group">
-        <Toggle
-          checked={filters.includeLocked}
-          icon={<Lock size={16} aria-hidden="true" />}
-          label="Locked"
-          onChange={(includeLocked) => onChange({ ...filters, includeLocked })}
-        />
-        <Toggle
-          checked={filters.includeMining}
-          icon={<Pickaxe size={16} aria-hidden="true" />}
-          label="Mining"
-          onChange={(includeMining) => onChange({ ...filters, includeMining })}
-        />
-        <Toggle
-          checked={filters.includeRecycling}
-          icon={<Recycle size={16} aria-hidden="true" />}
-          label="Recycling"
-          onChange={(includeRecycling) => onChange({ ...filters, includeRecycling })}
-        />
-        <Toggle
-          checked={filters.includeTechnology}
-          icon={<FlaskConical size={16} aria-hidden="true" />}
-          label="Technology"
-          onChange={(includeTechnology) => onChange({ ...filters, includeTechnology })}
-        />
+      <div className="field">
+        <span className="field__label">
+          Relationship
+        </span>
+        <div className="toggle-group">
+          <Toggle
+            checked={filters.madeByNoByproducts}
+            icon={<ArrowDownToLine size={16} aria-hidden="true" />}
+            label="No byproducts"
+            tooltip="Made by: selected item is the only output"
+            onChange={(madeByNoByproducts) =>
+              onChange({ ...filters, madeByNoByproducts })
+            }
+          />
+          <Toggle
+            checked={filters.usedInNoCoInputs}
+            icon={<ArrowUpFromLine size={16} aria-hidden="true" />}
+            label="No co-inputs"
+            tooltip="Used in: selected item is the only input"
+            onChange={(usedInNoCoInputs) =>
+              onChange({ ...filters, usedInNoCoInputs })
+            }
+          />
+        </div>
+      </div>
+
+      <div className="field">
+        <span className="field__label">
+          Recipe flags
+        </span>
+        <div className="toggle-group">
+          <Toggle
+            checked={filters.includeLocked}
+            icon={<Lock size={16} aria-hidden="true" />}
+            label="Locked"
+            onChange={(includeLocked) => onChange({ ...filters, includeLocked })}
+          />
+          <Toggle
+            checked={filters.includeMining}
+            icon={<Pickaxe size={16} aria-hidden="true" />}
+            label="Mining"
+            onChange={(includeMining) => onChange({ ...filters, includeMining })}
+          />
+          <Toggle
+            checked={filters.includeRecycling}
+            icon={<Recycle size={16} aria-hidden="true" />}
+            label="Recycling"
+            onChange={(includeRecycling) => onChange({ ...filters, includeRecycling })}
+          />
+          <Toggle
+            checked={filters.includeTechnology}
+            icon={<FlaskConical size={16} aria-hidden="true" />}
+            label="Technology"
+            onChange={(includeTechnology) => onChange({ ...filters, includeTechnology })}
+          />
+        </div>
       </div>
     </aside>
   );
@@ -166,12 +199,13 @@ interface ToggleProps {
   checked: boolean;
   icon: ReactNode;
   label: string;
+  tooltip?: string;
   onChange(checked: boolean): void;
 }
 
-function Toggle({ checked, icon, label, onChange }: ToggleProps) {
+function Toggle({ checked, icon, label, tooltip, onChange }: ToggleProps) {
   return (
-    <label className="toggle">
+    <label className="toggle" {...(tooltip ? { "data-tooltip": tooltip } : {})}>
       <input
         checked={checked}
         type="checkbox"
