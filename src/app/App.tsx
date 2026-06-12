@@ -19,6 +19,7 @@ import type {
   GraphEdgePorts,
   GraphNodePosition,
   GraphSide,
+  GraphTerminalKind,
   LayoutReorderPlacement,
   RecipeLayout,
   RecipeLayoutEntry,
@@ -164,6 +165,7 @@ export function App() {
               graphPositions: omitGraphPosition(layout.graphPositions, entryId),
               edgePorts: omitGraphEdgePorts(layout.edgePorts, entryId),
               edgeRoutes: omitGraphEdgeRoutes(layout.edgeRoutes, entryId),
+              terminalSides: omitGraphTerminalSides(layout.terminalSides, entryId),
             }
           : layout,
       ),
@@ -320,11 +322,37 @@ export function App() {
     );
   }
 
+  function updateLayoutGraphTerminalSide(
+    layoutId: string,
+    terminalId: string,
+    side: GraphSide,
+  ) {
+    setLayouts((currentLayouts) =>
+      currentLayouts.map((layout) =>
+        layout.id === layoutId
+          ? {
+              ...layout,
+              terminalSides: {
+                ...layout.terminalSides,
+                [terminalId]: side,
+              },
+            }
+          : layout,
+      ),
+    );
+  }
+
   function resetLayoutGraph(layoutId: string) {
     setLayouts((currentLayouts) =>
       currentLayouts.map((layout) =>
         layout.id === layoutId
-          ? { ...layout, graphPositions: {}, edgePorts: {}, edgeRoutes: {} }
+          ? {
+              ...layout,
+              graphPositions: {},
+              edgePorts: {},
+              edgeRoutes: {},
+              terminalSides: {},
+            }
           : layout,
       ),
     );
@@ -451,6 +479,9 @@ export function App() {
             selectItem(itemId);
             setGraphLayoutId(null);
           }}
+          onTerminalSideChange={(terminalId, side) =>
+            updateLayoutGraphTerminalSide(graphLayout.id, terminalId, side)
+          }
         />
       ) : null}
       <TooltipLayer />
@@ -599,6 +630,7 @@ interface SerializedLayout {
   n?: unknown;
   p?: unknown;
   r?: unknown;
+  t?: unknown;
 }
 
 interface SerializedLayoutEntry {
@@ -661,6 +693,7 @@ function parseLayout(
     n: rawName,
     p: rawGraphPositions,
     r: rawEdgeRoutes,
+    t: rawTerminalSides,
   } = rawLayout as SerializedLayout;
   const id = getUniqueId(
     typeof rawId === "string" && rawId ? rawId : `layout-${index + 1}`,
@@ -681,6 +714,7 @@ function parseLayout(
       graphPositions: parseGraphPositions(rawGraphPositions, entries),
       edgePorts: parseGraphEdgePorts(rawEdgePorts, entries),
       edgeRoutes: parseGraphEdgeRoutes(rawEdgeRoutes, entries),
+      terminalSides: parseGraphTerminalSides(rawTerminalSides, entries),
       collapsed: rawCollapsed === 1 || rawCollapsed === true,
     },
   ];
@@ -781,6 +815,34 @@ function parseGraphEdgeRoutes(
   return edgeRoutes;
 }
 
+function parseGraphTerminalSides(
+  value: unknown,
+  entries: RecipeLayoutEntry[],
+): Record<string, GraphSide> {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  const entryIds = new Set(entries.map((entry) => entry.id));
+  const terminalSides: Record<string, GraphSide> = {};
+
+  for (const [terminalId, rawSide] of Object.entries(value)) {
+    const terminalEntry = parseGraphTerminalId(terminalId);
+
+    if (
+      !terminalEntry ||
+      !entryIds.has(terminalEntry.entryId) ||
+      !isGraphSide(rawSide)
+    ) {
+      continue;
+    }
+
+    terminalSides[terminalId] = rawSide;
+  }
+
+  return terminalSides;
+}
+
 function parseGraphPoint(value: unknown): GraphEdgeRoute | null {
   let rawX: unknown;
   let rawY: unknown;
@@ -869,6 +931,7 @@ function serializeLayoutState(layouts: RecipeLayout[], focusedLayoutId: string):
       h: serializeGraphEdgePorts(layout),
       p: serializeGraphPositions(layout),
       r: serializeGraphEdgeRoutes(layout),
+      t: serializeGraphTerminalSides(layout),
     })),
   });
 }
@@ -936,6 +999,29 @@ function serializeGraphEdgeRoutes(
   return Object.keys(edgeRoutes).length ? edgeRoutes : undefined;
 }
 
+function serializeGraphTerminalSides(
+  layout: RecipeLayout,
+): Record<string, GraphSide> | undefined {
+  const entryIds = new Set(layout.entries.map((entry) => entry.id));
+  const terminalSides: Record<string, GraphSide> = {};
+
+  for (const [terminalId, side] of Object.entries(layout.terminalSides)) {
+    const terminalEntry = parseGraphTerminalId(terminalId);
+
+    if (
+      !terminalEntry ||
+      !entryIds.has(terminalEntry.entryId) ||
+      !isGraphSide(side)
+    ) {
+      continue;
+    }
+
+    terminalSides[terminalId] = side;
+  }
+
+  return Object.keys(terminalSides).length ? terminalSides : undefined;
+}
+
 function isDefaultLayoutState(
   layouts: RecipeLayout[],
   focusedLayoutId: string,
@@ -951,7 +1037,8 @@ function isDefaultLayoutState(
     layout.entries.length === 0 &&
     Object.keys(layout.graphPositions).length === 0 &&
     Object.keys(layout.edgePorts).length === 0 &&
-    Object.keys(layout.edgeRoutes).length === 0
+    Object.keys(layout.edgeRoutes).length === 0 &&
+    Object.keys(layout.terminalSides).length === 0
   );
 }
 
@@ -969,6 +1056,7 @@ function createEmptyLayout(id: string): RecipeLayout {
     graphPositions: {},
     edgePorts: {},
     edgeRoutes: {},
+    terminalSides: {},
     collapsed: false,
   };
 }
@@ -1039,6 +1127,23 @@ function omitGraphEdgeRoutes(
   return remainingRoutes;
 }
 
+function omitGraphTerminalSides(
+  terminalSides: Record<string, GraphSide>,
+  entryId: string,
+): Record<string, GraphSide> {
+  const remainingTerminalSides: Record<string, GraphSide> = {};
+
+  for (const [terminalId, side] of Object.entries(terminalSides)) {
+    const terminalEntry = parseGraphTerminalId(terminalId);
+
+    if (terminalEntry && terminalEntry.entryId !== entryId) {
+      remainingTerminalSides[terminalId] = side;
+    }
+  }
+
+  return remainingTerminalSides;
+}
+
 function parseGraphEdgeId(edgeId: string): { sourceId: string; targetId: string } | null {
   const separator = edgeId.indexOf("->");
 
@@ -1049,6 +1154,27 @@ function parseGraphEdgeId(edgeId: string): { sourceId: string; targetId: string 
   return {
     sourceId: edgeId.slice(0, separator),
     targetId: edgeId.slice(separator + 2),
+  };
+}
+
+function parseGraphTerminalId(
+  terminalId: string,
+): { entryId: string; kind: GraphTerminalKind } | null {
+  const separator = terminalId.lastIndexOf(":");
+
+  if (separator <= 0 || separator >= terminalId.length - 1) {
+    return null;
+  }
+
+  const kind = terminalId.slice(separator + 1);
+
+  if (kind !== "input" && kind !== "output") {
+    return null;
+  }
+
+  return {
+    entryId: terminalId.slice(0, separator),
+    kind,
   };
 }
 

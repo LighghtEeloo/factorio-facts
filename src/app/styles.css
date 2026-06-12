@@ -1225,12 +1225,8 @@ button {
 
 .layout-graph-node {
   position: relative;
-  display: grid;
-  grid-template-rows: minmax(24px, auto) 78px minmax(24px, auto);
-  align-items: center;
-  justify-items: center;
-  gap: 4px;
   width: 168px;
+  min-height: 78px;
   cursor: grab;
 }
 
@@ -1256,8 +1252,13 @@ button {
   pointer-events: all;
 }
 
-.layout-graph-endpoints--target .layout-graph-endpoint-button {
+.layout-graph-endpoints--target .layout-graph-endpoint-button,
+.layout-graph-endpoints--terminal-input .layout-graph-endpoint-button {
   border-color: #8aa477;
+}
+
+.layout-graph-endpoints--terminal-output .layout-graph-endpoint-button {
+  border-color: #d7b65f;
 }
 
 .layout-graph-endpoint-button span {
@@ -1278,7 +1279,9 @@ button {
   border-color: #f0c96e;
 }
 
-.layout-graph-endpoints--target .layout-graph-endpoint-button[aria-pressed="true"] {
+.layout-graph-endpoints--target .layout-graph-endpoint-button[aria-pressed="true"],
+.layout-graph-endpoints--terminal-input
+  .layout-graph-endpoint-button[aria-pressed="true"] {
   border-color: #b7d58f;
 }
 
@@ -1287,6 +1290,9 @@ button {
 }
 
 .layout-graph-endpoints--target
+  .layout-graph-endpoint-button[aria-pressed="true"]
+  span,
+.layout-graph-endpoints--terminal-input
   .layout-graph-endpoint-button[aria-pressed="true"]
   span {
   background: #b7d58f;
@@ -1400,14 +1406,196 @@ button {
   white-space: nowrap;
 }
 
-.layout-graph-node__ports {
+.layout-graph-boundary {
+  position: absolute;
+  top: 50%;
+  --overflow-offset: 0px;
+  --terminal-color: #d7b65f;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 3px;
-  max-width: 168px;
-  min-height: 24px;
+  gap: 4px;
+  transform: translateY(-50%);
+  z-index: 2;
+  pointer-events: all;
+}
+
+.layout-graph-boundary::before,
+.layout-graph-boundary::after {
+  position: absolute;
+  pointer-events: none;
+  content: "";
+}
+
+.layout-graph-boundary--input {
+  --terminal-color: #8aa477;
+}
+
+.layout-graph-boundary--output {
+  --terminal-color: #d7b65f;
+}
+
+.layout-graph-boundary--side-left {
+  top: 50%;
+  right: calc(100% + 18px);
+  flex-direction: column;
+  transform: translateY(-50%);
+}
+
+.layout-graph-boundary--side-right {
+  top: 50%;
+  left: calc(100% + 14px);
+  flex-direction: column;
+  transform: translateY(-50%);
+}
+
+.layout-graph-boundary--side-top {
+  bottom: calc(100% + 18px);
+  left: 50%;
+  top: auto;
+  flex-direction: row;
+  transform: translateX(-50%);
+}
+
+.layout-graph-boundary--side-bottom {
+  top: calc(100% + 18px);
+  left: 50%;
+  flex-direction: row;
+  transform: translateX(-50%);
+}
+
+.layout-graph-boundary--side-left::before,
+.layout-graph-boundary--side-right::before {
+  top: 50%;
+  width: 18px;
+  border-top: 1px dashed var(--terminal-color);
+  transform: translateY(-50%);
+}
+
+.layout-graph-boundary--side-left::before {
+  left: 100%;
+}
+
+.layout-graph-boundary--side-right::before {
+  right: 100%;
+}
+
+.layout-graph-boundary--side-top::before,
+.layout-graph-boundary--side-bottom::before {
+  left: 50%;
+  height: 18px;
+  border-left: 1px dashed var(--terminal-color);
+  transform: translateX(-50%);
+}
+
+.layout-graph-boundary--side-top::before {
+  top: 100%;
+}
+
+.layout-graph-boundary--side-bottom::before {
+  bottom: 100%;
+}
+
+.layout-graph-boundary--side-left::after,
+.layout-graph-boundary--side-right::after {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.layout-graph-boundary--side-top::after,
+.layout-graph-boundary--side-bottom::after {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.layout-graph-boundary--input.layout-graph-boundary--side-left::after,
+.layout-graph-boundary--output.layout-graph-boundary--side-right::after {
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 7px solid var(--terminal-color);
+}
+
+.layout-graph-boundary--input.layout-graph-boundary--side-left::after {
+  left: calc(100% + 9px);
+}
+
+.layout-graph-boundary--output.layout-graph-boundary--side-right::after {
+  right: calc(100% - 1px);
+}
+
+.layout-graph-boundary--input.layout-graph-boundary--side-right::after,
+.layout-graph-boundary--output.layout-graph-boundary--side-left::after {
+  border-top: 4px solid transparent;
+  border-right: 7px solid var(--terminal-color);
+  border-bottom: 4px solid transparent;
+}
+
+.layout-graph-boundary--input.layout-graph-boundary--side-right::after {
+  right: calc(100% + 9px);
+}
+
+.layout-graph-boundary--output.layout-graph-boundary--side-left::after {
+  left: calc(100% - 1px);
+}
+
+.layout-graph-boundary--input.layout-graph-boundary--side-top::after,
+.layout-graph-boundary--output.layout-graph-boundary--side-bottom::after {
+  border-top: 7px solid var(--terminal-color);
+  border-right: 4px solid transparent;
+  border-left: 4px solid transparent;
+}
+
+.layout-graph-boundary--input.layout-graph-boundary--side-top::after {
+  top: calc(100% + 9px);
+}
+
+.layout-graph-boundary--output.layout-graph-boundary--side-bottom::after {
+  bottom: calc(100% - 1px);
+}
+
+.layout-graph-boundary--input.layout-graph-boundary--side-bottom::after,
+.layout-graph-boundary--output.layout-graph-boundary--side-top::after {
+  border-right: 4px solid transparent;
+  border-bottom: 7px solid var(--terminal-color);
+  border-left: 4px solid transparent;
+}
+
+.layout-graph-boundary--input.layout-graph-boundary--side-bottom::after {
+  bottom: calc(100% + 9px);
+}
+
+.layout-graph-boundary--output.layout-graph-boundary--side-top::after {
+  top: calc(100% - 1px);
+}
+
+.layout-graph-boundary__item {
+  position: relative;
+  display: grid;
+  place-items: center;
+  pointer-events: all;
+}
+
+.layout-graph-boundary__item--overflow {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px + var(--overflow-offset));
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.layout-graph-boundary--side-top .layout-graph-boundary__item--overflow,
+.layout-graph-boundary--side-bottom .layout-graph-boundary__item--overflow {
+  top: 50%;
+  left: calc(100% + 4px + var(--overflow-offset));
+  transform: translateY(-50%);
+}
+
+.layout-graph-node:hover .layout-graph-boundary__item--overflow,
+.layout-graph-node:focus-within .layout-graph-boundary__item--overflow,
+.layout-graph-boundary--focused .layout-graph-boundary__item--overflow,
+.layout-graph-boundary:focus-within .layout-graph-boundary__item--overflow,
+.layout-graph-boundary:hover .layout-graph-boundary__item--overflow {
+  display: grid;
 }
 
 .layout-graph-token {
@@ -1428,6 +1616,42 @@ button {
   background: #302a1b;
 }
 
+.layout-graph-boundary--input .layout-graph-token {
+  border-color: #526f4d;
+  background: #171d15;
+}
+
+.layout-graph-boundary--output .layout-graph-token {
+  border-color: #7b6d3d;
+  background: #1c1a13;
+}
+
+.layout-graph-boundary--input .layout-graph-token:hover,
+.layout-graph-boundary--input .layout-graph-token:focus-visible {
+  border-color: #9fc18d;
+  background: #24301f;
+  outline: 0;
+}
+
+.layout-graph-boundary--output .layout-graph-token:hover,
+.layout-graph-boundary--output .layout-graph-token:focus-visible {
+  border-color: #e0a649;
+  background: #302a1b;
+  outline: 0;
+}
+
+.layout-graph-boundary--focused .layout-graph-token {
+  box-shadow: 0 0 0 2px rgba(240, 201, 110, 0.2);
+}
+
+.layout-graph-boundary--focused.layout-graph-boundary--input .layout-graph-token {
+  border-color: #b7d58f;
+}
+
+.layout-graph-boundary--focused.layout-graph-boundary--output .layout-graph-token {
+  border-color: #f0c96e;
+}
+
 .layout-graph-token--static {
   cursor: default;
 }
@@ -1446,6 +1670,28 @@ button {
   color: #d7b65f;
   font-size: 0.7rem;
   font-weight: 700;
+}
+
+.layout-graph-boundary-more {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  border: 1px dashed #5f5b4b;
+  border-radius: 999px;
+  background: rgba(21, 23, 16, 0.88);
+  color: #d7b65f;
+  font-size: 0.68rem;
+  font-weight: 700;
+  pointer-events: all;
+}
+
+.layout-graph-boundary-more:hover,
+.layout-graph-boundary-more:focus-visible {
+  border-color: #e0a649;
+  background: #302a1b;
+  color: #f0eee4;
+  outline: 0;
 }
 
 .tooltip-layer {

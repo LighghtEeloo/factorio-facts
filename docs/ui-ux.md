@@ -30,7 +30,7 @@ Each layout is an ordered list of recipe instances, not a set of recipe ids. The
 
 The left panel lets users create, focus, rename, collapse, and graph populated layouts. Empty layouts show delete in the same action slot where populated layouts show graph. Collapsed layouts keep their recipes but hide the list for scanning.
 
-Layout state is serialized into the URL once it differs from the default empty layout. The URL stores layout ids, entry ids, names, collapsed flags, focused layout id, ordered recipe entries, graph node positions, graph edge endpoint choices, and graph edge bend points so duplicate recipe instances and manual graph cleanup survive reloads.
+Layout state is serialized into the URL once it differs from the default empty layout. The URL stores layout ids, entry ids, names, collapsed flags, focused layout id, ordered recipe entries, graph node positions, graph edge endpoint choices, graph edge bend points, and graph boundary terminal side choices so duplicate recipe instances and manual graph cleanup survive reloads.
 
 ## Layout Graphs
 
@@ -40,7 +40,7 @@ Graph rendering treats the layout contents as a multiset of recipe instances. Th
 
 Users can drag recipe vertices in the graph. Dragged positions are stored by layout entry id in the URL, so manual graph arrangement survives reloads and sharing. Edges can be focused from the line or item-flow label; dragging the item-flow label creates or moves a Bezier bend point for that edge while preserving the source and target handle tangents. A small reset button above a focused routed edge clears only that edge's bend point. When an edge is focused, its source and target nodes show clickable endpoint targets on all four sides so users can choose where the edge starts and ends. The graph popup reset button clears saved positions, edge endpoint choices, and bend points, returning the layout to automatic graph placement and default right-to-left edge routing.
 
-Products that are made by a recipe instance but not consumed by another layout recipe remain attached to that recipe vertex as dangling outputs. Ingredients that are consumed but not made inside the layout remain attached as dangling inputs. This keeps graph semantics close to the underlying bipartite model without forcing users into a full ratio solver.
+Products that are made by a recipe instance but not consumed by another layout recipe remain attached to that recipe vertex as external output terminals. Ingredients that are consumed but not made inside the layout remain attached as external input terminals. These boundary terminals dock outside the recipe card with short dashed stubs and directional arrows, while true recipe-to-recipe item flow remains a solid draggable edge. Clicking a terminal set focuses it and shows the same four side targets used by focused edges, so users can move each input or output terminal set to the side that best fits the graph. This keeps graph semantics close to the underlying bipartite model without forcing users into a full ratio solver.
 
 ## Recipe Cards
 
