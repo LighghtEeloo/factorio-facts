@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Maximize2, Minimize2, X } from "lucide-react";
+import { Maximize2, Minimize2, RotateCcw, X } from "lucide-react";
 import {
   applyNodeChanges,
   Background,
@@ -58,6 +58,7 @@ interface LayoutGraphDialogProps {
   layout: RecipeLayout;
   onClose(): void;
   onNodePositionChange(entryId: string, position: GraphNodePosition): void;
+  onResetGraphPositions(): void;
   onSelectItem(itemId: string): void;
 }
 
@@ -66,6 +67,7 @@ export function LayoutGraphDialog({
   layout,
   onClose,
   onNodePositionChange,
+  onResetGraphPositions,
   onSelectItem,
 }: LayoutGraphDialogProps) {
   const graph = useMemo(
@@ -75,6 +77,7 @@ export function LayoutGraphDialog({
   const [nodes, setNodes] = useState<RecipeFlowNode[]>(graph.nodes);
   const [edges, setEdges] = useState<ItemFlowEdgeType[]>(graph.edges);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const hasSavedPositions = Object.keys(layout.graphPositions).length > 0;
   const title = layout.name.trim() || "Untitled layout";
 
   useEffect(() => {
@@ -127,6 +130,16 @@ export function LayoutGraphDialog({
             </span>
           </div>
           <div className="popup-header-actions">
+            <button
+              aria-label="Reset layout graph"
+              className="icon-button"
+              data-tooltip="Reset graph"
+              disabled={!hasSavedPositions}
+              type="button"
+              onClick={onResetGraphPositions}
+            >
+              <RotateCcw size={18} aria-hidden="true" />
+            </button>
             <button
               aria-label={
                 isFullscreen ? "Exit fullscreen layout graph" : "Fullscreen layout graph"

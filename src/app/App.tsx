@@ -210,6 +210,14 @@ export function App() {
     );
   }
 
+  function resetLayoutGraphPositions(layoutId: string) {
+    setLayouts((currentLayouts) =>
+      currentLayouts.map((layout) =>
+        layout.id === layoutId ? { ...layout, graphPositions: {} } : layout,
+      ),
+    );
+  }
+
   return (
     <main className="app-shell">
       <LayoutSidebar
@@ -316,6 +324,7 @@ export function App() {
           onNodePositionChange={(entryId, position) =>
             updateLayoutGraphNodePosition(graphLayout.id, entryId, position)
           }
+          onResetGraphPositions={() => resetLayoutGraphPositions(graphLayout.id)}
           onSelectItem={(itemId) => {
             selectItem(itemId);
             setGraphLayoutId(null);

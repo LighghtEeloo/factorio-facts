@@ -38,7 +38,7 @@ A layout graph popup renders recipe instances as vertices using React Flow (`@xy
 
 Graph rendering treats the layout contents as a multiset of recipe instances. The sidebar list order is useful for managing entries, but it does not determine graph geometry; vertices are ranked from inferred producer-to-consumer relationships and sorted by stable recipe identity within each rank.
 
-Users can drag recipe vertices in the graph. Dragged positions are stored by layout entry id in the URL, so manual graph arrangement survives reloads and sharing.
+Users can drag recipe vertices in the graph. Dragged positions are stored by layout entry id in the URL, so manual graph arrangement survives reloads and sharing. The graph popup reset button clears saved positions and returns the layout to automatic graph placement.
 
 Products that are made by a recipe instance but not consumed by another layout recipe remain attached to that recipe vertex as dangling outputs. Ingredients that are consumed but not made inside the layout remain attached as dangling inputs. This keeps graph semantics close to the underlying bipartite model without forcing users into a full ratio solver.
 
