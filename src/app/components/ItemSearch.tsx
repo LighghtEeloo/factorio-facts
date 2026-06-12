@@ -1,32 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Cog, Droplets, Package, Search, X } from "lucide-react";
+import { Cog, Package, Search, X } from "lucide-react";
 import type { FactorioLabCategory, FactorioLabItem } from "../../factoriolab/types";
 import {
   getIconIdForItem,
-  getItemKind,
   type RecipeExplorerData,
 } from "../data/factoriolab";
 import { IconSprite } from "./IconSprite";
 
 interface ItemSearchProps {
   data: RecipeExplorerData;
-  query: string;
   selectedItemId: string;
-  onQueryChange(query: string): void;
   onSelect(itemId: string): void;
 }
 
 export function ItemSearch({
   data,
-  query,
   selectedItemId,
-  onQueryChange,
   onSelect,
 }: ItemSearchProps) {
   const [isSelectorOpen, setIsSelectorOpen] = useState(false);
   const [selectorQuery, setSelectorQuery] = useState("");
   const selectorSearchRef = useRef<HTMLInputElement | null>(null);
-  const results = searchItems(data.items, query).slice(0, 96);
   const selectorGroups = useMemo(
     () => groupItemsByCategory(data, searchItems(data.items, selectorQuery)),
     [data, selectorQuery],
@@ -37,9 +31,9 @@ export function ItemSearch({
       return;
     }
 
-    setSelectorQuery(query);
+    setSelectorQuery("");
     requestAnimationFrame(() => selectorSearchRef.current?.focus());
-  }, [isSelectorOpen, query]);
+  }, [isSelectorOpen]);
 
   useEffect(() => {
     if (!isSelectorOpen) {
@@ -65,21 +59,10 @@ export function ItemSearch({
   return (
     <aside className="sidebar app-panel">
       <div className="brand-mark">
-        <Cog size={20} aria-hidden="true" />
-        <span>Factorio Facts</span>
-      </div>
-
-      <div className="search-controls">
-        <div className="search-box">
-          <Search size={18} aria-hidden="true" />
-          <input
-            aria-label="Search items and fluids"
-            autoComplete="off"
-            placeholder="Search items"
-            value={query}
-            onChange={(event) => onQueryChange(event.target.value)}
-          />
-        </div>
+        <span className="brand-mark__label">
+          <Cog size={20} aria-hidden="true" />
+          <span>Factorio Facts</span>
+        </span>
         <button
           aria-label="Open item selector"
           className="icon-button item-selector-button"
@@ -89,34 +72,6 @@ export function ItemSearch({
         >
           <Package size={18} aria-hidden="true" />
         </button>
-      </div>
-
-      <div className="item-list" aria-label="Items and fluids">
-        {results.map((item) => {
-          const kind = getItemKind(item, data.itemKindById);
-          const icon = data.iconById.get(getIconIdForItem(item));
-
-          return (
-            <button
-              className={`item-row ${item.id === selectedItemId ? "item-row--selected" : ""}`}
-              key={item.id}
-              type="button"
-              onClick={() => onSelect(item.id)}
-              title={item.id}
-            >
-              <IconSprite atlas={data.atlas} icon={icon} label={item.name} size={30} />
-              <span className="item-row__text">
-                <span className="item-row__name">{item.name}</span>
-                <span className="item-row__id">{item.id}</span>
-              </span>
-              {kind === "fluid" ? (
-                <Droplets className="item-row__kind" size={16} aria-label="Fluid" />
-              ) : (
-                <Package className="item-row__kind" size={16} aria-label="Item" />
-              )}
-            </button>
-          );
-        })}
       </div>
 
       {isSelectorOpen ? (

@@ -56,13 +56,14 @@ button {
 
 .sidebar {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   padding: 10px;
 }
 
 .brand-mark {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   min-height: 36px;
   color: #c9ced6;
@@ -70,7 +71,15 @@ button {
   font-weight: 700;
 }
 
-.brand-mark svg {
+.brand-mark__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.brand-mark__label svg {
+  flex: 0 0 auto;
   color: #d9dde4;
 }
 
@@ -99,79 +108,16 @@ button {
   color: #85806c;
 }
 
-.search-controls {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px;
-  align-items: center;
-  gap: 6px;
-}
-
 .item-selector-button {
+  flex: 0 0 auto;
   color: #c9ced6;
 }
 
-.item-list {
-  display: grid;
-  align-content: start;
-  gap: 4px;
-  min-height: 0;
-  margin-top: 10px;
-  overflow: auto;
-  padding-right: 2px;
-}
-
-.item-row {
-  display: grid;
-  grid-template-columns: 30px minmax(0, 1fr) 18px;
-  align-items: center;
-  gap: 9px;
-  min-height: 46px;
-  padding: 6px 8px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-}
-
-.item-row:hover,
-.item-row--selected {
-  border-color: #6d674b;
-  background: #2d2e25;
-}
-
-.item-row--selected {
-  box-shadow: inset 3px 0 0 #e8a83d;
-}
-
-.item-row__text {
-  display: grid;
-  min-width: 0;
-}
-
-.item-row__name,
 .recipe-card__title h3,
 .selected-item h1 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.item-row__name {
-  color: #f0eee4;
-  font-size: 0.92rem;
-}
-
-.item-row__id {
-  overflow: hidden;
-  color: #9d9885;
-  font-size: 0.73rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.item-row__kind {
-  color: #8aa477;
 }
 
 .item-selector-backdrop {

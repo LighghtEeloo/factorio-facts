@@ -34,7 +34,6 @@ const defaultViewMode: ViewMode = "concise";
 
 interface AppUrlState {
   selectedItemId: string;
-  query: string;
   filters: FilterState;
   viewMode: ViewMode;
 }
@@ -42,7 +41,6 @@ interface AppUrlState {
 export function App() {
   const initialUrlState = useMemo(readAppStateFromUrl, []);
   const [selectedItemId, setSelectedItemId] = useState(initialUrlState.selectedItemId);
-  const [query, setQuery] = useState(initialUrlState.query);
   const [filters, setFilters] = useState<FilterState>(initialUrlState.filters);
   const [viewMode, setViewMode] = useState<ViewMode>(initialUrlState.viewMode);
   const selectedItem = explorerData.itemById.get(selectedItemId) ?? explorerData.items[0];
@@ -62,15 +60,14 @@ export function App() {
   const selectedIcon = explorerData.iconById.get(getIconIdForItem(selectedItem));
 
   useEffect(() => {
-    updateUrlFromAppState({ selectedItemId, query, filters, viewMode });
-  }, [filters, query, selectedItemId, viewMode]);
+    updateUrlFromAppState({ selectedItemId, filters, viewMode });
+  }, [filters, selectedItemId, viewMode]);
 
   useEffect(() => {
     function handlePopState() {
       const nextState = readAppStateFromUrl();
 
       setSelectedItemId(nextState.selectedItemId);
-      setQuery(nextState.query);
       setFilters(nextState.filters);
       setViewMode(nextState.viewMode);
     }
@@ -81,16 +78,13 @@ export function App() {
 
   function selectItem(itemId: string) {
     setSelectedItemId(itemId);
-    setQuery("");
   }
 
   return (
     <main className="app-shell">
       <ItemSearch
         data={explorerData}
-        onQueryChange={setQuery}
         onSelect={selectItem}
-        query={query}
         selectedItemId={selectedItem.id}
       />
 
@@ -203,7 +197,6 @@ function readAppStateFromUrl(): AppUrlState {
 
   return {
     selectedItemId,
-    query: params.get("q") ?? "",
     filters: {
       locations: parseIdList(params, "surface", (id) => explorerData.locationById.has(id)),
       categories: parseIdList(params, "category", (id) =>
@@ -239,10 +232,6 @@ function updateUrlFromAppState(state: AppUrlState) {
 
   if (state.selectedItemId !== defaultSelectedItemId) {
     params.set("item", state.selectedItemId);
-  }
-
-  if (state.query) {
-    params.set("q", state.query);
   }
 
   if (state.viewMode !== defaultViewMode) {
