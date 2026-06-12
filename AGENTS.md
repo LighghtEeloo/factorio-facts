@@ -39,8 +39,7 @@ Layouts are ordered lists of recipe instances. Duplicate recipes are allowed. Th
 - `src/factoriolab/adapter.ts`: FactorioLab-to-recipe-model bootstrap adapter.
 - `src/app/`: Vite/React UI, URL state, filters, layouts, and graph dialog.
 - `data/vendor/factoriolab/`: vendored FactorioLab bootstrap data and attribution.
-- `docs/data-source.md`: reliable recipe data notes.
-- `docs/ui-ux.md`: current UI and interaction design notes.
+- `DESIGN.md`: consolidated data-source, model, UI, and graph design notes.
 
 ## Tooling
 
@@ -49,6 +48,8 @@ Layouts are ordered lists of recipe instances. Duplicate recipes are allowed. Th
 - Use local npm scripts; do not rely on global TypeScript.
 - Run `npm run check` for TypeScript verification.
 - Run `npm run build` for a production build.
+- Run `npm run build -- --mode github-pages` to verify the GitHub Pages build
+  that deploys under `/factorio-facts/`.
 - Run `npm run inspect:factoriolab -- <item-id>` to inspect bootstrap recipe data.
 - Do not run Factorio locally unless explicitly asked.
 

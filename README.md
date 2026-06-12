@@ -13,3 +13,16 @@ npm run check
 npm run build
 npm run inspect:factoriolab -- iron-plate
 ```
+
+## Deployment
+
+The app is deployed as a static GitHub Pages site from the `main` branch with
+`.github/workflows/deploy-pages.yml`. The workflow installs dependencies with
+`npm ci`, runs `npm run build -- --mode github-pages`, uploads `dist`, and
+publishes it through GitHub Pages.
+
+Repository Pages should use `Settings` -> `Pages` -> `Build and deployment` ->
+`Source` -> `GitHub Actions`.
+
+The `github-pages` Vite mode sets the public base path to `/factorio-facts/`.
+Local development and the default production build continue to use `/`.
