@@ -164,16 +164,6 @@ export function App() {
     );
   }
 
-  function clearLayout(layoutId: string) {
-    setLayouts((currentLayouts) =>
-      currentLayouts.map((layout) =>
-        layout.id === layoutId
-          ? { ...layout, entries: [], graphPositions: {} }
-          : layout,
-      ),
-    );
-  }
-
   function deleteLayout(layoutId: string) {
     const remainingLayouts = layouts.filter((layout) => layout.id !== layoutId);
     const nextLayouts = remainingLayouts.length
@@ -226,7 +216,6 @@ export function App() {
         data={explorerData}
         focusedLayoutId={focusedLayout?.id ?? defaultLayoutId}
         layouts={layouts}
-        onClearLayout={clearLayout}
         onCreateLayout={createLayout}
         onDeleteLayout={deleteLayout}
         onFocusLayout={focusLayout}

@@ -26,7 +26,7 @@ Layouts are lightweight recipe collections for planning a factory subsection. Th
 
 Each layout is an ordered list of recipe instances, not a set of recipe ids. The same recipe can appear multiple times to represent multiple copies of the same factory step. Recipe card add buttons always append another instance to the focused layout. When the recipe already appears in the focused layout, the button keeps working but shows a duplicate-count hint.
 
-The left panel lets users create, focus, rename, collapse, clear, delete, and graph layouts. Collapsed layouts keep their recipes but hide the list for scanning.
+The left panel lets users create, focus, rename, collapse, and graph populated layouts. Empty layouts show delete in the same action slot where populated layouts show graph. Collapsed layouts keep their recipes but hide the list for scanning.
 
 Layout state is serialized into the URL once it differs from the default empty layout. The URL stores layout ids, entry ids, names, collapsed flags, focused layout id, and ordered recipe entries so duplicate recipe instances survive reloads.
 

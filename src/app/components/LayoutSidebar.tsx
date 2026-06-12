@@ -4,7 +4,6 @@ import {
   ChevronRight,
   CircleDot,
   Cog,
-  Eraser,
   Network,
   Package,
   Plus,
@@ -28,7 +27,6 @@ interface LayoutSidebarProps {
   focusedLayoutId: string;
   layouts: RecipeLayout[];
   selectedItemId: string | null;
-  onClearLayout(layoutId: string): void;
   onCreateLayout(): void;
   onDeleteLayout(layoutId: string): void;
   onFocusLayout(layoutId: string): void;
@@ -44,7 +42,6 @@ export function LayoutSidebar({
   focusedLayoutId,
   layouts,
   selectedItemId,
-  onClearLayout,
   onCreateLayout,
   onDeleteLayout,
   onFocusLayout,
@@ -137,7 +134,6 @@ export function LayoutSidebar({
               focused={layout.id === focusedLayoutId}
               key={layout.id}
               layout={layout}
-              onClearLayout={onClearLayout}
               onDeleteLayout={onDeleteLayout}
               onFocusLayout={onFocusLayout}
               onOpenLayoutGraph={onOpenLayoutGraph}
@@ -243,7 +239,6 @@ interface LayoutCardProps {
   data: RecipeExplorerData;
   focused: boolean;
   layout: RecipeLayout;
-  onClearLayout(layoutId: string): void;
   onDeleteLayout(layoutId: string): void;
   onFocusLayout(layoutId: string): void;
   onOpenLayoutGraph(layoutId: string): void;
@@ -257,7 +252,6 @@ function LayoutCard({
   data,
   focused,
   layout,
-  onClearLayout,
   onDeleteLayout,
   onFocusLayout,
   onOpenLayoutGraph,
@@ -301,34 +295,27 @@ function LayoutCard({
           onFocus={() => onFocusLayout(layout.id)}
         />
         <div className="layout-card__actions">
-          <button
-            aria-label="Open layout graph"
-            className="layout-action-button"
-            data-tooltip="Open graph"
-            type="button"
-            onClick={() => onOpenLayoutGraph(layout.id)}
-          >
-            <Network size={15} aria-hidden="true" />
-          </button>
-          <button
-            aria-label="Clear layout recipes"
-            className="layout-action-button"
-            data-tooltip="Clear recipes"
-            disabled={layout.entries.length === 0}
-            type="button"
-            onClick={() => onClearLayout(layout.id)}
-          >
-            <Eraser size={15} aria-hidden="true" />
-          </button>
-          <button
-            aria-label="Delete layout"
-            className="layout-action-button"
-            data-tooltip="Delete layout"
-            type="button"
-            onClick={() => onDeleteLayout(layout.id)}
-          >
-            <Trash2 size={15} aria-hidden="true" />
-          </button>
+          {layout.entries.length ? (
+            <button
+              aria-label="Open layout graph"
+              className="layout-action-button"
+              data-tooltip="Open graph"
+              type="button"
+              onClick={() => onOpenLayoutGraph(layout.id)}
+            >
+              <Network size={15} aria-hidden="true" />
+            </button>
+          ) : (
+            <button
+              aria-label="Delete layout"
+              className="layout-action-button"
+              data-tooltip="Delete layout"
+              type="button"
+              onClick={() => onDeleteLayout(layout.id)}
+            >
+              <Trash2 size={15} aria-hidden="true" />
+            </button>
+          )}
         </div>
       </div>
 
