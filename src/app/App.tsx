@@ -16,6 +16,7 @@ import {
 import type {
   FilterState,
   GraphNodePosition,
+  LayoutReorderPlacement,
   RecipeLayout,
   RecipeLayoutEntry,
   ViewMode,
@@ -164,6 +165,53 @@ export function App() {
     );
   }
 
+  function reorderRecipeInLayout(
+    layoutId: string,
+    sourceEntryId: string,
+    targetEntryId: string,
+    placement: LayoutReorderPlacement,
+  ) {
+    if (sourceEntryId === targetEntryId) {
+      return;
+    }
+
+    setLayouts((currentLayouts) =>
+      currentLayouts.map((layout) => {
+        if (layout.id !== layoutId) {
+          return layout;
+        }
+
+        const sourceIndex = layout.entries.findIndex(
+          (entry) => entry.id === sourceEntryId,
+        );
+        const targetIndex = layout.entries.findIndex(
+          (entry) => entry.id === targetEntryId,
+        );
+
+        if (sourceIndex < 0 || targetIndex < 0) {
+          return layout;
+        }
+
+        const nextEntries = [...layout.entries];
+        const [sourceEntry] = nextEntries.splice(sourceIndex, 1);
+        const shiftedTargetIndex = nextEntries.findIndex(
+          (entry) => entry.id === targetEntryId,
+        );
+
+        if (!sourceEntry || shiftedTargetIndex < 0) {
+          return layout;
+        }
+
+        const insertIndex =
+          shiftedTargetIndex + (placement === "after" ? 1 : 0);
+
+        nextEntries.splice(insertIndex, 0, sourceEntry);
+
+        return { ...layout, entries: nextEntries };
+      }),
+    );
+  }
+
   function deleteLayout(layoutId: string) {
     const remainingLayouts = layouts.filter((layout) => layout.id !== layoutId);
     const nextLayouts = remainingLayouts.length
@@ -230,6 +278,7 @@ export function App() {
         onOpenLayoutGraph={setGraphLayoutId}
         onRemoveRecipeFromLayout={removeRecipeFromLayout}
         onRenameLayout={renameLayout}
+        onReorderRecipeInLayout={reorderRecipeInLayout}
         onToggleLayoutCollapsed={toggleLayoutCollapsed}
         onSelect={selectItem}
         selectedItemId={selectedItem?.id ?? null}

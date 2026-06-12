@@ -1,4 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -21,7 +26,11 @@ import {
   getRecipeMetadata,
   type RecipeExplorerData,
 } from "../data/factoriolab";
-import type { RecipeLayout, RecipeLayoutEntry } from "../types";
+import type {
+  LayoutReorderPlacement,
+  RecipeLayout,
+  RecipeLayoutEntry,
+} from "../types";
 import { IconSprite } from "./IconSprite";
 
 interface LayoutSidebarProps {
@@ -35,6 +44,12 @@ interface LayoutSidebarProps {
   onOpenLayoutGraph(layoutId: string): void;
   onRemoveRecipeFromLayout(layoutId: string, entryId: string): void;
   onRenameLayout(layoutId: string, name: string): void;
+  onReorderRecipeInLayout(
+    layoutId: string,
+    sourceEntryId: string,
+    targetEntryId: string,
+    placement: LayoutReorderPlacement,
+  ): void;
   onSelect(itemId: string): void;
   onToggleLayoutCollapsed(layoutId: string): void;
 }
@@ -50,6 +65,7 @@ export function LayoutSidebar({
   onOpenLayoutGraph,
   onRemoveRecipeFromLayout,
   onRenameLayout,
+  onReorderRecipeInLayout,
   onSelect,
   onToggleLayoutCollapsed,
 }: LayoutSidebarProps) {
@@ -144,6 +160,7 @@ export function LayoutSidebar({
               onOpenLayoutGraph={onOpenLayoutGraph}
               onRemoveRecipeFromLayout={onRemoveRecipeFromLayout}
               onRenameLayout={onRenameLayout}
+              onReorderRecipeInLayout={onReorderRecipeInLayout}
               onSelectItem={onSelect}
               onToggleLayoutCollapsed={onToggleLayoutCollapsed}
             />
@@ -273,6 +290,12 @@ interface LayoutCardProps {
   onOpenLayoutGraph(layoutId: string): void;
   onRemoveRecipeFromLayout(layoutId: string, entryId: string): void;
   onRenameLayout(layoutId: string, name: string): void;
+  onReorderRecipeInLayout(
+    layoutId: string,
+    sourceEntryId: string,
+    targetEntryId: string,
+    placement: LayoutReorderPlacement,
+  ): void;
   onSelectItem(itemId: string): void;
   onToggleLayoutCollapsed(layoutId: string): void;
 }
@@ -286,9 +309,68 @@ function LayoutCard({
   onOpenLayoutGraph,
   onRemoveRecipeFromLayout,
   onRenameLayout,
+  onReorderRecipeInLayout,
   onSelectItem,
   onToggleLayoutCollapsed,
 }: LayoutCardProps) {
+  const [draggedEntryId, setDraggedEntryId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{
+    entryId: string;
+    placement: LayoutReorderPlacement;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!draggedEntryId) {
+      return;
+    }
+
+    const activeEntryId = draggedEntryId;
+
+    function handlePointerMove(event: PointerEvent) {
+      const row = document
+        .elementFromPoint(event.clientX, event.clientY)
+        ?.closest<HTMLElement>("[data-layout-entry-row]");
+      const targetEntryId = row?.dataset.layoutEntryRow;
+
+      if (!row || !targetEntryId || targetEntryId === activeEntryId) {
+        setDropTarget(null);
+        return;
+      }
+
+      const rect = row.getBoundingClientRect();
+      const placement: LayoutReorderPlacement =
+        event.clientY < rect.top + rect.height / 2 ? "before" : "after";
+
+      setDropTarget({ entryId: targetEntryId, placement });
+    }
+
+    function handlePointerUp() {
+      if (dropTarget) {
+        onReorderRecipeInLayout(
+          layout.id,
+          activeEntryId,
+          dropTarget.entryId,
+          dropTarget.placement,
+        );
+      }
+
+      endRecipeDrag();
+    }
+
+    document.addEventListener("pointermove", handlePointerMove);
+    document.addEventListener("pointerup", handlePointerUp);
+
+    return () => {
+      document.removeEventListener("pointermove", handlePointerMove);
+      document.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [draggedEntryId, dropTarget, layout.id, onReorderRecipeInLayout]);
+
+  function endRecipeDrag() {
+    setDraggedEntryId(null);
+    setDropTarget(null);
+  }
+
   return (
     <article className={`layout-card ${focused ? "layout-card--focused" : ""}`}>
       <div className="layout-card__header">
@@ -365,6 +447,14 @@ function LayoutCard({
                   index={index}
                   key={entry.id}
                   recipe={recipe}
+                  dragging={draggedEntryId === entry.id}
+                  dropPlacement={
+                    dropTarget?.entryId === entry.id ? dropTarget.placement : null
+                  }
+                  onDragStart={() => {
+                    setDraggedEntryId(entry.id);
+                    setDropTarget(null);
+                  }}
                   onRemove={() => onRemoveRecipeFromLayout(layout.id, entry.id)}
                   onSelectItem={onSelectItem}
                 />
@@ -384,14 +474,20 @@ interface LayoutRecipeRowProps {
   entry: RecipeLayoutEntry;
   index: number;
   recipe: RecipePrototype;
+  dragging: boolean;
+  dropPlacement: LayoutReorderPlacement | null;
+  onDragStart(): void;
   onRemove(): void;
   onSelectItem(itemId: string): void;
 }
 
 function LayoutRecipeRow({
   data,
+  dragging,
+  dropPlacement,
   entry,
   index,
+  onDragStart,
   recipe,
   onRemove,
   onSelectItem,
@@ -401,8 +497,25 @@ function LayoutRecipeRow({
   const contextItemId = getRecipeContextItemId(data, recipe);
 
   return (
-    <div className="layout-recipe-row">
-      <span className="layout-recipe-row__index">{index + 1}</span>
+    <div
+      className={`layout-recipe-row ${dragging ? "layout-recipe-row--dragging" : ""} ${
+        dropPlacement ? `layout-recipe-row--drop-${dropPlacement}` : ""
+      }`}
+      data-layout-entry-row={entry.id}
+    >
+      <button
+        aria-label={`Reorder ${metadata.name}`}
+        className="layout-recipe-row__index"
+        data-tooltip="Drag to reorder"
+        type="button"
+        onPointerDown={(event) => {
+          event.preventDefault();
+          event.currentTarget.setPointerCapture(event.pointerId);
+          onDragStart();
+        }}
+      >
+        {index + 1}
+      </button>
       <button
         className="layout-recipe-row__main"
         data-layout-entry={entry.id}

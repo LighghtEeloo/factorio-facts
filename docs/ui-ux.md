@@ -26,7 +26,7 @@ Popups use a shared header pattern with close and fullscreen controls. Fullscree
 
 Layouts are lightweight recipe collections for planning a factory subsection. There is always one focused layout; if the URL does not provide any layout state, the app creates an empty unnamed layout automatically.
 
-Each layout is an ordered list of recipe instances, not a set of recipe ids. The same recipe can appear multiple times to represent multiple copies of the same factory step. Recipe card add buttons always append another instance to the focused layout. When the recipe already appears in the focused layout, the button keeps working but shows a duplicate-count hint.
+Each layout is an ordered list of recipe instances, not a set of recipe ids. The same recipe can appear multiple times to represent multiple copies of the same factory step. Recipe card add buttons always append another instance to the focused layout. Layout recipe row numbers act as drag handles for reordering the sidebar list. When the recipe already appears in the focused layout, the button keeps working but shows a duplicate-count hint.
 
 The left panel lets users create, focus, rename, collapse, and graph populated layouts. Empty layouts show delete in the same action slot where populated layouts show graph. Collapsed layouts keep their recipes but hide the list for scanning.
 

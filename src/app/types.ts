@@ -5,6 +5,8 @@ export interface RecipeLayoutEntry {
   recipeId: string;
 }
 
+export type LayoutReorderPlacement = "before" | "after";
+
 export interface GraphNodePosition {
   x: number;
   y: number;
