@@ -34,36 +34,58 @@ export function RecipeCard({
   return (
     <article className={`recipe-card recipe-card--${viewMode}`}>
       <header className="recipe-card__header">
-        <IconSprite
-          atlas={data.atlas}
-          icon={icon}
-          label={metadata.name}
-          size={isConcise ? 30 : 38}
-        />
-        <div className="recipe-card__title">
-          <h3>{metadata.name}</h3>
-          {isConcise ? null : <span>{metadata.id}</span>}
+        <div className="recipe-card__identity">
+          <IconSprite
+            atlas={data.atlas}
+            icon={icon}
+            label={metadata.name}
+            size={isConcise ? 30 : 38}
+          />
+          <div className="recipe-card__title">
+            <h3>{metadata.name}</h3>
+            {isConcise ? null : <span>{metadata.id}</span>}
+          </div>
         </div>
-      </header>
 
-      {isConcise ? null : (
         <div className="recipe-card__meta">
-          <span title="Craft time">
+          <span
+            className={isConcise ? "text-pill text-pill--time" : undefined}
+            data-tooltip={isConcise ? `Craft time: ${formatTime(recipe.energy_required)}` : undefined}
+            title={isConcise ? undefined : "Craft time"}
+          >
             <Timer size={14} aria-hidden="true" />
             {formatTime(recipe.energy_required)}
           </span>
-          <span title="Producer">
-            <Factory size={14} aria-hidden="true" />
-            {producerText}
-          </span>
-          <span title="Surface">
-            <MapPin size={14} aria-hidden="true" />
-            {locations}
-          </span>
+          {isConcise ? (
+            <>
+              {metadata.producers.map((producerId) => (
+                <IconPill data={data} id={producerId} key={producerId} type="producer" />
+              ))}
+              {metadata.locations.map((locationId) => (
+                <IconPill data={data} id={locationId} key={locationId} type="surface" />
+              ))}
+              {metadata.producers.length ? null : (
+                <span className="text-pill" data-tooltip="Natural source">
+                  natural
+                </span>
+              )}
+            </>
+          ) : (
+            <>
+              <span title="Producer">
+                <Factory size={14} aria-hidden="true" />
+                {producerText}
+              </span>
+              <span title="Surface">
+                <MapPin size={14} aria-hidden="true" />
+                {locations}
+              </span>
+            </>
+          )}
         </div>
-      )}
+      </header>
 
-      <div className="recipe-flow">
+      <div className="recipe-equation">
         <ItemGroup
           data={data}
           entries={recipe.ingredients ?? []}
@@ -71,7 +93,7 @@ export function RecipeCard({
           onSelectItem={onSelectItem}
           variant={viewMode}
         />
-        <ArrowRight className="recipe-flow__arrow" size={18} aria-hidden="true" />
+        <ArrowRight className="recipe-equation__arrow" size={18} aria-hidden="true" />
         <ItemGroup
           data={data}
           entries={recipe.results ?? []}
@@ -80,29 +102,6 @@ export function RecipeCard({
           variant={viewMode}
         />
       </div>
-
-      {isConcise ? (
-        <div className="recipe-compact-meta">
-          <span
-            className="text-pill text-pill--time"
-            data-tooltip={`Craft time: ${formatTime(recipe.energy_required)}`}
-          >
-            <Timer size={13} aria-hidden="true" />
-            {formatTime(recipe.energy_required)}
-          </span>
-          {metadata.producers.map((producerId) => (
-            <IconPill data={data} id={producerId} key={producerId} type="producer" />
-          ))}
-          {metadata.locations.map((locationId) => (
-            <IconPill data={data} id={locationId} key={locationId} type="surface" />
-          ))}
-          {metadata.producers.length ? null : (
-            <span className="text-pill" data-tooltip="Natural source">
-              natural
-            </span>
-          )}
-        </div>
-      ) : null}
 
       {!isConcise && (metadata.flags.length || metadata.disallowedEffects.length) ? (
         <div className="recipe-tags">

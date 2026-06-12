@@ -27,6 +27,8 @@ The viewer has two global density modes:
 - Detailed: full recipe cards for deliberate inspection.
 - Concise: the default compact recipe card mode for scanning, using icon-only item, producer/building, time, and surface pills with hover/focus tooltips. Amounts are shown as icon, times marker, then number.
 
+Recipe inputs and outputs are presented as a compact equation row (`inputs -> outputs`) instead of a two-column mini graph. This keeps common one-input, one-output recipes dense while still allowing multi-item recipes to wrap naturally.
+
 Each detailed recipe card shows:
 
 - Recipe icon and name.

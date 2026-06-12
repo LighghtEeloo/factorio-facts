@@ -337,7 +337,7 @@ button {
 
 .recipe-card {
   display: grid;
-  gap: 10px;
+  gap: 9px;
   border: 1px solid #3f4235;
   border-radius: 8px;
   background: rgba(39, 41, 33, 0.96);
@@ -350,15 +350,28 @@ button {
 }
 
 .recipe-card__header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.recipe-card__identity {
   display: grid;
+  flex: 1 1 170px;
   grid-template-columns: 38px minmax(0, 1fr);
   align-items: center;
   gap: 10px;
+  min-width: 150px;
 }
 
-.recipe-card--concise .recipe-card__header {
+.recipe-card--concise .recipe-card__identity {
+  flex-basis: 160px;
   grid-template-columns: 30px minmax(0, 1fr);
   gap: 8px;
+  min-width: 130px;
 }
 
 .recipe-card__title {
@@ -385,29 +398,41 @@ button {
   white-space: nowrap;
 }
 
-.recipe-card__meta,
+.recipe-card__meta {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+  min-width: 0;
+  margin-left: auto;
+}
+
+.recipe-card__meta span {
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recipe-card--concise .recipe-card__meta {
+  gap: 4px;
+}
+
 .recipe-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
-.recipe-card__meta span {
-  overflow: hidden;
-  padding: 0 7px;
-  text-overflow: ellipsis;
-}
-
-.recipe-flow {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr);
-  align-items: start;
-  gap: 8px;
-}
-
-.recipe-card--concise .recipe-flow {
-  grid-template-columns: minmax(0, 1fr) 16px minmax(0, 1fr);
+.recipe-equation {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 5px;
+  min-width: 0;
 }
 
 .recipe-flow__items {
@@ -417,13 +442,13 @@ button {
   gap: 5px;
 }
 
-.recipe-flow__arrow {
-  margin-top: 7px;
+.recipe-equation__arrow {
+  flex: 0 0 auto;
   color: #d7b65f;
 }
 
-.recipe-card--concise .recipe-flow__arrow {
-  margin-top: 5px;
+.recipe-card--concise .recipe-flow__items {
+  gap: 4px;
 }
 
 .item-chip {
