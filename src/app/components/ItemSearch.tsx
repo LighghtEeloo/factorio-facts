@@ -1,4 +1,4 @@
-import { Boxes, Droplets, Package, Search } from "lucide-react";
+import { Cog, Droplets, Package, Search } from "lucide-react";
 import type { FactorioLabItem } from "../../factoriolab/types";
 import {
   getIconIdForItem,
@@ -27,8 +27,8 @@ export function ItemSearch({
   return (
     <aside className="sidebar app-panel">
       <div className="brand-mark">
-        <Boxes size={20} aria-hidden="true" />
-        <span>factorio-facts</span>
+        <Cog size={20} aria-hidden="true" />
+        <span>Factorio Facts</span>
       </div>
 
       <div className="search-box">
