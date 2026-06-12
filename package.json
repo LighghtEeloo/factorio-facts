@@ -1,0 +1,26 @@
+{
+  "name": "factorio-facts",
+  "version": "0.1.0",
+  "description": "factorio-facts is a local Factorio Space Age recipe dependency explorer.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "check": "tsc --noEmit",
+    "inspect:factoriolab": "node scripts/inspect-factoriolab-data.mjs",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "typescript": "^5.8.0",
+    "vite": "^8.0.16"
+  },
+  "dependencies": {
+    "lucide-react": "^1.17.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  }
+}
