@@ -106,7 +106,6 @@ interface LayoutGraphDialogProps {
   onEdgeRouteChange(edgeId: string, route: GraphEdgeRoute): void;
   onEdgeRouteReset(edgeId: string): void;
   onExternalItemsChange(terminalId: string, itemKeys: string[]): void;
-  onExternalItemsReset(terminalIds: string[]): void;
   onRelayCreate(relay: GraphRelay, position: GraphNodePosition): void;
   onRelayDelete(relayId: string): void;
   onRelayItemsChange(relayId: string, itemKeys: string[]): void;
@@ -126,7 +125,6 @@ export function LayoutGraphDialog({
   onEdgeRouteChange,
   onEdgeRouteReset,
   onExternalItemsChange,
-  onExternalItemsReset,
   onRelayCreate,
   onRelayDelete,
   onRelayItemsChange,
@@ -408,44 +406,21 @@ export function LayoutGraphDialog({
     );
   }
 
-  function toggleExternalItem(
+  function applyNodeToolbarChanges(
     node: GraphFlowNode,
-    kind: GraphTerminalKind,
-    option: GraphExternalItemOption,
+    changes: GraphNodeToolbarChanges,
   ) {
-    if (option.required) {
-      return;
+    if (node.data.kind === "relay" && changes.relayItemKeys) {
+      onRelayItemsChange(node.id, changes.relayItemKeys);
     }
 
-    const terminalId = getGraphTerminalId(node.id, kind);
-    const itemKeys = new Set(layout.externalItems[terminalId] ?? []);
-
-    if (itemKeys.has(option.itemKey)) {
-      itemKeys.delete(option.itemKey);
-    } else {
-      itemKeys.add(option.itemKey);
-    }
-
-    onExternalItemsChange(terminalId, [...itemKeys]);
-  }
-
-  function resetNodeTerminals(nodeId: string) {
-    onExternalItemsReset([
-      getGraphTerminalId(nodeId, "input"),
-      getGraphTerminalId(nodeId, "output"),
-    ]);
-  }
-
-  function removeRelayMaterial(node: GraphFlowNode, itemKey: string) {
-    if (node.data.kind !== "relay" || node.data.materials.length <= 1) {
-      return;
-    }
-
-    onRelayItemsChange(
-      node.id,
-      node.data.materials
-        .map((material) => getEntityKey(material))
-        .filter((materialKey) => materialKey !== itemKey),
+    onExternalItemsChange(
+      getGraphTerminalId(node.id, "input"),
+      changes.externalInputItemKeys,
+    );
+    onExternalItemsChange(
+      getGraphTerminalId(node.id, "output"),
+      changes.externalOutputItemKeys,
     );
   }
 
@@ -638,12 +613,10 @@ export function LayoutGraphDialog({
             onApplyEdgeItems={onEdgeItemsChange}
             onCreateRelayFromEdges={createRelayFromSelectedEdges}
             onCreateRelayFromTerminal={createRelayFromTerminal}
+            onApplyNodeChanges={applyNodeToolbarChanges}
             onDeleteRelay={deleteRelay}
-            onRemoveRelayMaterial={removeRelayMaterial}
             onResetEdgeItems={onEdgeItemsReset}
-            onResetNodeTerminals={resetNodeTerminals}
             onToggleConnectMode={toggleConnectMode}
-            onToggleExternalItem={toggleExternalItem}
             onTogglePendingConnectionItem={togglePendingConnectionItem}
           />
           <div className="popup-header-actions">
@@ -797,21 +770,15 @@ interface GraphHeaderToolbarProps {
   pendingCandidate: GraphConnectionCandidate | null;
   pendingConnection: PendingGraphConnection | null;
   terminal: SelectedGraphTerminal | null;
+  onApplyNodeChanges(node: GraphFlowNode, changes: GraphNodeToolbarChanges): void;
   onApplyEdgeItems(edgeId: string, itemKeys: string[]): void;
   onCancelPendingConnection(): void;
   onConfirmPendingConnection(): void;
   onCreateRelayFromEdges(): void;
   onCreateRelayFromTerminal(terminal: SelectedGraphTerminal): void;
   onDeleteRelay(relayId: string): void;
-  onRemoveRelayMaterial(node: GraphFlowNode, itemKey: string): void;
   onResetEdgeItems(edgeId: string): void;
-  onResetNodeTerminals(nodeId: string): void;
   onToggleConnectMode(nodeId: string): void;
-  onToggleExternalItem(
-    node: GraphFlowNode,
-    kind: GraphTerminalKind,
-    option: GraphExternalItemOption,
-  ): void;
   onTogglePendingConnectionItem(itemKey: string): void;
 }
 
@@ -825,17 +792,15 @@ function GraphHeaderToolbar({
   pendingCandidate,
   pendingConnection,
   terminal,
+  onApplyNodeChanges,
   onApplyEdgeItems,
   onCancelPendingConnection,
   onConfirmPendingConnection,
   onCreateRelayFromEdges,
   onCreateRelayFromTerminal,
   onDeleteRelay,
-  onRemoveRelayMaterial,
   onResetEdgeItems,
-  onResetNodeTerminals,
   onToggleConnectMode,
-  onToggleExternalItem,
   onTogglePendingConnectionItem,
 }: GraphHeaderToolbarProps) {
   if (pendingConnection && pendingCandidate) {
@@ -915,74 +880,277 @@ function GraphHeaderToolbar({
   }
 
   if (node) {
-    const isConnecting = connectingFromNodeId === node.id;
-    const label = node.data.label;
-
     return (
-      <div
-        aria-label={`Node controls for ${label}`}
-        className={`layout-graph-toolbar layout-graph-toolbar--node ${
-          isConnecting ? "layout-graph-toolbar--connecting" : ""
-        }`}
-      >
-        <span className="layout-graph-toolbar__title">{label}</span>
-        {node.data.kind === "relay" ? (
-          <GraphToolbarRelayMaterialGroup
-            data={data}
-            entries={node.data.materials}
-            onRemoveMaterial={(itemKey) => onRemoveRelayMaterial(node, itemKey)}
-          />
-        ) : null}
-        <GraphToolbarExternalGroup
-          data={data}
-          label="In"
-          options={node.data.externalInputOptions}
-          tooltipPrefix="External input"
-          onToggleOption={(option) => onToggleExternalItem(node, "input", option)}
-        />
-        <GraphToolbarExternalGroup
-          data={data}
-          label="Out"
-          options={node.data.externalOutputOptions}
-          tooltipPrefix="External output"
-          onToggleOption={(option) => onToggleExternalItem(node, "output", option)}
-        />
-        <button
-          aria-label="Reset node terminals"
-          className="icon-button layout-graph-toolbar__button"
-          data-tooltip="Reset terminals"
-          disabled={!nodeHasTerminalOverrides}
-          type="button"
-          onClick={() => onResetNodeTerminals(node.id)}
-        >
-          <RotateCcw size={16} aria-hidden="true" />
-        </button>
-        {node.data.kind === "relay" ? (
-          <button
-            aria-label={`Delete ${label}`}
-            className="icon-button layout-graph-toolbar__button"
-            data-tooltip="Delete relay"
-            type="button"
-            onClick={() => onDeleteRelay(node.id)}
-          >
-            <Trash2 size={16} aria-hidden="true" />
-          </button>
-        ) : null}
-        <button
-          aria-label={isConnecting ? "Cancel connect mode" : `Connect ${label}`}
-          aria-pressed={isConnecting}
-          className="icon-button layout-graph-toolbar__button"
-          data-tooltip={isConnecting ? "Cancel connect" : "Connect"}
-          type="button"
-          onClick={() => onToggleConnectMode(node.id)}
-        >
-          <Link2 size={16} aria-hidden="true" />
-        </button>
-      </div>
+      <GraphNodeToolbar
+        data={data}
+        isConnecting={connectingFromNodeId === node.id}
+        node={node}
+        nodeHasTerminalOverrides={nodeHasTerminalOverrides}
+        onApplyNodeChanges={onApplyNodeChanges}
+        onDeleteRelay={onDeleteRelay}
+        onToggleConnectMode={onToggleConnectMode}
+      />
     );
   }
 
   return <div className="layout-graph-toolbar layout-graph-toolbar--empty" />;
+}
+
+interface GraphNodeToolbarChanges {
+  externalInputItemKeys: string[];
+  externalOutputItemKeys: string[];
+  relayItemKeys?: string[];
+}
+
+interface GraphNodeToolbarDraft {
+  externalInputItemKeys: string[];
+  externalOutputItemKeys: string[];
+  relayItemKeys: string[];
+}
+
+interface GraphNodeToolbarProps {
+  data: RecipeExplorerData;
+  isConnecting: boolean;
+  node: GraphFlowNode;
+  nodeHasTerminalOverrides: boolean;
+  onApplyNodeChanges(node: GraphFlowNode, changes: GraphNodeToolbarChanges): void;
+  onDeleteRelay(relayId: string): void;
+  onToggleConnectMode(nodeId: string): void;
+}
+
+function GraphNodeToolbar({
+  data,
+  isConnecting,
+  node,
+  nodeHasTerminalOverrides,
+  onApplyNodeChanges,
+  onDeleteRelay,
+  onToggleConnectMode,
+}: GraphNodeToolbarProps) {
+  const label = node.data.label;
+  const committedRelayItemKeys = useMemo(
+    () =>
+      node.data.kind === "relay"
+        ? node.data.materials.map((material) => getEntityKey(material))
+        : [],
+    [node],
+  );
+  const committedInputItemKeys = useMemo(
+    () => checkedExternalItemKeys(node.data.externalInputOptions),
+    [node.data.externalInputOptions],
+  );
+  const committedOutputItemKeys = useMemo(
+    () => checkedExternalItemKeys(node.data.externalOutputOptions),
+    [node.data.externalOutputOptions],
+  );
+  const draftSignature = [
+    node.id,
+    committedRelayItemKeys.join("|"),
+    committedInputItemKeys.join("|"),
+    committedOutputItemKeys.join("|"),
+  ].join("::");
+  const [draft, setDraft] = useState<GraphNodeToolbarDraft>({
+    externalInputItemKeys: committedInputItemKeys,
+    externalOutputItemKeys: committedOutputItemKeys,
+    relayItemKeys: committedRelayItemKeys,
+  });
+
+  useEffect(() => {
+    setDraft({
+      externalInputItemKeys: committedInputItemKeys,
+      externalOutputItemKeys: committedOutputItemKeys,
+      relayItemKeys: committedRelayItemKeys,
+    });
+  }, [
+    committedInputItemKeys,
+    committedOutputItemKeys,
+    committedRelayItemKeys,
+    draftSignature,
+  ]);
+
+  const relayItemKeySet = new Set(draft.relayItemKeys);
+  const inputOptions =
+    node.data.kind === "relay"
+      ? node.data.externalInputOptions.filter((option) =>
+          relayItemKeySet.has(option.itemKey),
+        )
+      : node.data.externalInputOptions;
+  const outputOptions =
+    node.data.kind === "relay"
+      ? node.data.externalOutputOptions.filter((option) =>
+          relayItemKeySet.has(option.itemKey),
+        )
+      : node.data.externalOutputOptions;
+  const externalInputItemKeys = optionalExternalItemKeys(
+    inputOptions,
+    draft.externalInputItemKeys,
+  );
+  const externalOutputItemKeys = optionalExternalItemKeys(
+    outputOptions,
+    draft.externalOutputItemKeys,
+  );
+  const committedOptionalInputItemKeys = optionalExternalItemKeys(
+    node.data.externalInputOptions,
+    committedInputItemKeys,
+  );
+  const committedOptionalOutputItemKeys = optionalExternalItemKeys(
+    node.data.externalOutputOptions,
+    committedOutputItemKeys,
+  );
+  const hasRelayDelta =
+    node.data.kind === "relay" &&
+    !haveSameStringItems(draft.relayItemKeys, committedRelayItemKeys);
+  const hasTerminalDelta =
+    !haveSameStringItems(externalInputItemKeys, committedOptionalInputItemKeys) ||
+    !haveSameStringItems(externalOutputItemKeys, committedOptionalOutputItemKeys);
+  const hasNodeDelta = hasRelayDelta || hasTerminalDelta;
+  const canResetTerminals =
+    nodeHasTerminalOverrides ||
+    hasOptionalDraftItems(inputOptions, draft.externalInputItemKeys) ||
+    hasOptionalDraftItems(outputOptions, draft.externalOutputItemKeys);
+
+  function toggleDraftExternalItem(
+    kind: GraphTerminalKind,
+    option: GraphExternalItemOption,
+  ) {
+    if (option.required) {
+      return;
+    }
+
+    const field =
+      kind === "input" ? "externalInputItemKeys" : "externalOutputItemKeys";
+
+    setDraft((currentDraft) => ({
+      ...currentDraft,
+      [field]: toggleStringItem(currentDraft[field], option.itemKey),
+    }));
+  }
+
+  function toggleDraftRelayMaterial(itemKey: string) {
+    if (node.data.kind !== "relay") {
+      return;
+    }
+
+    setDraft((currentDraft) => {
+      const hasItem = currentDraft.relayItemKeys.includes(itemKey);
+
+      if (hasItem && currentDraft.relayItemKeys.length <= 1) {
+        return currentDraft;
+      }
+
+      const relayItemKeys = toggleStringItem(currentDraft.relayItemKeys, itemKey);
+      const allowedItemKeys = new Set(relayItemKeys);
+
+      return {
+        ...currentDraft,
+        externalInputItemKeys: currentDraft.externalInputItemKeys.filter((key) =>
+          allowedItemKeys.has(key),
+        ),
+        externalOutputItemKeys: currentDraft.externalOutputItemKeys.filter((key) =>
+          allowedItemKeys.has(key),
+        ),
+        relayItemKeys,
+      };
+    });
+  }
+
+  function resetDraftTerminals() {
+    setDraft((currentDraft) => ({
+      ...currentDraft,
+      externalInputItemKeys: requiredExternalItemKeys(inputOptions),
+      externalOutputItemKeys: requiredExternalItemKeys(outputOptions),
+    }));
+  }
+
+  function applyDraftNodeChanges() {
+    if (!hasNodeDelta) {
+      return;
+    }
+
+    onApplyNodeChanges(node, {
+      externalInputItemKeys,
+      externalOutputItemKeys,
+      ...(node.data.kind === "relay"
+        ? { relayItemKeys: draft.relayItemKeys }
+        : {}),
+    });
+  }
+
+  return (
+    <div
+      aria-label={`Node controls for ${label}`}
+      className={`layout-graph-toolbar layout-graph-toolbar--node ${
+        isConnecting ? "layout-graph-toolbar--connecting" : ""
+      }`}
+    >
+      <span className="layout-graph-toolbar__title">{label}</span>
+      {node.data.kind === "relay" ? (
+        <GraphToolbarRelayMaterialGroup
+          data={data}
+          entries={node.data.materials}
+          selectedItemKeys={new Set(draft.relayItemKeys)}
+          onToggleMaterial={toggleDraftRelayMaterial}
+        />
+      ) : null}
+      <GraphToolbarExternalGroup
+        data={data}
+        label="In"
+        options={inputOptions}
+        selectedItemKeys={new Set(draft.externalInputItemKeys)}
+        tooltipPrefix="External input"
+        onToggleOption={(option) => toggleDraftExternalItem("input", option)}
+      />
+      <GraphToolbarExternalGroup
+        data={data}
+        label="Out"
+        options={outputOptions}
+        selectedItemKeys={new Set(draft.externalOutputItemKeys)}
+        tooltipPrefix="External output"
+        onToggleOption={(option) => toggleDraftExternalItem("output", option)}
+      />
+      <button
+        aria-label="Reset node terminals"
+        className="icon-button layout-graph-toolbar__button"
+        data-tooltip="Reset terminals"
+        disabled={!canResetTerminals}
+        type="button"
+        onClick={resetDraftTerminals}
+      >
+        <RotateCcw size={16} aria-hidden="true" />
+      </button>
+      {node.data.kind === "relay" ? (
+        <button
+          aria-label={`Delete ${label}`}
+          className="icon-button layout-graph-toolbar__button"
+          data-tooltip="Delete relay"
+          type="button"
+          onClick={() => onDeleteRelay(node.id)}
+        >
+          <Trash2 size={16} aria-hidden="true" />
+        </button>
+      ) : null}
+      <button
+        aria-label={isConnecting ? "Cancel connect mode" : `Connect ${label}`}
+        aria-pressed={isConnecting}
+        className="icon-button layout-graph-toolbar__button"
+        data-tooltip={isConnecting ? "Cancel connect" : "Connect"}
+        type="button"
+        onClick={() => onToggleConnectMode(node.id)}
+      >
+        <Link2 size={16} aria-hidden="true" />
+      </button>
+      <button
+        aria-label="Apply node changes"
+        className="icon-button layout-graph-toolbar__button layout-graph-toolbar__button--apply"
+        data-tooltip="Apply node changes"
+        disabled={!hasNodeDelta}
+        type="button"
+        onClick={applyDraftNodeChanges}
+      >
+        <Check size={16} aria-hidden="true" />
+      </button>
+    </div>
+  );
 }
 
 interface GraphTerminalToolbarProps {
@@ -1218,35 +1386,37 @@ function GraphEdgeToolbar({
 interface GraphToolbarRelayMaterialGroupProps {
   data: RecipeExplorerData;
   entries: ProductPrototype[];
-  onRemoveMaterial(itemKey: string): void;
+  selectedItemKeys: Set<string>;
+  onToggleMaterial(itemKey: string): void;
 }
 
 function GraphToolbarRelayMaterialGroup({
   data,
   entries,
-  onRemoveMaterial,
+  selectedItemKeys,
+  onToggleMaterial,
 }: GraphToolbarRelayMaterialGroupProps) {
-  const canRemoveMaterial = entries.length > 1;
-
   return (
     <div className="layout-graph-toolbar__group">
       <span className="layout-graph-toolbar__label">Carry</span>
       <div className="layout-graph-toolbar__items">
         {entries.map((entry) => {
           const itemKey = getEntityKey(entry);
+          const checked = selectedItemKeys.has(itemKey);
+          const disabled = checked && selectedItemKeys.size <= 1;
 
           return (
             <GraphItemToggle
-              checked
+              checked={checked}
               data={data}
-              disabled={!canRemoveMaterial}
+              disabled={disabled}
               entry={entry}
               itemKey={itemKey}
               key={itemKey}
               tooltipPrefix={
-                canRemoveMaterial ? "Remove relay material" : "Relay material"
+                checked ? "Stage relay material" : "Restore relay material"
               }
-              onToggle={() => onRemoveMaterial(itemKey)}
+              onToggle={() => onToggleMaterial(itemKey)}
             />
           );
         })}
@@ -1259,6 +1429,7 @@ interface GraphToolbarExternalGroupProps {
   data: RecipeExplorerData;
   label: string;
   options: GraphExternalItemOption[];
+  selectedItemKeys: Set<string>;
   tooltipPrefix: string;
   onToggleOption(option: GraphExternalItemOption): void;
 }
@@ -1267,6 +1438,7 @@ function GraphToolbarExternalGroup({
   data,
   label,
   options,
+  selectedItemKeys,
   tooltipPrefix,
   onToggleOption,
 }: GraphToolbarExternalGroupProps) {
@@ -1276,7 +1448,7 @@ function GraphToolbarExternalGroup({
       <div className="layout-graph-toolbar__items">
         {options.map((option) => (
           <GraphItemToggle
-            checked={option.checked}
+            checked={option.required || selectedItemKeys.has(option.itemKey)}
             data={data}
             disabled={option.required}
             entry={option.entry}
@@ -3078,6 +3250,44 @@ function haveSameStringItems(left: string[], right: string[]): boolean {
   const rightItems = new Set(right);
 
   return left.every((item) => rightItems.has(item));
+}
+
+function checkedExternalItemKeys(options: GraphExternalItemOption[]): string[] {
+  return options.filter((option) => option.checked).map((option) => option.itemKey);
+}
+
+function requiredExternalItemKeys(options: GraphExternalItemOption[]): string[] {
+  return options.filter((option) => option.required).map((option) => option.itemKey);
+}
+
+function optionalExternalItemKeys(
+  options: GraphExternalItemOption[],
+  selectedItemKeys: string[],
+): string[] {
+  const selectedItemKeySet = new Set(selectedItemKeys);
+
+  return options
+    .filter((option) => !option.required && selectedItemKeySet.has(option.itemKey))
+    .map((option) => option.itemKey);
+}
+
+function hasOptionalDraftItems(
+  options: GraphExternalItemOption[],
+  selectedItemKeys: string[],
+): boolean {
+  return optionalExternalItemKeys(options, selectedItemKeys).length > 0;
+}
+
+function toggleStringItem(values: string[], value: string): string[] {
+  const nextValues = new Set(values);
+
+  if (nextValues.has(value)) {
+    nextValues.delete(value);
+  } else {
+    nextValues.add(value);
+  }
+
+  return [...nextValues].sort();
 }
 
 function uniqueStringItems(values: string[]): string[] {
