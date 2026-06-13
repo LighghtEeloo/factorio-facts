@@ -403,6 +403,53 @@ export function App() {
     );
   }
 
+  function updateLayoutGraphRelayItems(
+    layoutId: string,
+    relayId: string,
+    itemKeys: string[],
+  ) {
+    const nextRelayItemKeys = uniqueStrings(itemKeys);
+
+    if (!nextRelayItemKeys.length) {
+      return;
+    }
+
+    setLayouts((currentLayouts) =>
+      currentLayouts.map((layout) => {
+        if (layout.id !== layoutId) {
+          return layout;
+        }
+
+        const relay = layout.relays.find((candidate) => candidate.id === relayId);
+
+        if (!relay) {
+          return layout;
+        }
+
+        const nextRelayItemKeySet = new Set(nextRelayItemKeys);
+
+        return {
+          ...layout,
+          relays: layout.relays.map((candidate) =>
+            candidate.id === relayId
+              ? { ...candidate, itemKeys: nextRelayItemKeys }
+              : candidate,
+          ),
+          edgeItems: pruneRelayEdgeItems(
+            layout.edgeItems,
+            relayId,
+            nextRelayItemKeySet,
+          ),
+          externalItems: pruneRelayExternalItems(
+            layout.externalItems,
+            relayId,
+            nextRelayItemKeySet,
+          ),
+        };
+      }),
+    );
+  }
+
   function updateLayoutGraphEdgePorts(
     layoutId: string,
     edgeId: string,
@@ -713,6 +760,9 @@ export function App() {
           }
           onRelayDelete={(relayId) =>
             deleteLayoutGraphRelay(graphLayout.id, relayId)
+          }
+          onRelayItemsChange={(relayId, itemKeys) =>
+            updateLayoutGraphRelayItems(graphLayout.id, relayId, itemKeys)
           }
           onNodePositionChange={(entryId, position) =>
             updateLayoutGraphNodePosition(graphLayout.id, entryId, position)
@@ -1628,6 +1678,59 @@ function omitGraphTerminalSides(
   }
 
   return remainingTerminalSides;
+}
+
+function pruneRelayEdgeItems(
+  edgeItems: Record<string, string[]>,
+  relayId: string,
+  relayItemKeys: Set<string>,
+): Record<string, string[]> {
+  const remainingEdgeItems: Record<string, string[]> = {};
+
+  for (const [edgeId, itemKeys] of Object.entries(edgeItems)) {
+    const edgeEntryIds = parseGraphEdgeId(edgeId);
+
+    if (
+      !edgeEntryIds ||
+      (edgeEntryIds.sourceId !== relayId && edgeEntryIds.targetId !== relayId)
+    ) {
+      remainingEdgeItems[edgeId] = itemKeys;
+      continue;
+    }
+
+    remainingEdgeItems[edgeId] = itemKeys.filter((itemKey) =>
+      relayItemKeys.has(itemKey),
+    );
+  }
+
+  return remainingEdgeItems;
+}
+
+function pruneRelayExternalItems(
+  externalItems: Record<string, string[]>,
+  relayId: string,
+  relayItemKeys: Set<string>,
+): Record<string, string[]> {
+  const remainingExternalItems: Record<string, string[]> = {};
+
+  for (const [terminalId, itemKeys] of Object.entries(externalItems)) {
+    const terminalEntry = parseGraphTerminalId(terminalId);
+
+    if (!terminalEntry || terminalEntry.entryId !== relayId) {
+      remainingExternalItems[terminalId] = itemKeys;
+      continue;
+    }
+
+    const remainingItemKeys = itemKeys.filter((itemKey) =>
+      relayItemKeys.has(itemKey),
+    );
+
+    if (remainingItemKeys.length) {
+      remainingExternalItems[terminalId] = remainingItemKeys;
+    }
+  }
+
+  return remainingExternalItems;
 }
 
 function parseGraphEdgeId(edgeId: string): { sourceId: string; targetId: string } | null {

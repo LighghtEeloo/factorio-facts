@@ -109,6 +109,7 @@ interface LayoutGraphDialogProps {
   onExternalItemsReset(terminalIds: string[]): void;
   onRelayCreate(relay: GraphRelay, position: GraphNodePosition): void;
   onRelayDelete(relayId: string): void;
+  onRelayItemsChange(relayId: string, itemKeys: string[]): void;
   onNodePositionChange(entryId: string, position: GraphNodePosition): void;
   onResetGraphPositions(): void;
   onSelectItem(itemId: string): void;
@@ -128,6 +129,7 @@ export function LayoutGraphDialog({
   onExternalItemsReset,
   onRelayCreate,
   onRelayDelete,
+  onRelayItemsChange,
   onNodePositionChange,
   onResetGraphPositions,
   onSelectItem,
@@ -434,6 +436,19 @@ export function LayoutGraphDialog({
     ]);
   }
 
+  function removeRelayMaterial(node: GraphFlowNode, itemKey: string) {
+    if (node.data.kind !== "relay" || node.data.materials.length <= 1) {
+      return;
+    }
+
+    onRelayItemsChange(
+      node.id,
+      node.data.materials
+        .map((material) => getEntityKey(material))
+        .filter((materialKey) => materialKey !== itemKey),
+    );
+  }
+
   function togglePendingConnectionItem(itemKey: string) {
     setPendingConnection((currentConnection) => {
       if (!currentConnection) {
@@ -624,6 +639,7 @@ export function LayoutGraphDialog({
             onCreateRelayFromEdges={createRelayFromSelectedEdges}
             onCreateRelayFromTerminal={createRelayFromTerminal}
             onDeleteRelay={deleteRelay}
+            onRemoveRelayMaterial={removeRelayMaterial}
             onResetEdgeItems={onEdgeItemsReset}
             onResetNodeTerminals={resetNodeTerminals}
             onToggleConnectMode={toggleConnectMode}
@@ -787,6 +803,7 @@ interface GraphHeaderToolbarProps {
   onCreateRelayFromEdges(): void;
   onCreateRelayFromTerminal(terminal: SelectedGraphTerminal): void;
   onDeleteRelay(relayId: string): void;
+  onRemoveRelayMaterial(node: GraphFlowNode, itemKey: string): void;
   onResetEdgeItems(edgeId: string): void;
   onResetNodeTerminals(nodeId: string): void;
   onToggleConnectMode(nodeId: string): void;
@@ -814,6 +831,7 @@ function GraphHeaderToolbar({
   onCreateRelayFromEdges,
   onCreateRelayFromTerminal,
   onDeleteRelay,
+  onRemoveRelayMaterial,
   onResetEdgeItems,
   onResetNodeTerminals,
   onToggleConnectMode,
@@ -908,6 +926,13 @@ function GraphHeaderToolbar({
         }`}
       >
         <span className="layout-graph-toolbar__title">{label}</span>
+        {node.data.kind === "relay" ? (
+          <GraphToolbarRelayMaterialGroup
+            data={data}
+            entries={node.data.materials}
+            onRemoveMaterial={(itemKey) => onRemoveRelayMaterial(node, itemKey)}
+          />
+        ) : null}
         <GraphToolbarExternalGroup
           data={data}
           label="In"
@@ -1186,6 +1211,46 @@ function GraphEdgeToolbar({
       >
         <Check size={16} aria-hidden="true" />
       </button>
+    </div>
+  );
+}
+
+interface GraphToolbarRelayMaterialGroupProps {
+  data: RecipeExplorerData;
+  entries: ProductPrototype[];
+  onRemoveMaterial(itemKey: string): void;
+}
+
+function GraphToolbarRelayMaterialGroup({
+  data,
+  entries,
+  onRemoveMaterial,
+}: GraphToolbarRelayMaterialGroupProps) {
+  const canRemoveMaterial = entries.length > 1;
+
+  return (
+    <div className="layout-graph-toolbar__group">
+      <span className="layout-graph-toolbar__label">Carry</span>
+      <div className="layout-graph-toolbar__items">
+        {entries.map((entry) => {
+          const itemKey = getEntityKey(entry);
+
+          return (
+            <GraphItemToggle
+              checked
+              data={data}
+              disabled={!canRemoveMaterial}
+              entry={entry}
+              itemKey={itemKey}
+              key={itemKey}
+              tooltipPrefix={
+                canRemoveMaterial ? "Remove relay material" : "Relay material"
+              }
+              onToggle={() => onRemoveMaterial(itemKey)}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 }
