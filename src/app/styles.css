@@ -145,6 +145,31 @@ button {
   flex: 0 0 auto;
 }
 
+.layout-graph-reset-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 36px;
+  border: 1px solid #4f4b3a;
+  border-radius: 7px;
+  background: #1d1f18;
+  padding: 3px;
+}
+
+.layout-graph-reset-confirm__label {
+  padding: 0 6px;
+  color: #e4d6a7;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.layout-graph-reset-confirm__button {
+  width: 30px;
+  height: 30px;
+}
+
 .item-selector {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
@@ -1157,6 +1182,11 @@ button {
   font-size: 0.76rem;
 }
 
+.layout-graph-dialog__header .layout-graph-reset-confirm__label {
+  color: #e4d6a7;
+  font-weight: 700;
+}
+
 .layout-graph-toolbar {
   display: inline-flex;
   align-items: center;
@@ -1264,6 +1294,13 @@ button {
   border-color: #d7b65f;
   background: #302a1b;
   color: #f0c96e;
+}
+
+.layout-graph-toolbar__button--apply:disabled {
+  border-color: #45463b;
+  background: #202119;
+  color: #8c8d82;
+  opacity: 1;
 }
 
 .layout-graph-flow-shell {

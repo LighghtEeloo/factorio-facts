@@ -89,6 +89,7 @@ interface LayoutGraphDialogProps {
   layout: RecipeLayout;
   onClose(): void;
   onEdgeItemsChange(edgeId: string, itemKeys: string[]): void;
+  onEdgeItemsReset(edgeId: string): void;
   onEdgePortsChange(edgeId: string, ports: GraphEdgePorts): void;
   onEdgeRouteChange(edgeId: string, route: GraphEdgeRoute): void;
   onEdgeRouteReset(edgeId: string): void;
@@ -104,6 +105,7 @@ export function LayoutGraphDialog({
   layout,
   onClose,
   onEdgeItemsChange,
+  onEdgeItemsReset,
   onEdgePortsChange,
   onEdgeRouteChange,
   onEdgeRouteReset,
@@ -119,6 +121,7 @@ export function LayoutGraphDialog({
   const [connectingFromNodeId, setConnectingFromNodeId] = useState<string | null>(null);
   const [pendingConnection, setPendingConnection] =
     useState<PendingGraphConnection | null>(null);
+  const [isResetConfirming, setIsResetConfirming] = useState(false);
   const focusEdge = useCallback((edgeId: string) => {
     setSelectedEdgeId(edgeId);
     setSelectedNodeId(null);
@@ -263,6 +266,12 @@ export function LayoutGraphDialog({
   }, [graph.connectionCandidates, pendingConnection]);
 
   useEffect(() => {
+    if (!hasSavedGraphState) {
+      setIsResetConfirming(false);
+    }
+  }, [hasSavedGraphState]);
+
+  useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         onClose();
@@ -375,18 +384,6 @@ export function LayoutGraphDialog({
     onExternalItemsChange(terminalId, [...itemKeys]);
   }
 
-  function toggleEdgeItem(edge: ItemFlowEdgeType, itemKey: string) {
-    const itemKeys = new Set((edge.data?.items ?? []).map((item) => getEntityKey(item)));
-
-    if (itemKeys.has(itemKey)) {
-      itemKeys.delete(itemKey);
-    } else {
-      itemKeys.add(itemKey);
-    }
-
-    onEdgeItemsChange(edge.id, [...itemKeys]);
-  }
-
   function togglePendingConnectionItem(itemKey: string) {
     setPendingConnection((currentConnection) => {
       if (!currentConnection) {
@@ -451,22 +448,54 @@ export function LayoutGraphDialog({
             pendingConnection={pendingConnection}
             onCancelPendingConnection={() => setPendingConnection(null)}
             onConfirmPendingConnection={confirmPendingConnection}
+            onApplyEdgeItems={onEdgeItemsChange}
+            onResetEdgeItems={onEdgeItemsReset}
             onToggleConnectMode={toggleConnectMode}
-            onToggleEdgeItem={toggleEdgeItem}
             onToggleExternalItem={toggleExternalItem}
             onTogglePendingConnectionItem={togglePendingConnectionItem}
           />
           <div className="popup-header-actions">
-            <button
-              aria-label="Reset layout graph"
-              className="icon-button"
-              data-tooltip="Reset graph"
-              disabled={!hasSavedGraphState}
-              type="button"
-              onClick={onResetGraphPositions}
-            >
-              <RotateCcw size={18} aria-hidden="true" />
-            </button>
+            {isResetConfirming ? (
+              <div
+                aria-label="Confirm graph reset"
+                className="layout-graph-reset-confirm"
+                role="group"
+              >
+                <span className="layout-graph-reset-confirm__label">Reset?</span>
+                <button
+                  aria-label="Confirm graph reset"
+                  className="icon-button layout-graph-reset-confirm__button"
+                  data-tooltip="Confirm reset"
+                  type="button"
+                  onClick={() => {
+                    onResetGraphPositions();
+                    setIsResetConfirming(false);
+                  }}
+                >
+                  <Check size={16} aria-hidden="true" />
+                </button>
+                <button
+                  aria-label="Cancel graph reset"
+                  className="icon-button layout-graph-reset-confirm__button"
+                  data-tooltip="Cancel reset"
+                  type="button"
+                  onClick={() => setIsResetConfirming(false)}
+                >
+                  <X size={16} aria-hidden="true" />
+                </button>
+              </div>
+            ) : (
+              <button
+                aria-label="Reset layout graph"
+                className="icon-button"
+                data-tooltip="Reset graph"
+                disabled={!hasSavedGraphState}
+                type="button"
+                onClick={() => setIsResetConfirming(true)}
+              >
+                <RotateCcw size={18} aria-hidden="true" />
+              </button>
+            )}
             <button
               aria-label={
                 isFullscreen ? "Exit fullscreen layout graph" : "Fullscreen layout graph"
@@ -571,10 +600,11 @@ interface GraphHeaderToolbarProps {
   node: RecipeFlowNode | null;
   pendingCandidate: GraphConnectionCandidate | null;
   pendingConnection: PendingGraphConnection | null;
+  onApplyEdgeItems(edgeId: string, itemKeys: string[]): void;
   onCancelPendingConnection(): void;
   onConfirmPendingConnection(): void;
+  onResetEdgeItems(edgeId: string): void;
   onToggleConnectMode(nodeId: string): void;
-  onToggleEdgeItem(edge: ItemFlowEdgeType, itemKey: string): void;
   onToggleExternalItem(
     node: RecipeFlowNode,
     kind: GraphTerminalKind,
@@ -590,10 +620,11 @@ function GraphHeaderToolbar({
   node,
   pendingCandidate,
   pendingConnection,
+  onApplyEdgeItems,
   onCancelPendingConnection,
   onConfirmPendingConnection,
+  onResetEdgeItems,
   onToggleConnectMode,
-  onToggleEdgeItem,
   onToggleExternalItem,
   onTogglePendingConnectionItem,
 }: GraphHeaderToolbarProps) {
@@ -642,27 +673,13 @@ function GraphHeaderToolbar({
   }
 
   if (edge?.data) {
-    const selectedItemKeys = new Set(edge.data.items.map((item) => getEntityKey(item)));
-
     return (
-      <div
-        aria-label={`Edge controls from ${edge.data.sourceName} to ${edge.data.targetName}`}
-        className="layout-graph-toolbar layout-graph-toolbar--edge"
-      >
-        <span className="layout-graph-toolbar__title">
-          {edge.data.sourceName}
-          {" -> "}
-          {edge.data.targetName}
-        </span>
-        <GraphToolbarItemGroup
-          data={data}
-          entries={edge.data.availableItems}
-          label="Flow"
-          selectedItemKeys={selectedItemKeys}
-          tooltipPrefix="Toggle flow"
-          onToggleItem={(itemKey) => onToggleEdgeItem(edge, itemKey)}
-        />
-      </div>
+      <GraphEdgeToolbar
+        data={data}
+        edge={edge}
+        onApplyEdgeItems={onApplyEdgeItems}
+        onResetEdgeItems={onResetEdgeItems}
+      />
     );
   }
 
@@ -707,6 +724,142 @@ function GraphHeaderToolbar({
   }
 
   return <div className="layout-graph-toolbar layout-graph-toolbar--empty" />;
+}
+
+interface GraphEdgeToolbarProps {
+  data: RecipeExplorerData;
+  edge: ItemFlowEdgeType;
+  onApplyEdgeItems(edgeId: string, itemKeys: string[]): void;
+  onResetEdgeItems(edgeId: string): void;
+}
+
+interface EdgeMaterialDraft {
+  itemKeys: string[];
+  resetToDefault: boolean;
+}
+
+function GraphEdgeToolbar({
+  data,
+  edge,
+  onApplyEdgeItems,
+  onResetEdgeItems,
+}: GraphEdgeToolbarProps) {
+  const edgeData = edge.data;
+  const availableItemKeys = useMemo(
+    () => edgeData?.availableItems.map((item) => getEntityKey(item)) ?? [],
+    [edgeData],
+  );
+  const committedItemKeys = useMemo(
+    () => edgeData?.items.map((item) => getEntityKey(item)) ?? [],
+    [edgeData],
+  );
+  const availableSignature = availableItemKeys.join("|");
+  const committedSignature = committedItemKeys.join("|");
+  const [draft, setDraft] = useState<EdgeMaterialDraft>({
+    itemKeys: committedItemKeys,
+    resetToDefault: false,
+  });
+
+  useEffect(() => {
+    setDraft({
+      itemKeys: committedItemKeys,
+      resetToDefault: false,
+    });
+  }, [edge.id, availableSignature, committedSignature, committedItemKeys]);
+
+  if (!edgeData) {
+    return null;
+  }
+
+  const selectedItemKeys = new Set(draft.itemKeys);
+  const hasMaterialDelta =
+    !haveSameStringItems(draft.itemKeys, committedItemKeys) ||
+    (draft.resetToDefault && edgeData.hasItemOverride);
+  const canResetMaterial =
+    edgeData.hasItemOverride || !haveSameStringItems(draft.itemKeys, availableItemKeys);
+
+  function toggleDraftItem(itemKey: string) {
+    setDraft((currentDraft) => {
+      const nextItemKeys = new Set(currentDraft.itemKeys);
+
+      if (nextItemKeys.has(itemKey)) {
+        nextItemKeys.delete(itemKey);
+      } else {
+        nextItemKeys.add(itemKey);
+      }
+
+      return {
+        itemKeys: availableItemKeys.filter((availableItemKey) =>
+          nextItemKeys.has(availableItemKey),
+        ),
+        resetToDefault: false,
+      };
+    });
+  }
+
+  function resetDraftMaterial() {
+    setDraft({
+      itemKeys: availableItemKeys,
+      resetToDefault: true,
+    });
+  }
+
+  function applyDraftMaterial() {
+    if (!hasMaterialDelta) {
+      return;
+    }
+
+    if (
+      draft.resetToDefault ||
+      haveSameStringItems(draft.itemKeys, availableItemKeys)
+    ) {
+      onResetEdgeItems(edge.id);
+      return;
+    }
+
+    onApplyEdgeItems(edge.id, draft.itemKeys);
+  }
+
+  return (
+    <div
+      aria-label={`Edge controls from ${edgeData.sourceName} to ${edgeData.targetName}`}
+      className="layout-graph-toolbar layout-graph-toolbar--edge"
+    >
+      <span className="layout-graph-toolbar__title">
+        {edgeData.sourceName}
+        {" -> "}
+        {edgeData.targetName}
+      </span>
+      <GraphToolbarItemGroup
+        data={data}
+        entries={edgeData.availableItems}
+        label="Flow"
+        selectedItemKeys={selectedItemKeys}
+        tooltipPrefix="Stage flow"
+        onToggleItem={toggleDraftItem}
+      />
+      <button
+        aria-label="Reset edge material"
+        className="icon-button layout-graph-toolbar__button"
+        data-tooltip="Reset material"
+        disabled={!canResetMaterial}
+        type="button"
+        onClick={resetDraftMaterial}
+      >
+        <RotateCcw size={16} aria-hidden="true" />
+      </button>
+      <button
+        aria-label="Apply edge material"
+        className="icon-button layout-graph-toolbar__button layout-graph-toolbar__button--apply"
+        data-tooltip="Apply material"
+        disabled={!hasMaterialDelta}
+        type="button"
+        onClick={applyDraftMaterial}
+      >
+        <Check size={16} aria-hidden="true" />
+      </button>
+    </div>
+  );
 }
 
 interface GraphToolbarExternalGroupProps {
@@ -942,6 +1095,7 @@ function RecipeNode({ data, id }: NodeProps<RecipeFlowNode>) {
 interface ItemFlowEdgeData extends Record<string, unknown> {
   availableItems: ProductPrototype[];
   data: RecipeExplorerData;
+  hasItemOverride: boolean;
   items: ProductPrototype[];
   onFocusEdge(edgeId: string): void;
   onRouteChange(edgeId: string, route: GraphEdgeRoute): void;
@@ -1409,6 +1563,7 @@ interface GraphExternalItemOption {
 
 interface GraphEdgeDraft {
   availableItems: ProductPrototype[];
+  hasItemOverride: boolean;
   id: string;
   targetId: string;
   sourceId: string;
@@ -1562,7 +1717,8 @@ function buildGraphEdgeDrafts(
       }
 
       const id = getGraphEdgeId(source.id, target.id);
-      const selectedItemKeys = Object.prototype.hasOwnProperty.call(edgeItems, id)
+      const hasItemOverride = Object.prototype.hasOwnProperty.call(edgeItems, id);
+      const selectedItemKeys = hasItemOverride
         ? new Set(edgeItems[id])
         : null;
       const items = selectedItemKeys
@@ -1581,6 +1737,7 @@ function buildGraphEdgeDrafts(
       if (items.length) {
         activeEdges.push({
           availableItems,
+          hasItemOverride,
           id,
           sourceId: source.id,
           targetId: target.id,
@@ -1799,6 +1956,7 @@ function buildFlowEdge(
     data: {
       availableItems: edge.availableItems,
       data,
+      hasItemOverride: edge.hasItemOverride,
       items: edge.items,
       onFocusEdge,
       onRouteChange: onEdgeRouteChange,
@@ -2076,6 +2234,16 @@ function uniqueProducts(entries: ProductPrototype[]): ProductPrototype[] {
     seen.add(key);
     return true;
   });
+}
+
+function haveSameStringItems(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  const rightItems = new Set(right);
+
+  return left.every((item) => rightItems.has(item));
 }
 
 function addSetValue<T>(map: Map<string, Set<T>>, key: string, value: T) {

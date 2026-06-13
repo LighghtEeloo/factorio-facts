@@ -401,6 +401,20 @@ export function App() {
     );
   }
 
+  function resetLayoutGraphEdgeItems(layoutId: string, edgeId: string) {
+    setLayouts((currentLayouts) =>
+      currentLayouts.map((layout) => {
+        if (layout.id !== layoutId) {
+          return layout;
+        }
+
+        const { [edgeId]: _removedItems, ...edgeItems } = layout.edgeItems;
+
+        return { ...layout, edgeItems };
+      }),
+    );
+  }
+
   function updateLayoutGraphExternalItems(
     layoutId: string,
     terminalId: string,
@@ -583,6 +597,9 @@ export function App() {
           }
           onEdgeItemsChange={(edgeId, itemKeys) =>
             updateLayoutGraphEdgeItems(graphLayout.id, edgeId, itemKeys)
+          }
+          onEdgeItemsReset={(edgeId) =>
+            resetLayoutGraphEdgeItems(graphLayout.id, edgeId)
           }
           onExternalItemsChange={(terminalId, itemKeys) =>
             updateLayoutGraphExternalItems(graphLayout.id, terminalId, itemKeys)
