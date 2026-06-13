@@ -38,6 +38,8 @@ export interface RecipeLayout {
   graphPositions: Record<string, GraphNodePosition>;
   edgePorts: Record<string, GraphEdgePorts>;
   edgeRoutes: Record<string, GraphEdgeRoute>;
+  edgeItems: Record<string, string[]>;
+  externalItems: Record<string, string[]>;
   terminalSides: Record<string, GraphSide>;
   collapsed: boolean;
 }

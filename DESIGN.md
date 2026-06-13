@@ -103,15 +103,41 @@ Layout state is serialized into the URL once it differs from the default empty l
 
 ## Layout Graphs
 
-A layout graph popup renders recipe instances as vertices using React Flow (`@xyflow/react`). Edges are item/fluid flows inferred from products of one recipe instance that match ingredients of another recipe instance in the same layout. Edges connect visually to recipe cards while preserving side-specific invisible anchors for routing.
+A layout graph popup renders recipe instances as vertices using React Flow (`@xyflow/react`). Possible edges are item/fluid flows inferred from products of one recipe instance that match ingredients of another recipe instance in the same layout. Active edges are the user-visible subset of those flows; if an edge has no saved override, all matching items are active by default. Edges connect visually to recipe cards while preserving side-specific invisible anchors for routing.
 
 Graph rendering treats the layout contents as a multiset of recipe instances. The sidebar list order is useful for managing entries, but it does not determine graph geometry; vertices are ranked from inferred producer-to-consumer relationships and sorted by stable recipe identity within each rank.
 
 Users can drag recipe vertices in the graph. Dragged positions are stored by layout entry id in the URL, so manual graph arrangement survives reloads and sharing. Edges can be focused from the line or item-flow label; dragging the item-flow label creates or moves a Bezier bend point for that edge while preserving the source and target side tangents. A small reset button above a focused routed edge clears only that edge's bend point.
 
-When an edge is focused, its source and target nodes show clickable endpoint targets on all four sides so users can choose where the edge starts and ends. The graph popup reset button clears saved positions, edge endpoint choices, and bend points, returning the layout to automatic graph placement and default right-to-left edge routing.
+When an edge is focused, its source and target nodes show clickable endpoint targets on all four sides so users can choose where the edge starts and ends. The graph popup reset button clears saved positions, edge endpoint choices, bend points, edge item overrides, and optional external terminal choices, returning the layout to automatic graph placement and default active flows.
 
-Products that are made by a recipe instance but not consumed by another layout recipe remain attached to that recipe vertex as external output terminals. Ingredients that are consumed but not made inside the layout remain attached as external input terminals. These boundary terminals dock outside the recipe card with short dashed stubs and directional arrows, while true recipe-to-recipe item flow remains a solid draggable edge.
+### Graph Toolbar
+
+The graph popup header has a contextual node/edge toolbar centered between the layout title and the popup actions. Its job is to expose semantic graph edits without adding another floating inspector panel to the canvas. The graph itself should remain a spatial planning surface: nodes, edges, terminal sets, endpoint handles, and bend handles stay close to the objects they affect, while the toolbar provides the compact list-editing controls that would be too noisy if repeated on every node or edge.
+
+The toolbar follows the current graph focus state:
+
+- No focused node, edge, terminal, or pending connection: show no active controls. The header should remain stable so reset, fullscreen, and close actions do not jump around.
+- Focused terminal set: keep the toolbar inactive. Terminal focus is already handled directly on the related node by showing four side targets for docking that terminal set.
+- Focused node: show the node toolbar.
+- Focused existing edge: show the edge toolbar.
+- Pending connection between two nodes: show the pending edge toolbar until the user confirms or cancels.
+
+The node toolbar contains the focused recipe name, an external input group, an external output group, and a connect button. External groups are lists of item/fluid icon toggles derived from the focused recipe's actual ingredients and products. A checked toggle means the item is displayed as an external terminal for that node. A disabled checked toggle means the terminal is required because the current active graph does not satisfy that ingredient or product through an active edge. Users may not turn off required terminals, because doing so would hide a real unsatisfied boundary of the layout.
+
+Optional node toolbar toggles represent a different intention: they let the user deliberately show a boundary terminal even when the item is already supplied or consumed inside the layout. This is useful when a factory subsection intentionally exports some of a product, imports a buffered item anyway, or wants to make an otherwise internal flow visible at the boundary. Optional external terminal choices are persisted separately from required terminal inference, so changing edges can make a formerly optional terminal become required, or make it optional again without losing the user's explicit choice unless reset clears it.
+
+The connect button puts the focused node into connection-pick mode. In that mode, clicking another compatible node opens a pending edge toolbar. Shift-clicking another node while a node is focused is the shortcut for the same action. Compatibility is directional and recipe-based: one node must produce at least one item/fluid consumed by the other. If only the reverse direction is compatible, the pending edge uses that reverse producer-to-consumer direction. If neither direction shares a valid product-to-ingredient item, no pending edge is created.
+
+The pending edge toolbar names the proposed source and target recipes, lists the shared item/fluid toggles, and provides confirm and cancel controls. If the proposed edge has no saved item override, all shared items are selected by default. If the edge already has a saved override, the pending toolbar starts from that saved selection, including the intentionally empty case where the edge is currently hidden. Confirm is disabled while no shared items are selected, because an edge with no active items is not visible flow. Confirming writes the selected item keys to the layout and focuses the resulting edge. Cancel exits pending connection state without changing graph state.
+
+The edge toolbar edits an existing active edge. It shows the source and target recipe names plus one toggle for every item/fluid that the source can produce and the target can consume. Checked toggles are the items currently carried by that edge. Turning an item off removes it from that edge; turning it on adds it back. If the user turns off the last item, the active edge disappears and the related source output and target input become required external terminals. This is intentional: removing a flow should reveal the newly unsatisfied boundary instead of silently dropping information.
+
+Toolbar edits must preserve the graph's truthfulness. The app can hide optional visualization details, but it should not imply that an ingredient is supplied or a product is consumed unless an active edge actually carries that item/fluid. Conversely, hiding an edge item must immediately update boundary terminals so the layout still communicates all required imports and exports. This is why terminal inference is based on active edge contents rather than merely on whether another recipe in the layout could theoretically match.
+
+Toolbar state is part of shareable layout state. Edge item overrides are persisted by edge id, optional external terminal choices by terminal id, node positions by layout entry id, and endpoint/bend choices by their existing graph ids. The graph reset button clears these saved graph-editing choices together with node positions, endpoint choices, terminal sides, and bend points, returning the graph to inferred active flows and required-only external terminals.
+
+Products that are made by a recipe instance but not carried by an active outgoing edge remain attached to that recipe vertex as external output terminals. Ingredients that are consumed but not carried by an active incoming edge remain attached as external input terminals. Editing edge contents can therefore create or remove required boundary terminals. These boundary terminals dock outside the recipe card with short dashed stubs and directional arrows, while true recipe-to-recipe item flow remains a solid draggable edge.
 
 Clicking a terminal set focuses it and shows the same four side targets used by focused edges, so users can move each input or output terminal set to the side that best fits the graph. This keeps graph semantics close to the underlying bipartite model without forcing users into a full ratio solver.
 

@@ -183,6 +183,8 @@ export function App() {
               graphPositions: omitGraphPosition(layout.graphPositions, entryId),
               edgePorts: omitGraphEdgePorts(layout.edgePorts, entryId),
               edgeRoutes: omitGraphEdgeRoutes(layout.edgeRoutes, entryId),
+              edgeItems: omitGraphEdgeItems(layout.edgeItems, entryId),
+              externalItems: omitGraphExternalItems(layout.externalItems, entryId),
               terminalSides: omitGraphTerminalSides(layout.terminalSides, entryId),
             }
           : layout,
@@ -379,6 +381,54 @@ export function App() {
     );
   }
 
+  function updateLayoutGraphEdgeItems(
+    layoutId: string,
+    edgeId: string,
+    itemKeys: string[],
+  ) {
+    setLayouts((currentLayouts) =>
+      currentLayouts.map((layout) =>
+        layout.id === layoutId
+          ? {
+              ...layout,
+              edgeItems: {
+                ...layout.edgeItems,
+                [edgeId]: uniqueStrings(itemKeys),
+              },
+            }
+          : layout,
+      ),
+    );
+  }
+
+  function updateLayoutGraphExternalItems(
+    layoutId: string,
+    terminalId: string,
+    itemKeys: string[],
+  ) {
+    setLayouts((currentLayouts) =>
+      currentLayouts.map((layout) => {
+        if (layout.id !== layoutId) {
+          return layout;
+        }
+
+        const nextExternalItems = { ...layout.externalItems };
+        const uniqueItemKeys = uniqueStrings(itemKeys);
+
+        if (uniqueItemKeys.length) {
+          nextExternalItems[terminalId] = uniqueItemKeys;
+        } else {
+          delete nextExternalItems[terminalId];
+        }
+
+        return {
+          ...layout,
+          externalItems: nextExternalItems,
+        };
+      }),
+    );
+  }
+
   function updateLayoutGraphTerminalSide(
     layoutId: string,
     terminalId: string,
@@ -408,6 +458,8 @@ export function App() {
               graphPositions: {},
               edgePorts: {},
               edgeRoutes: {},
+              edgeItems: {},
+              externalItems: {},
               terminalSides: {},
             }
           : layout,
@@ -528,6 +580,12 @@ export function App() {
           }
           onEdgeRouteReset={(edgeId) =>
             resetLayoutGraphEdgeRoute(graphLayout.id, edgeId)
+          }
+          onEdgeItemsChange={(edgeId, itemKeys) =>
+            updateLayoutGraphEdgeItems(graphLayout.id, edgeId, itemKeys)
+          }
+          onExternalItemsChange={(terminalId, itemKeys) =>
+            updateLayoutGraphExternalItems(graphLayout.id, terminalId, itemKeys)
           }
           onNodePositionChange={(entryId, position) =>
             updateLayoutGraphNodePosition(graphLayout.id, entryId, position)
@@ -711,10 +769,12 @@ interface SerializedLayout {
   e?: unknown;
   h?: unknown;
   i?: unknown;
+  m?: unknown;
   n?: unknown;
   p?: unknown;
   r?: unknown;
   t?: unknown;
+  x?: unknown;
 }
 
 interface SerializedLayoutEntry {
@@ -774,10 +834,12 @@ function parseLayout(
     e: rawEntries,
     h: rawEdgePorts,
     i: rawId,
+    m: rawEdgeItems,
     n: rawName,
     p: rawGraphPositions,
     r: rawEdgeRoutes,
     t: rawTerminalSides,
+    x: rawExternalItems,
   } = rawLayout as SerializedLayout;
   const id = getUniqueId(
     typeof rawId === "string" && rawId ? rawId : `layout-${index + 1}`,
@@ -798,6 +860,8 @@ function parseLayout(
       graphPositions: parseGraphPositions(rawGraphPositions, entries),
       edgePorts: parseGraphEdgePorts(rawEdgePorts, entries),
       edgeRoutes: parseGraphEdgeRoutes(rawEdgeRoutes, entries),
+      edgeItems: parseGraphEdgeItemKeys(rawEdgeItems, entries),
+      externalItems: parseGraphExternalItemKeys(rawExternalItems, entries),
       terminalSides: parseGraphTerminalSides(rawTerminalSides, entries),
       collapsed: rawCollapsed === 1 || rawCollapsed === true,
     },
@@ -927,6 +991,62 @@ function parseGraphTerminalSides(
   return terminalSides;
 }
 
+function parseGraphEdgeItemKeys(
+  value: unknown,
+  entries: RecipeLayoutEntry[],
+): Record<string, string[]> {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  const entryIds = new Set(entries.map((entry) => entry.id));
+  const edgeItems: Record<string, string[]> = {};
+
+  for (const [edgeId, rawItemKeys] of Object.entries(value)) {
+    const edgeEntryIds = parseGraphEdgeId(edgeId);
+
+    if (
+      !edgeEntryIds ||
+      !entryIds.has(edgeEntryIds.sourceId) ||
+      !entryIds.has(edgeEntryIds.targetId)
+    ) {
+      continue;
+    }
+
+    edgeItems[edgeId] = parseStringList(rawItemKeys);
+  }
+
+  return edgeItems;
+}
+
+function parseGraphExternalItemKeys(
+  value: unknown,
+  entries: RecipeLayoutEntry[],
+): Record<string, string[]> {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  const entryIds = new Set(entries.map((entry) => entry.id));
+  const externalItems: Record<string, string[]> = {};
+
+  for (const [terminalId, rawItemKeys] of Object.entries(value)) {
+    const terminalEntry = parseGraphTerminalId(terminalId);
+
+    if (!terminalEntry || !entryIds.has(terminalEntry.entryId)) {
+      continue;
+    }
+
+    const itemKeys = parseStringList(rawItemKeys);
+
+    if (itemKeys.length) {
+      externalItems[terminalId] = itemKeys;
+    }
+  }
+
+  return externalItems;
+}
+
 function parseGraphPoint(value: unknown): GraphEdgeRoute | null {
   let rawX: unknown;
   let rawY: unknown;
@@ -1013,9 +1133,11 @@ function serializeLayoutState(layouts: RecipeLayout[], focusedLayoutId: string):
       c: layout.collapsed ? 1 : 0,
       e: layout.entries.map((entry) => [entry.id, entry.recipeId]),
       h: serializeGraphEdgePorts(layout),
+      m: serializeGraphEdgeItems(layout),
       p: serializeGraphPositions(layout),
       r: serializeGraphEdgeRoutes(layout),
       t: serializeGraphTerminalSides(layout),
+      x: serializeGraphExternalItems(layout),
     })),
   });
 }
@@ -1106,6 +1228,52 @@ function serializeGraphTerminalSides(
   return Object.keys(terminalSides).length ? terminalSides : undefined;
 }
 
+function serializeGraphEdgeItems(
+  layout: RecipeLayout,
+): Record<string, string[]> | undefined {
+  const entryIds = new Set(layout.entries.map((entry) => entry.id));
+  const edgeItems: Record<string, string[]> = {};
+
+  for (const [edgeId, itemKeys] of Object.entries(layout.edgeItems)) {
+    const edgeEntryIds = parseGraphEdgeId(edgeId);
+
+    if (
+      !edgeEntryIds ||
+      !entryIds.has(edgeEntryIds.sourceId) ||
+      !entryIds.has(edgeEntryIds.targetId)
+    ) {
+      continue;
+    }
+
+    edgeItems[edgeId] = uniqueStrings(itemKeys);
+  }
+
+  return Object.keys(edgeItems).length ? edgeItems : undefined;
+}
+
+function serializeGraphExternalItems(
+  layout: RecipeLayout,
+): Record<string, string[]> | undefined {
+  const entryIds = new Set(layout.entries.map((entry) => entry.id));
+  const externalItems: Record<string, string[]> = {};
+
+  for (const [terminalId, itemKeys] of Object.entries(layout.externalItems)) {
+    const terminalEntry = parseGraphTerminalId(terminalId);
+
+    if (!terminalEntry || !entryIds.has(terminalEntry.entryId)) {
+      continue;
+    }
+
+    const uniqueItemKeys = uniqueStrings(itemKeys);
+
+    if (uniqueItemKeys.length) {
+      externalItems[terminalId] = uniqueItemKeys;
+    }
+  }
+
+  return Object.keys(externalItems).length ? externalItems : undefined;
+}
+
 function isDefaultLayoutState(
   layouts: RecipeLayout[],
   focusedLayoutId: string,
@@ -1122,6 +1290,8 @@ function isDefaultLayoutState(
     Object.keys(layout.graphPositions).length === 0 &&
     Object.keys(layout.edgePorts).length === 0 &&
     Object.keys(layout.edgeRoutes).length === 0 &&
+    Object.keys(layout.edgeItems).length === 0 &&
+    Object.keys(layout.externalItems).length === 0 &&
     Object.keys(layout.terminalSides).length === 0
   );
 }
@@ -1140,6 +1310,8 @@ function createEmptyLayout(id: string): RecipeLayout {
     graphPositions: {},
     edgePorts: {},
     edgeRoutes: {},
+    edgeItems: {},
+    externalItems: {},
     terminalSides: {},
     collapsed: false,
   };
@@ -1209,6 +1381,44 @@ function omitGraphEdgeRoutes(
   }
 
   return remainingRoutes;
+}
+
+function omitGraphEdgeItems(
+  edgeItems: Record<string, string[]>,
+  entryId: string,
+): Record<string, string[]> {
+  const remainingEdgeItems: Record<string, string[]> = {};
+
+  for (const [edgeId, itemKeys] of Object.entries(edgeItems)) {
+    const edgeEntryIds = parseGraphEdgeId(edgeId);
+
+    if (
+      edgeEntryIds &&
+      edgeEntryIds.sourceId !== entryId &&
+      edgeEntryIds.targetId !== entryId
+    ) {
+      remainingEdgeItems[edgeId] = itemKeys;
+    }
+  }
+
+  return remainingEdgeItems;
+}
+
+function omitGraphExternalItems(
+  externalItems: Record<string, string[]>,
+  entryId: string,
+): Record<string, string[]> {
+  const remainingExternalItems: Record<string, string[]> = {};
+
+  for (const [terminalId, itemKeys] of Object.entries(externalItems)) {
+    const terminalEntry = parseGraphTerminalId(terminalId);
+
+    if (terminalEntry && terminalEntry.entryId !== entryId) {
+      remainingExternalItems[terminalId] = itemKeys;
+    }
+  }
+
+  return remainingExternalItems;
 }
 
 function omitGraphTerminalSides(
@@ -1286,6 +1496,20 @@ function getUniqueId(id: string, seenIds: Set<string>): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function parseStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return uniqueStrings(
+    value.filter((itemKey): itemKey is string => typeof itemKey === "string"),
+  );
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)].sort();
 }
 
 function parseItemId(value: string | null): string | null {

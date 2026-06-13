@@ -5,9 +5,12 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import {
+  Check,
+  Link2,
   Maximize2,
   Minimize2,
   RotateCcw,
@@ -85,9 +88,11 @@ interface LayoutGraphDialogProps {
   data: RecipeExplorerData;
   layout: RecipeLayout;
   onClose(): void;
+  onEdgeItemsChange(edgeId: string, itemKeys: string[]): void;
   onEdgePortsChange(edgeId: string, ports: GraphEdgePorts): void;
   onEdgeRouteChange(edgeId: string, route: GraphEdgeRoute): void;
   onEdgeRouteReset(edgeId: string): void;
+  onExternalItemsChange(terminalId: string, itemKeys: string[]): void;
   onNodePositionChange(entryId: string, position: GraphNodePosition): void;
   onResetGraphPositions(): void;
   onSelectItem(itemId: string): void;
@@ -98,23 +103,35 @@ export function LayoutGraphDialog({
   data,
   layout,
   onClose,
+  onEdgeItemsChange,
   onEdgePortsChange,
   onEdgeRouteChange,
   onEdgeRouteReset,
+  onExternalItemsChange,
   onNodePositionChange,
   onResetGraphPositions,
   onSelectItem,
   onTerminalSideChange,
 }: LayoutGraphDialogProps) {
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedTerminalId, setSelectedTerminalId] = useState<string | null>(null);
+  const [connectingFromNodeId, setConnectingFromNodeId] = useState<string | null>(null);
+  const [pendingConnection, setPendingConnection] =
+    useState<PendingGraphConnection | null>(null);
   const focusEdge = useCallback((edgeId: string) => {
     setSelectedEdgeId(edgeId);
+    setSelectedNodeId(null);
     setSelectedTerminalId(null);
+    setConnectingFromNodeId(null);
+    setPendingConnection(null);
   }, []);
   const focusTerminal = useCallback((terminalId: string) => {
     setSelectedTerminalId(terminalId);
     setSelectedEdgeId(null);
+    setSelectedNodeId(null);
+    setConnectingFromNodeId(null);
+    setPendingConnection(null);
   }, []);
   const graph = useMemo(
     () =>
@@ -149,14 +166,36 @@ export function LayoutGraphDialog({
     [graph.edges, selectedEdgeId],
   );
   const selectedEdge = edges.find((edge) => edge.id === selectedEdgeId) ?? null;
+  const selectedNode = graph.nodes.find((node) => node.id === selectedNodeId) ?? null;
   const selectedTerminal = useMemo(
     () => getSelectedTerminal(selectedTerminalId, graph.nodes),
     [graph.nodes, selectedTerminalId],
+  );
+  const pendingConnectionCandidate = pendingConnection
+    ? getConnectionCandidate(
+        graph.connectionCandidates,
+        pendingConnection.sourceId,
+        pendingConnection.targetId,
+      )
+    : null;
+  const graphFitSignature = useMemo(
+    () =>
+      [
+        graph.nodes.map((node) => node.id).join("|"),
+        graph.edges
+          .map(
+            (edge) =>
+              `${edge.id}:${edge.data?.items.map((item) => getEntityKey(item)).join(",")}`,
+          )
+          .join("|"),
+      ].join("::"),
+    [graph.edges, graph.nodes],
   );
   const graphNodes = useMemo(
     () =>
       nodes.map((node) => ({
         ...node,
+        selected: node.id === selectedNodeId,
         data: {
           ...node.data,
           endpointSelector: getEndpointSelectorForNode(
@@ -168,13 +207,22 @@ export function LayoutGraphDialog({
           ),
         },
       })),
-    [nodes, onEdgePortsChange, onTerminalSideChange, selectedEdge, selectedTerminal],
+    [
+      nodes,
+      onEdgePortsChange,
+      onTerminalSideChange,
+      selectedEdge,
+      selectedNodeId,
+      selectedTerminal,
+    ],
   );
   const [isFullscreen, setIsFullscreen] = useState(false);
   const hasSavedGraphState =
     Object.keys(layout.graphPositions).length > 0 ||
     Object.keys(layout.edgePorts).length > 0 ||
     Object.keys(layout.edgeRoutes).length > 0 ||
+    Object.keys(layout.edgeItems).length > 0 ||
+    Object.keys(layout.externalItems).length > 0 ||
     Object.keys(layout.terminalSides).length > 0;
   const title = layout.name.trim() || "Untitled layout";
 
@@ -189,10 +237,30 @@ export function LayoutGraphDialog({
   }, [graph.edges, selectedEdgeId]);
 
   useEffect(() => {
+    if (selectedNodeId && !graph.nodes.some((node) => node.id === selectedNodeId)) {
+      setSelectedNodeId(null);
+      setConnectingFromNodeId(null);
+    }
+  }, [graph.nodes, selectedNodeId]);
+
+  useEffect(() => {
     if (selectedTerminalId && !getSelectedTerminal(selectedTerminalId, graph.nodes)) {
       setSelectedTerminalId(null);
     }
   }, [graph.nodes, selectedTerminalId]);
+
+  useEffect(() => {
+    if (
+      pendingConnection &&
+      !getConnectionCandidate(
+        graph.connectionCandidates,
+        pendingConnection.sourceId,
+        pendingConnection.targetId,
+      )
+    ) {
+      setPendingConnection(null);
+    }
+  }, [graph.connectionCandidates, pendingConnection]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -216,6 +284,142 @@ export function LayoutGraphDialog({
     [onNodePositionChange],
   );
 
+  function clearGraphFocus() {
+    setSelectedEdgeId(null);
+    setSelectedNodeId(null);
+    setSelectedTerminalId(null);
+    setConnectingFromNodeId(null);
+    setPendingConnection(null);
+  }
+
+  function handleNodeClick(
+    event: ReactMouseEvent,
+    node: RecipeFlowNode,
+  ) {
+    if (connectingFromNodeId && connectingFromNodeId !== node.id) {
+      event.stopPropagation();
+      startPendingConnection(connectingFromNodeId, node.id);
+      return;
+    }
+
+    if (event.shiftKey && selectedNodeId && selectedNodeId !== node.id) {
+      event.stopPropagation();
+      startPendingConnection(selectedNodeId, node.id);
+      return;
+    }
+
+    setSelectedNodeId(node.id);
+    setSelectedEdgeId(null);
+    setSelectedTerminalId(null);
+    setConnectingFromNodeId(null);
+    setPendingConnection(null);
+  }
+
+  function startPendingConnection(firstNodeId: string, secondNodeId: string) {
+    const candidate = getConnectionCandidateBetween(
+      graph.connectionCandidates,
+      firstNodeId,
+      secondNodeId,
+    );
+
+    if (!candidate) {
+      setConnectingFromNodeId(null);
+      setPendingConnection(null);
+      return;
+    }
+
+    setSelectedEdgeId(null);
+    setSelectedNodeId(null);
+    setSelectedTerminalId(null);
+    setConnectingFromNodeId(null);
+    const availableItemKeys = new Set(
+      candidate.availableItems.map((item) => getEntityKey(item)),
+    );
+    const savedItemKeys = layout.edgeItems[candidate.id];
+    setPendingConnection({
+      sourceId: candidate.sourceId,
+      targetId: candidate.targetId,
+      itemKeys:
+        savedItemKeys?.filter((itemKey) => availableItemKeys.has(itemKey)) ??
+        [...availableItemKeys],
+    });
+  }
+
+  function toggleConnectMode(nodeId: string) {
+    setSelectedEdgeId(null);
+    setSelectedTerminalId(null);
+    setPendingConnection(null);
+    setConnectingFromNodeId((currentNodeId) =>
+      currentNodeId === nodeId ? null : nodeId,
+    );
+  }
+
+  function toggleExternalItem(
+    node: RecipeFlowNode,
+    kind: GraphTerminalKind,
+    option: GraphExternalItemOption,
+  ) {
+    if (option.required) {
+      return;
+    }
+
+    const terminalId = getGraphTerminalId(node.id, kind);
+    const itemKeys = new Set(layout.externalItems[terminalId] ?? []);
+
+    if (itemKeys.has(option.itemKey)) {
+      itemKeys.delete(option.itemKey);
+    } else {
+      itemKeys.add(option.itemKey);
+    }
+
+    onExternalItemsChange(terminalId, [...itemKeys]);
+  }
+
+  function toggleEdgeItem(edge: ItemFlowEdgeType, itemKey: string) {
+    const itemKeys = new Set((edge.data?.items ?? []).map((item) => getEntityKey(item)));
+
+    if (itemKeys.has(itemKey)) {
+      itemKeys.delete(itemKey);
+    } else {
+      itemKeys.add(itemKey);
+    }
+
+    onEdgeItemsChange(edge.id, [...itemKeys]);
+  }
+
+  function togglePendingConnectionItem(itemKey: string) {
+    setPendingConnection((currentConnection) => {
+      if (!currentConnection) {
+        return currentConnection;
+      }
+
+      const itemKeys = new Set(currentConnection.itemKeys);
+
+      if (itemKeys.has(itemKey)) {
+        itemKeys.delete(itemKey);
+      } else {
+        itemKeys.add(itemKey);
+      }
+
+      return {
+        ...currentConnection,
+        itemKeys: [...itemKeys],
+      };
+    });
+  }
+
+  function confirmPendingConnection() {
+    if (!pendingConnection || !pendingConnection.itemKeys.length) {
+      return;
+    }
+
+    const edgeId = getGraphEdgeId(pendingConnection.sourceId, pendingConnection.targetId);
+
+    onEdgeItemsChange(edgeId, pendingConnection.itemKeys);
+    setSelectedEdgeId(edgeId);
+    setPendingConnection(null);
+  }
+
   return (
     <div
       className={`layout-graph-backdrop ${isFullscreen ? "popup-backdrop--fullscreen" : ""}`}
@@ -238,6 +442,20 @@ export function LayoutGraphDialog({
               {layout.entries.length} {layout.entries.length === 1 ? "recipe" : "recipes"}
             </span>
           </div>
+          <GraphHeaderToolbar
+            connectingFromNodeId={connectingFromNodeId}
+            data={data}
+            edge={selectedEdge}
+            node={selectedNode}
+            pendingCandidate={pendingConnectionCandidate}
+            pendingConnection={pendingConnection}
+            onCancelPendingConnection={() => setPendingConnection(null)}
+            onConfirmPendingConnection={confirmPendingConnection}
+            onToggleConnectMode={toggleConnectMode}
+            onToggleEdgeItem={toggleEdgeItem}
+            onToggleExternalItem={toggleExternalItem}
+            onTogglePendingConnectionItem={togglePendingConnectionItem}
+          />
           <div className="popup-header-actions">
             <button
               aria-label="Reset layout graph"
@@ -296,18 +514,13 @@ export function LayoutGraphDialog({
               nodeTypes={nodeTypes}
               nodesConnectable={false}
               onEdgeClick={(_event, edge) => focusEdge(edge.id)}
-              onNodeClick={() => {
-                setSelectedEdgeId(null);
-                setSelectedTerminalId(null);
-              }}
+              onNodeClick={handleNodeClick}
               onNodeDragStop={handleNodeDragStop}
               onNodesChange={handleNodesChange}
-              onPaneClick={() => {
-                setSelectedEdgeId(null);
-                setSelectedTerminalId(null);
-              }}
+              onPaneClick={clearGraphFocus}
               proOptions={{ hideAttribution: true }}
             >
+              <GraphAutoFit signature={graphFitSignature} />
               <Background color="#4b4735" gap={34} />
               <Controls showInteractive={false} />
               <MiniMap
@@ -327,10 +540,296 @@ export function LayoutGraphDialog({
   );
 }
 
+interface GraphAutoFitProps {
+  signature: string;
+}
+
+function GraphAutoFit({ signature }: GraphAutoFitProps) {
+  const reactFlow = useReactFlow<RecipeFlowNode, ItemFlowEdgeType>();
+
+  useEffect(() => {
+    const frameId = window.requestAnimationFrame(() => {
+      void reactFlow.fitView({ padding: 0.18 });
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [reactFlow, signature]);
+
+  return null;
+}
+
+interface PendingGraphConnection {
+  itemKeys: string[];
+  sourceId: string;
+  targetId: string;
+}
+
+interface GraphHeaderToolbarProps {
+  connectingFromNodeId: string | null;
+  data: RecipeExplorerData;
+  edge: ItemFlowEdgeType | null;
+  node: RecipeFlowNode | null;
+  pendingCandidate: GraphConnectionCandidate | null;
+  pendingConnection: PendingGraphConnection | null;
+  onCancelPendingConnection(): void;
+  onConfirmPendingConnection(): void;
+  onToggleConnectMode(nodeId: string): void;
+  onToggleEdgeItem(edge: ItemFlowEdgeType, itemKey: string): void;
+  onToggleExternalItem(
+    node: RecipeFlowNode,
+    kind: GraphTerminalKind,
+    option: GraphExternalItemOption,
+  ): void;
+  onTogglePendingConnectionItem(itemKey: string): void;
+}
+
+function GraphHeaderToolbar({
+  connectingFromNodeId,
+  data,
+  edge,
+  node,
+  pendingCandidate,
+  pendingConnection,
+  onCancelPendingConnection,
+  onConfirmPendingConnection,
+  onToggleConnectMode,
+  onToggleEdgeItem,
+  onToggleExternalItem,
+  onTogglePendingConnectionItem,
+}: GraphHeaderToolbarProps) {
+  if (pendingConnection && pendingCandidate) {
+    const selectedItemKeys = new Set(pendingConnection.itemKeys);
+
+    return (
+      <div
+        aria-label={`Create edge from ${pendingCandidate.sourceName} to ${pendingCandidate.targetName}`}
+        className="layout-graph-toolbar layout-graph-toolbar--edge"
+      >
+        <span className="layout-graph-toolbar__title">
+          {pendingCandidate.sourceName}
+          {" -> "}
+          {pendingCandidate.targetName}
+        </span>
+        <GraphToolbarItemGroup
+          data={data}
+          entries={pendingCandidate.availableItems}
+          label="Flow"
+          selectedItemKeys={selectedItemKeys}
+          tooltipPrefix="Add flow"
+          onToggleItem={onTogglePendingConnectionItem}
+        />
+        <button
+          aria-label="Confirm edge"
+          className="icon-button layout-graph-toolbar__button"
+          data-tooltip="Confirm edge"
+          disabled={!pendingConnection.itemKeys.length}
+          type="button"
+          onClick={onConfirmPendingConnection}
+        >
+          <Check size={16} aria-hidden="true" />
+        </button>
+        <button
+          aria-label="Cancel edge"
+          className="icon-button layout-graph-toolbar__button"
+          data-tooltip="Cancel"
+          type="button"
+          onClick={onCancelPendingConnection}
+        >
+          <X size={16} aria-hidden="true" />
+        </button>
+      </div>
+    );
+  }
+
+  if (edge?.data) {
+    const selectedItemKeys = new Set(edge.data.items.map((item) => getEntityKey(item)));
+
+    return (
+      <div
+        aria-label={`Edge controls from ${edge.data.sourceName} to ${edge.data.targetName}`}
+        className="layout-graph-toolbar layout-graph-toolbar--edge"
+      >
+        <span className="layout-graph-toolbar__title">
+          {edge.data.sourceName}
+          {" -> "}
+          {edge.data.targetName}
+        </span>
+        <GraphToolbarItemGroup
+          data={data}
+          entries={edge.data.availableItems}
+          label="Flow"
+          selectedItemKeys={selectedItemKeys}
+          tooltipPrefix="Toggle flow"
+          onToggleItem={(itemKey) => onToggleEdgeItem(edge, itemKey)}
+        />
+      </div>
+    );
+  }
+
+  if (node) {
+    const metadata = getRecipeMetadata(node.data.recipe);
+    const isConnecting = connectingFromNodeId === node.id;
+
+    return (
+      <div
+        aria-label={`Node controls for ${metadata.name}`}
+        className={`layout-graph-toolbar layout-graph-toolbar--node ${
+          isConnecting ? "layout-graph-toolbar--connecting" : ""
+        }`}
+      >
+        <span className="layout-graph-toolbar__title">{metadata.name}</span>
+        <GraphToolbarExternalGroup
+          data={data}
+          label="In"
+          options={node.data.externalInputOptions}
+          tooltipPrefix="External input"
+          onToggleOption={(option) => onToggleExternalItem(node, "input", option)}
+        />
+        <GraphToolbarExternalGroup
+          data={data}
+          label="Out"
+          options={node.data.externalOutputOptions}
+          tooltipPrefix="External output"
+          onToggleOption={(option) => onToggleExternalItem(node, "output", option)}
+        />
+        <button
+          aria-label={isConnecting ? "Cancel connect mode" : `Connect ${metadata.name}`}
+          aria-pressed={isConnecting}
+          className="icon-button layout-graph-toolbar__button"
+          data-tooltip={isConnecting ? "Cancel connect" : "Connect"}
+          type="button"
+          onClick={() => onToggleConnectMode(node.id)}
+        >
+          <Link2 size={16} aria-hidden="true" />
+        </button>
+      </div>
+    );
+  }
+
+  return <div className="layout-graph-toolbar layout-graph-toolbar--empty" />;
+}
+
+interface GraphToolbarExternalGroupProps {
+  data: RecipeExplorerData;
+  label: string;
+  options: GraphExternalItemOption[];
+  tooltipPrefix: string;
+  onToggleOption(option: GraphExternalItemOption): void;
+}
+
+function GraphToolbarExternalGroup({
+  data,
+  label,
+  options,
+  tooltipPrefix,
+  onToggleOption,
+}: GraphToolbarExternalGroupProps) {
+  return (
+    <div className="layout-graph-toolbar__group">
+      <span className="layout-graph-toolbar__label">{label}</span>
+      <div className="layout-graph-toolbar__items">
+        {options.map((option) => (
+          <GraphItemToggle
+            checked={option.checked}
+            data={data}
+            disabled={option.required}
+            entry={option.entry}
+            itemKey={option.itemKey}
+            key={option.itemKey}
+            tooltipPrefix={option.required ? `${tooltipPrefix} required` : tooltipPrefix}
+            onToggle={() => onToggleOption(option)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+interface GraphToolbarItemGroupProps {
+  data: RecipeExplorerData;
+  entries: ProductPrototype[];
+  label: string;
+  selectedItemKeys: Set<string>;
+  tooltipPrefix: string;
+  onToggleItem(itemKey: string): void;
+}
+
+function GraphToolbarItemGroup({
+  data,
+  entries,
+  label,
+  selectedItemKeys,
+  tooltipPrefix,
+  onToggleItem,
+}: GraphToolbarItemGroupProps) {
+  return (
+    <div className="layout-graph-toolbar__group">
+      <span className="layout-graph-toolbar__label">{label}</span>
+      <div className="layout-graph-toolbar__items">
+        {entries.map((entry) => {
+          const itemKey = getEntityKey(entry);
+
+          return (
+            <GraphItemToggle
+              checked={selectedItemKeys.has(itemKey)}
+              data={data}
+              entry={entry}
+              itemKey={itemKey}
+              key={itemKey}
+              tooltipPrefix={tooltipPrefix}
+              onToggle={() => onToggleItem(itemKey)}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+interface GraphItemToggleProps {
+  checked: boolean;
+  data: RecipeExplorerData;
+  disabled?: boolean;
+  entry: IngredientPrototype | ProductPrototype;
+  itemKey: string;
+  tooltipPrefix: string;
+  onToggle(): void;
+}
+
+function GraphItemToggle({
+  checked,
+  data,
+  disabled = false,
+  entry,
+  itemKey,
+  tooltipPrefix,
+  onToggle,
+}: GraphItemToggleProps) {
+  const item = data.itemById.get(entry.name);
+  const label = item?.name ?? formatId(entry.name);
+  const icon = item ? data.iconById.get(getIconIdForItem(item)) : data.iconById.get(entry.name);
+
+  return (
+    <button
+      aria-label={`${tooltipPrefix}: ${label}`}
+      aria-pressed={checked}
+      className="layout-graph-toolbar__item-toggle"
+      data-tooltip={`${tooltipPrefix}: ${label} (${itemKey})`}
+      disabled={disabled}
+      type="button"
+      onClick={onToggle}
+    >
+      <IconSprite atlas={data.atlas} icon={icon} label={label} size={22} />
+    </button>
+  );
+}
+
 interface RecipeNodeData extends Record<string, unknown> {
   data: RecipeExplorerData;
   endpointSelector?: GraphEndpointSelector | null;
+  externalInputOptions: GraphExternalItemOption[];
   externalInputs: IngredientPrototype[];
+  externalOutputOptions: GraphExternalItemOption[];
   externalOutputs: ProductPrototype[];
   onFocusTerminal(terminalId: string): void;
   onSelectItem(itemId: string): void;
@@ -441,6 +940,7 @@ function RecipeNode({ data, id }: NodeProps<RecipeFlowNode>) {
 }
 
 interface ItemFlowEdgeData extends Record<string, unknown> {
+  availableItems: ProductPrototype[];
   data: RecipeExplorerData;
   items: ProductPrototype[];
   onFocusEdge(edgeId: string): void;
@@ -891,21 +1391,41 @@ interface GraphNodeModel {
   id: string;
   entry: RecipeLayoutEntry;
   recipe: RecipePrototype;
+  externalInputOptions: GraphExternalItemOption[];
   externalInputs: IngredientPrototype[];
+  externalOutputOptions: GraphExternalItemOption[];
   externalOutputs: ProductPrototype[];
   rank: number;
   sortKey: string;
   position: GraphNodePosition;
 }
 
+interface GraphExternalItemOption {
+  checked: boolean;
+  entry: IngredientPrototype | ProductPrototype;
+  itemKey: string;
+  required: boolean;
+}
+
 interface GraphEdgeDraft {
+  availableItems: ProductPrototype[];
   id: string;
-  sourceId: string;
   targetId: string;
+  sourceId: string;
   items: ProductPrototype[];
 }
 
+interface GraphConnectionCandidate {
+  availableItems: ProductPrototype[];
+  id: string;
+  sourceId: string;
+  sourceName: string;
+  targetId: string;
+  targetName: string;
+}
+
 interface LayoutGraphModel {
+  connectionCandidates: GraphConnectionCandidate[];
   edges: ItemFlowEdgeType[];
   nodes: RecipeFlowNode[];
 }
@@ -925,23 +1445,29 @@ function buildLayoutGraph(
     id: entry.id,
     entry,
     recipe,
+    externalInputOptions: [],
     externalInputs: [],
+    externalOutputOptions: [],
     externalOutputs: [],
     rank: 0,
     sortKey,
     position: { x: 0, y: 0 },
   }));
-  const edgeDrafts = buildGraphEdgeDrafts(graphNodes);
+  const { activeEdges, connectionCandidates } = buildGraphEdgeDrafts(
+    graphNodes,
+    layout.edgeItems,
+  );
 
-  assignNodeRanks(graphNodes, edgeDrafts);
+  assignNodeRanks(graphNodes, activeEdges);
   positionGraphNodes(graphNodes, layout.graphPositions);
-  attachExternalItems(graphNodes);
+  attachExternalItems(graphNodes, activeEdges, layout.externalItems);
 
   return {
+    connectionCandidates,
     edges: buildFlowEdges(
       data,
       graphNodes,
-      edgeDrafts,
+      activeEdges,
       layout.edgePorts,
       layout.edgeRoutes,
       onFocusEdge,
@@ -956,7 +1482,9 @@ function buildLayoutGraph(
       targetPosition: Position.Left,
       data: {
         data,
+        externalInputOptions: node.externalInputOptions,
         externalInputs: node.externalInputs,
+        externalOutputOptions: node.externalOutputOptions,
         externalOutputs: node.externalOutputs,
         onFocusTerminal,
         onSelectItem,
@@ -1004,8 +1532,15 @@ function getGraphEntries(
     .sort(compareGraphEntries);
 }
 
-function buildGraphEdgeDrafts(nodes: GraphNodeModel[]): GraphEdgeDraft[] {
-  const edges: GraphEdgeDraft[] = [];
+function buildGraphEdgeDrafts(
+  nodes: GraphNodeModel[],
+  edgeItems: Record<string, string[]>,
+): {
+  activeEdges: GraphEdgeDraft[];
+  connectionCandidates: GraphConnectionCandidate[];
+} {
+  const activeEdges: GraphEdgeDraft[] = [];
+  const connectionCandidates: GraphConnectionCandidate[] = [];
 
   for (const source of nodes) {
     const results = source.recipe.results ?? [];
@@ -1016,26 +1551,51 @@ function buildGraphEdgeDrafts(nodes: GraphNodeModel[]): GraphEdgeDraft[] {
       }
 
       const ingredients = target.recipe.ingredients ?? [];
-      const items = uniqueProducts(
+      const availableItems = uniqueProducts(
         results.filter((result) =>
           ingredients.some((ingredient) => sameEntity(result, ingredient)),
         ),
       );
 
-      if (!items.length) {
+      if (!availableItems.length) {
         continue;
       }
 
-      edges.push({
-        id: `${source.id}->${target.id}`,
+      const id = getGraphEdgeId(source.id, target.id);
+      const selectedItemKeys = Object.prototype.hasOwnProperty.call(edgeItems, id)
+        ? new Set(edgeItems[id])
+        : null;
+      const items = selectedItemKeys
+        ? availableItems.filter((item) => selectedItemKeys.has(getEntityKey(item)))
+        : availableItems;
+
+      connectionCandidates.push({
+        availableItems,
+        id,
         sourceId: source.id,
+        sourceName: getGraphNodeName(source),
         targetId: target.id,
-        items,
+        targetName: getGraphNodeName(target),
       });
+
+      if (items.length) {
+        activeEdges.push({
+          availableItems,
+          id,
+          sourceId: source.id,
+          targetId: target.id,
+          items,
+        });
+      }
     }
   }
 
-  return edges.sort((left, right) => left.id.localeCompare(right.id));
+  return {
+    activeEdges: activeEdges.sort((left, right) => left.id.localeCompare(right.id)),
+    connectionCandidates: connectionCandidates.sort((left, right) =>
+      left.id.localeCompare(right.id),
+    ),
+  };
 }
 
 function assignNodeRanks(nodes: GraphNodeModel[], edges: GraphEdgeDraft[]) {
@@ -1131,30 +1691,61 @@ function positionGraphNodes(
   });
 }
 
-function attachExternalItems(nodes: GraphNodeModel[]) {
-  for (const node of nodes) {
-    const otherNodes = nodes.filter((candidate) => candidate.id !== node.id);
+function attachExternalItems(
+  nodes: GraphNodeModel[],
+  activeEdges: GraphEdgeDraft[],
+  externalItems: Record<string, string[]>,
+) {
+  const incomingItemKeys = new Map<string, Set<string>>();
+  const outgoingItemKeys = new Map<string, Set<string>>();
 
-    node.externalInputs = uniqueIngredients(
-      (node.recipe.ingredients ?? []).filter(
-        (ingredient) =>
-          !otherNodes.some((candidate) =>
-            (candidate.recipe.results ?? []).some((result) =>
-              sameEntity(result, ingredient),
-            ),
-          ),
-      ),
+  for (const edge of activeEdges) {
+    for (const item of edge.items) {
+      addSetValue(outgoingItemKeys, edge.sourceId, getEntityKey(item));
+      addSetValue(incomingItemKeys, edge.targetId, getEntityKey(item));
+    }
+  }
+
+  for (const node of nodes) {
+    const forcedInputItemKeys = new Set(
+      externalItems[getGraphTerminalId(node.id, "input")] ?? [],
     );
-    node.externalOutputs = uniqueProducts(
-      (node.recipe.results ?? []).filter(
-        (result) =>
-          !otherNodes.some((candidate) =>
-            (candidate.recipe.ingredients ?? []).some((ingredient) =>
-              sameEntity(result, ingredient),
-            ),
-          ),
-      ),
+    const forcedOutputItemKeys = new Set(
+      externalItems[getGraphTerminalId(node.id, "output")] ?? [],
     );
+    const nodeIncomingItemKeys = incomingItemKeys.get(node.id) ?? new Set<string>();
+    const nodeOutgoingItemKeys = outgoingItemKeys.get(node.id) ?? new Set<string>();
+
+    node.externalInputOptions = uniqueIngredients(node.recipe.ingredients ?? []).map(
+      (entry) => {
+        const itemKey = getEntityKey(entry);
+        const required = !nodeIncomingItemKeys.has(itemKey);
+
+        return {
+          checked: required || forcedInputItemKeys.has(itemKey),
+          entry,
+          itemKey,
+          required,
+        };
+      },
+    );
+    node.externalOutputOptions = uniqueProducts(node.recipe.results ?? []).map((entry) => {
+      const itemKey = getEntityKey(entry);
+      const required = !nodeOutgoingItemKeys.has(itemKey);
+
+      return {
+        checked: required || forcedOutputItemKeys.has(itemKey),
+        entry,
+        itemKey,
+        required,
+      };
+    });
+    node.externalInputs = node.externalInputOptions
+      .filter((option) => option.checked)
+      .map((option) => option.entry as IngredientPrototype);
+    node.externalOutputs = node.externalOutputOptions
+      .filter((option) => option.checked)
+      .map((option) => option.entry as ProductPrototype);
   }
 }
 
@@ -1206,6 +1797,7 @@ function buildFlowEdge(
       color: "#d7b65f",
     },
     data: {
+      availableItems: edge.availableItems,
       data,
       items: edge.items,
       onFocusEdge,
@@ -1354,6 +1946,10 @@ function getDistance(left: GraphPoint, right: GraphPoint): number {
   return Math.hypot(right.x - left.x, right.y - left.y);
 }
 
+function getGraphEdgeId(sourceId: string, targetId: string): string {
+  return `${sourceId}->${targetId}`;
+}
+
 function getGraphHandleId(kind: "source" | "target", side: GraphSide): string {
   return `${kind}-${side}`;
 }
@@ -1398,6 +1994,29 @@ function getGraphHandlePosition(side: GraphSide): Position {
 
 function getGraphNodeName(node: GraphNodeModel | undefined): string {
   return node ? getRecipeMetadata(node.recipe).name : "Unknown recipe";
+}
+
+function getConnectionCandidate(
+  candidates: GraphConnectionCandidate[],
+  sourceId: string,
+  targetId: string,
+): GraphConnectionCandidate | null {
+  return (
+    candidates.find(
+      (candidate) => candidate.sourceId === sourceId && candidate.targetId === targetId,
+    ) ?? null
+  );
+}
+
+function getConnectionCandidateBetween(
+  candidates: GraphConnectionCandidate[],
+  firstNodeId: string,
+  secondNodeId: string,
+): GraphConnectionCandidate | null {
+  return (
+    getConnectionCandidate(candidates, firstNodeId, secondNodeId) ??
+    getConnectionCandidate(candidates, secondNodeId, firstNodeId)
+  );
 }
 
 function compareGraphEntries(left: GraphEntry, right: GraphEntry): number {
@@ -1457,6 +2076,17 @@ function uniqueProducts(entries: ProductPrototype[]): ProductPrototype[] {
     seen.add(key);
     return true;
   });
+}
+
+function addSetValue<T>(map: Map<string, Set<T>>, key: string, value: T) {
+  const values = map.get(key) ?? new Set<T>();
+
+  values.add(value);
+  map.set(key, values);
+}
+
+function getEntityKey(entry: IngredientPrototype | ProductPrototype): string {
+  return `${entry.type}:${entry.name}`;
 }
 
 function sameEntity(

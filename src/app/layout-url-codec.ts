@@ -39,6 +39,16 @@ type CompactTerminalSide = [
   kind: GraphTerminalKindCode,
   side: GraphSideCode,
 ];
+type CompactEdgeItems = [
+  sourceIndex: number,
+  targetIndex: number,
+  itemIndexes: number[],
+];
+type CompactExternalItems = [
+  entryIndex: number,
+  kind: GraphTerminalKindCode,
+  itemIndexes: number[],
+];
 
 export interface ParsedLayoutUrlState {
   focusedLayoutId: string;
@@ -56,18 +66,34 @@ export function serializeCompactLayoutState(
 ): string {
   const recipeIndexById = new Map<string, number>();
   const recipeIds: string[] = [];
+  const itemIndexByKey = new Map<string, number>();
+  const itemKeys: string[] = [];
 
   for (const layout of layouts) {
     for (const entry of layout.entries) {
       getRecipeIndex(entry.recipeId, recipeIds, recipeIndexById);
+    }
+
+    for (const itemKey of Object.values(layout.edgeItems).flat()) {
+      getStringIndex(itemKey, itemKeys, itemIndexByKey);
+    }
+
+    for (const itemKey of Object.values(layout.externalItems).flat()) {
+      getStringIndex(itemKey, itemKeys, itemIndexByKey);
     }
   }
 
   const focusedLayoutIndex = layouts.findIndex((layout) => layout.id === focusedLayoutId);
   const compactState: Record<string, unknown> = {
     r: recipeIds,
-    l: layouts.map((layout) => compactLayout(layout, recipeIds, recipeIndexById)),
+    l: layouts.map((layout) =>
+      compactLayout(layout, recipeIds, recipeIndexById, itemKeys, itemIndexByKey),
+    ),
   };
+
+  if (itemKeys.length) {
+    compactState.g = itemKeys;
+  }
 
   if (focusedLayoutIndex > 0) {
     compactState.f = focusedLayoutIndex;
@@ -110,6 +136,8 @@ function compactLayout(
   layout: RecipeLayout,
   recipeIds: string[],
   recipeIndexById: Map<string, number>,
+  itemKeys: string[],
+  itemIndexByKey: Map<string, number>,
 ): unknown[] {
   const entryIndexById = new Map(
     layout.entries.map((entry, index) => [entry.id, index] as const),
@@ -126,6 +154,21 @@ function compactLayout(
   setCompactSlot(compact, 4, compactGraphEdgePorts(layout.edgePorts, entryIndexById));
   setCompactSlot(compact, 5, compactGraphEdgeRoutes(layout.edgeRoutes, entryIndexById));
   setCompactSlot(compact, 6, compactGraphTerminalSides(layout.terminalSides, entryIndexById));
+  setCompactSlot(
+    compact,
+    7,
+    compactGraphEdgeItems(layout.edgeItems, entryIndexById, itemKeys, itemIndexByKey),
+  );
+  setCompactSlot(
+    compact,
+    8,
+    compactGraphExternalItems(
+      layout.externalItems,
+      entryIndexById,
+      itemKeys,
+      itemIndexByKey,
+    ),
+  );
 
   return compact;
 }
@@ -232,15 +275,76 @@ function compactGraphTerminalSides(
     .sort(compareFirstTwoNumbers);
 }
 
+function compactGraphEdgeItems(
+  edgeItems: Record<string, string[]>,
+  entryIndexById: Map<string, number>,
+  itemKeys: string[],
+  itemIndexByKey: Map<string, number>,
+): CompactEdgeItems[] {
+  return Object.entries(edgeItems)
+    .flatMap(([edgeId, itemKeyList]) => {
+      const edge = parseGraphEdgeId(edgeId);
+
+      if (!edge) {
+        return [];
+      }
+
+      const sourceIndex = entryIndexById.get(edge.sourceId);
+      const targetIndex = entryIndexById.get(edge.targetId);
+
+      return sourceIndex === undefined || targetIndex === undefined
+        ? []
+        : ([
+            [
+              sourceIndex,
+              targetIndex,
+              compactStringIndexes(itemKeyList, itemKeys, itemIndexByKey),
+            ],
+          ] satisfies CompactEdgeItems[]);
+    })
+    .sort(compareFirstTwoNumbers);
+}
+
+function compactGraphExternalItems(
+  externalItems: Record<string, string[]>,
+  entryIndexById: Map<string, number>,
+  itemKeys: string[],
+  itemIndexByKey: Map<string, number>,
+): CompactExternalItems[] {
+  return Object.entries(externalItems)
+    .flatMap(([terminalId, itemKeyList]) => {
+      const terminal = parseGraphTerminalId(terminalId);
+
+      if (!terminal) {
+        return [];
+      }
+
+      const entryIndex = entryIndexById.get(terminal.entryId);
+      const itemIndexes = compactStringIndexes(itemKeyList, itemKeys, itemIndexByKey);
+
+      return entryIndex === undefined || !itemIndexes.length
+        ? []
+        : ([
+            [
+              entryIndex,
+              encodeGraphTerminalKind(terminal.kind),
+              itemIndexes,
+            ],
+          ] satisfies CompactExternalItems[]);
+    })
+    .sort(compareFirstTwoNumbers);
+}
+
 function parseCompactState(
   value: Record<string, unknown>,
   options: LayoutUrlCodecOptions,
 ): ParsedLayoutUrlState {
   const recipeIds = parseRecipeDictionary(value.r, options.isRecipeIdAllowed);
+  const itemKeys = parseStringDictionary(value.g);
   const seenLayoutIds = new Set<string>();
   const layouts = Array.isArray(value.l)
     ? value.l.flatMap((rawLayout, index) =>
-        parseCompactLayout(rawLayout, index, recipeIds, options, seenLayoutIds),
+        parseCompactLayout(rawLayout, index, recipeIds, itemKeys, options, seenLayoutIds),
       )
     : [];
 
@@ -275,10 +379,19 @@ function parseRecipeDictionary(
   );
 }
 
+function parseStringDictionary(value: unknown): Array<string | null> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.map((rawValue) => (typeof rawValue === "string" ? rawValue : null));
+}
+
 function parseCompactLayout(
   value: unknown,
   index: number,
   recipeIds: Array<string | null>,
+  itemKeys: Array<string | null>,
   options: LayoutUrlCodecOptions,
   seenLayoutIds: Set<string>,
 ): RecipeLayout[] {
@@ -301,6 +414,8 @@ function parseCompactLayout(
       edgePorts: parseCompactGraphEdgePorts(value[4], entryIdByIndex),
       edgeRoutes: parseCompactGraphEdgeRoutes(value[5], entryIdByIndex),
       terminalSides: parseCompactGraphTerminalSides(value[6], entryIdByIndex),
+      edgeItems: parseCompactGraphEdgeItems(value[7], entryIdByIndex, itemKeys),
+      externalItems: parseCompactGraphExternalItems(value[8], entryIdByIndex, itemKeys),
       collapsed: value[1] === 1 || value[1] === true,
     },
   ];
@@ -446,6 +561,64 @@ function parseCompactGraphTerminalSides(
   return terminalSides;
 }
 
+function parseCompactGraphEdgeItems(
+  value: unknown,
+  entryIdByIndex: Map<number, string>,
+  itemKeys: Array<string | null>,
+): Record<string, string[]> {
+  const edgeItems: Record<string, string[]> = {};
+
+  if (!Array.isArray(value)) {
+    return edgeItems;
+  }
+
+  for (const rawEdgeItems of value) {
+    if (!Array.isArray(rawEdgeItems)) {
+      continue;
+    }
+
+    const edge = parseCompactEdgeIndexes(rawEdgeItems[0], rawEdgeItems[1], entryIdByIndex);
+
+    if (edge) {
+      edgeItems[getGraphEdgeId(edge.sourceId, edge.targetId)] = parseCompactStringIndexes(
+        rawEdgeItems[2],
+        itemKeys,
+      );
+    }
+  }
+
+  return edgeItems;
+}
+
+function parseCompactGraphExternalItems(
+  value: unknown,
+  entryIdByIndex: Map<number, string>,
+  itemKeys: Array<string | null>,
+): Record<string, string[]> {
+  const externalItems: Record<string, string[]> = {};
+
+  if (!Array.isArray(value)) {
+    return externalItems;
+  }
+
+  for (const rawExternalItems of value) {
+    if (!Array.isArray(rawExternalItems)) {
+      continue;
+    }
+
+    const entryIndex = parseNonNegativeInteger(rawExternalItems[0]);
+    const entryId = entryIndex === null ? undefined : entryIdByIndex.get(entryIndex);
+    const kind = decodeGraphTerminalKind(rawExternalItems[1]);
+    const itemKeyList = parseCompactStringIndexes(rawExternalItems[2], itemKeys);
+
+    if (entryId && kind && itemKeyList.length) {
+      externalItems[getGraphTerminalId(entryId, kind)] = itemKeyList;
+    }
+  }
+
+  return externalItems;
+}
+
 function parseCompactEdgeIndexes(
   rawSourceIndex: unknown,
   rawTargetIndex: unknown,
@@ -481,6 +654,8 @@ function defaultCompactLayoutState(defaultLayoutId: string): ParsedLayoutUrlStat
         graphPositions: {},
         edgePorts: {},
         edgeRoutes: {},
+        edgeItems: {},
+        externalItems: {},
         terminalSides: {},
         collapsed: false,
       },
@@ -493,17 +668,57 @@ function getRecipeIndex(
   recipeIds: string[],
   recipeIndexById: Map<string, number>,
 ): number {
-  const existingIndex = recipeIndexById.get(recipeId);
+  return getStringIndex(recipeId, recipeIds, recipeIndexById);
+}
+
+function getStringIndex(
+  value: string,
+  values: string[],
+  indexByValue: Map<string, number>,
+): number {
+  const existingIndex = indexByValue.get(value);
 
   if (existingIndex !== undefined) {
     return existingIndex;
   }
 
-  const index = recipeIds.length;
+  const index = values.length;
 
-  recipeIds.push(recipeId);
-  recipeIndexById.set(recipeId, index);
+  values.push(value);
+  indexByValue.set(value, index);
   return index;
+}
+
+function compactStringIndexes(
+  values: string[],
+  stringValues: string[],
+  indexByValue: Map<string, number>,
+): number[] {
+  return uniqueStrings(values).map((value) =>
+    getStringIndex(value, stringValues, indexByValue),
+  );
+}
+
+function parseCompactStringIndexes(
+  value: unknown,
+  stringValues: Array<string | null>,
+): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return uniqueStrings(
+    value.flatMap((rawIndex) => {
+      const index = parseNonNegativeInteger(rawIndex);
+      const stringValue = index === null ? null : stringValues[index] ?? null;
+
+      return stringValue ? [stringValue] : [];
+    }),
+  );
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)].sort();
 }
 
 function setCompactSlot(compact: unknown[], index: number, value: unknown[]) {
@@ -612,11 +827,14 @@ function getUniqueId(id: string, seenIds: Set<string>): string {
   return nextId;
 }
 
-function compareFirstNumber(left: readonly number[], right: readonly number[]): number {
+function compareFirstNumber(left: { 0?: number }, right: { 0?: number }): number {
   return (left[0] ?? 0) - (right[0] ?? 0);
 }
 
-function compareFirstTwoNumbers(left: readonly number[], right: readonly number[]): number {
+function compareFirstTwoNumbers(
+  left: { 0?: number; 1?: number },
+  right: { 0?: number; 1?: number },
+): number {
   return (left[0] ?? 0) - (right[0] ?? 0) || (left[1] ?? 0) - (right[1] ?? 0);
 }
 
