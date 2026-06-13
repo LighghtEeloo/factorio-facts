@@ -39,7 +39,10 @@ import {
   type NodeTypes,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import type {
+import {
+  entitiesCanFlow,
+  entityKey,
+  type EntityKey,
   IngredientPrototype,
   ProductPrototype,
   RecipePrototype,
@@ -343,7 +346,7 @@ export function LayoutGraphDialog({
     setSelectedNodeId(null);
     setSelectedTerminalId(null);
     setConnectingFromNodeId(null);
-    const availableItemKeys = new Set(
+    const availableItemKeys = new Set<string>(
       candidate.availableItems.map((item) => getEntityKey(item)),
     );
     const savedItemKeys = layout.edgeItems[candidate.id];
@@ -1735,7 +1738,7 @@ function buildGraphEdgeDrafts(
       const ingredients = target.recipe.ingredients ?? [];
       const availableItems = uniqueProducts(
         results.filter((result) =>
-          ingredients.some((ingredient) => sameEntity(result, ingredient)),
+          ingredients.some((ingredient) => entitiesCanFlow(result, ingredient)),
         ),
       );
 
@@ -1880,13 +1883,13 @@ function attachExternalItems(
   activeEdges: GraphEdgeDraft[],
   externalItems: Record<string, string[]>,
 ) {
-  const incomingItemKeys = new Map<string, Set<string>>();
-  const outgoingItemKeys = new Map<string, Set<string>>();
+  const incomingItems = new Map<string, ProductPrototype[]>();
+  const outgoingItemKeys = new Map<string, Set<EntityKey>>();
 
   for (const edge of activeEdges) {
     for (const item of edge.items) {
       addSetValue(outgoingItemKeys, edge.sourceId, getEntityKey(item));
-      addSetValue(incomingItemKeys, edge.targetId, getEntityKey(item));
+      addMapValue(incomingItems, edge.targetId, item);
     }
   }
 
@@ -1897,13 +1900,13 @@ function attachExternalItems(
     const forcedOutputItemKeys = new Set(
       externalItems[getGraphTerminalId(node.id, "output")] ?? [],
     );
-    const nodeIncomingItemKeys = incomingItemKeys.get(node.id) ?? new Set<string>();
+    const nodeIncomingItems = incomingItems.get(node.id) ?? [];
     const nodeOutgoingItemKeys = outgoingItemKeys.get(node.id) ?? new Set<string>();
 
     node.externalInputOptions = uniqueIngredients(node.recipe.ingredients ?? []).map(
       (entry) => {
         const itemKey = getEntityKey(entry);
-        const required = !nodeIncomingItemKeys.has(itemKey);
+        const required = !nodeIncomingItems.some((item) => entitiesCanFlow(item, entry));
 
         return {
           checked: required || forcedInputItemKeys.has(itemKey),
@@ -2287,15 +2290,12 @@ function addSetValue<T>(map: Map<string, Set<T>>, key: string, value: T) {
   map.set(key, values);
 }
 
-function getEntityKey(entry: IngredientPrototype | ProductPrototype): string {
-  return `${entry.type}:${entry.name}`;
+function getEntityKey(entry: IngredientPrototype | ProductPrototype): EntityKey {
+  return entityKey(entry);
 }
 
-function sameEntity(
-  product: ProductPrototype,
-  ingredient: IngredientPrototype,
-): boolean {
-  return product.type === ingredient.type && product.name === ingredient.name;
+function addMapValue<K, V>(map: Map<K, V[]>, key: K, value: V) {
+  map.set(key, [...(map.get(key) ?? []), value]);
 }
 
 function formatId(id: string): string {

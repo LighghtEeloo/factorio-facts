@@ -20,6 +20,8 @@ Model dependencies as a graph, not a strict tree. Recipes can have many inputs, 
 - `usedIn(itemOrFluid)`: recipes that consume the selected prototype.
 - `connectedRecipes(itemOrFluid)`: both directions for the selected prototype.
 
+Steam variants are the only temperature-compatible family for now: `steam` and `steam-165` may connect as one steam material while preserving exact ids in labels and saved state. Do not merge hot/cold fluoroketone, molten fluids, or other temperature-themed fluids unless the model is deliberately expanded.
+
 Keep ingredient/result amounts and probabilities for labels and future work, but avoid ratio calculations unless the project explicitly adds that feature.
 
 ## App Behavior

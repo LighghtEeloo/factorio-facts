@@ -127,3 +127,78 @@ export type EntityKey = `${EntityKind}:${PrototypeId}`;
 export function entityKey(ref: EntityRef): EntityKey {
   return `${ref.type}:${ref.name}`;
 }
+
+export function entitiesCanFlow(
+  product: ProductPrototype,
+  ingredient: IngredientPrototype,
+): boolean {
+  if (product.type !== ingredient.type) {
+    return false;
+  }
+
+  if (product.name === ingredient.name) {
+    return true;
+  }
+
+  if (!isSteamVariant(product) || !isSteamVariant(ingredient)) {
+    return false;
+  }
+
+  return steamTemperatureSatisfiesIngredient(product, ingredient);
+}
+
+function steamTemperatureSatisfiesIngredient(
+  product: ProductPrototype,
+  ingredient: IngredientPrototype,
+): boolean {
+  if (ingredient.type !== "fluid") {
+    return false;
+  }
+
+  const productTemperature =
+    product.type === "fluid" ? product.temperature ?? steamTemperature(product.name) : null;
+  const hasTemperatureConstraint =
+    typeof ingredient.minimum_temperature === "number" ||
+    typeof ingredient.maximum_temperature === "number";
+
+  if (hasTemperatureConstraint && productTemperature === null) {
+    return false;
+  }
+
+  if (
+    typeof ingredient.minimum_temperature === "number" &&
+    productTemperature !== null &&
+    productTemperature < ingredient.minimum_temperature
+  ) {
+    return false;
+  }
+
+  if (
+    typeof ingredient.maximum_temperature === "number" &&
+    productTemperature !== null &&
+    productTemperature > ingredient.maximum_temperature
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+const steamVariantNames = ["steam", "steam-165"] as const;
+
+function isSteamVariant(ref: EntityRef): boolean {
+  return ref.type === "fluid" && steamVariantNames.includes(ref.name as SteamVariantName);
+}
+
+type SteamVariantName = (typeof steamVariantNames)[number];
+
+function steamTemperature(name: PrototypeId): number | null {
+  switch (name) {
+    case "steam":
+      return 500;
+    case "steam-165":
+      return 165;
+    default:
+      return null;
+  }
+}
