@@ -1623,9 +1623,12 @@ button {
 }
 
 .layout-graph-relay__icons {
-  display: grid;
-  grid-template-columns: repeat(2, 24px);
-  place-content: center;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: center;
+  justify-content: center;
+  width: 49px;
+  height: 49px;
   gap: 1px;
 }
 
