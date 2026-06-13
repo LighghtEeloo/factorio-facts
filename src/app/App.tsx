@@ -443,6 +443,27 @@ export function App() {
     );
   }
 
+  function resetLayoutGraphExternalItems(layoutId: string, terminalIds: string[]) {
+    setLayouts((currentLayouts) =>
+      currentLayouts.map((layout) => {
+        if (layout.id !== layoutId) {
+          return layout;
+        }
+
+        const nextExternalItems = { ...layout.externalItems };
+
+        for (const terminalId of terminalIds) {
+          delete nextExternalItems[terminalId];
+        }
+
+        return {
+          ...layout,
+          externalItems: nextExternalItems,
+        };
+      }),
+    );
+  }
+
   function updateLayoutGraphTerminalSide(
     layoutId: string,
     terminalId: string,
@@ -603,6 +624,9 @@ export function App() {
           }
           onExternalItemsChange={(terminalId, itemKeys) =>
             updateLayoutGraphExternalItems(graphLayout.id, terminalId, itemKeys)
+          }
+          onExternalItemsReset={(terminalIds) =>
+            resetLayoutGraphExternalItems(graphLayout.id, terminalIds)
           }
           onNodePositionChange={(entryId, position) =>
             updateLayoutGraphNodePosition(graphLayout.id, entryId, position)

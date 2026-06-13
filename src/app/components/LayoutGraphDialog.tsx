@@ -94,6 +94,7 @@ interface LayoutGraphDialogProps {
   onEdgeRouteChange(edgeId: string, route: GraphEdgeRoute): void;
   onEdgeRouteReset(edgeId: string): void;
   onExternalItemsChange(terminalId: string, itemKeys: string[]): void;
+  onExternalItemsReset(terminalIds: string[]): void;
   onNodePositionChange(entryId: string, position: GraphNodePosition): void;
   onResetGraphPositions(): void;
   onSelectItem(itemId: string): void;
@@ -110,6 +111,7 @@ export function LayoutGraphDialog({
   onEdgeRouteChange,
   onEdgeRouteReset,
   onExternalItemsChange,
+  onExternalItemsReset,
   onNodePositionChange,
   onResetGraphPositions,
   onSelectItem,
@@ -384,6 +386,13 @@ export function LayoutGraphDialog({
     onExternalItemsChange(terminalId, [...itemKeys]);
   }
 
+  function resetNodeTerminals(nodeId: string) {
+    onExternalItemsReset([
+      getGraphTerminalId(nodeId, "input"),
+      getGraphTerminalId(nodeId, "output"),
+    ]);
+  }
+
   function togglePendingConnectionItem(itemKey: string) {
     setPendingConnection((currentConnection) => {
       if (!currentConnection) {
@@ -444,12 +453,16 @@ export function LayoutGraphDialog({
             data={data}
             edge={selectedEdge}
             node={selectedNode}
+            nodeHasTerminalOverrides={
+              selectedNode ? hasNodeTerminalOverrides(layout, selectedNode.id) : false
+            }
             pendingCandidate={pendingConnectionCandidate}
             pendingConnection={pendingConnection}
             onCancelPendingConnection={() => setPendingConnection(null)}
             onConfirmPendingConnection={confirmPendingConnection}
             onApplyEdgeItems={onEdgeItemsChange}
             onResetEdgeItems={onEdgeItemsReset}
+            onResetNodeTerminals={resetNodeTerminals}
             onToggleConnectMode={toggleConnectMode}
             onToggleExternalItem={toggleExternalItem}
             onTogglePendingConnectionItem={togglePendingConnectionItem}
@@ -598,12 +611,14 @@ interface GraphHeaderToolbarProps {
   data: RecipeExplorerData;
   edge: ItemFlowEdgeType | null;
   node: RecipeFlowNode | null;
+  nodeHasTerminalOverrides: boolean;
   pendingCandidate: GraphConnectionCandidate | null;
   pendingConnection: PendingGraphConnection | null;
   onApplyEdgeItems(edgeId: string, itemKeys: string[]): void;
   onCancelPendingConnection(): void;
   onConfirmPendingConnection(): void;
   onResetEdgeItems(edgeId: string): void;
+  onResetNodeTerminals(nodeId: string): void;
   onToggleConnectMode(nodeId: string): void;
   onToggleExternalItem(
     node: RecipeFlowNode,
@@ -618,12 +633,14 @@ function GraphHeaderToolbar({
   data,
   edge,
   node,
+  nodeHasTerminalOverrides,
   pendingCandidate,
   pendingConnection,
   onApplyEdgeItems,
   onCancelPendingConnection,
   onConfirmPendingConnection,
   onResetEdgeItems,
+  onResetNodeTerminals,
   onToggleConnectMode,
   onToggleExternalItem,
   onTogglePendingConnectionItem,
@@ -709,6 +726,16 @@ function GraphHeaderToolbar({
           tooltipPrefix="External output"
           onToggleOption={(option) => onToggleExternalItem(node, "output", option)}
         />
+        <button
+          aria-label="Reset node terminals"
+          className="icon-button layout-graph-toolbar__button"
+          data-tooltip="Reset terminals"
+          disabled={!nodeHasTerminalOverrides}
+          type="button"
+          onClick={() => onResetNodeTerminals(node.id)}
+        >
+          <RotateCcw size={16} aria-hidden="true" />
+        </button>
         <button
           aria-label={isConnecting ? "Cancel connect mode" : `Connect ${metadata.name}`}
           aria-pressed={isConnecting}
@@ -2135,6 +2162,13 @@ function parseGraphTerminalId(
     nodeId: terminalId.slice(0, separator),
     kind,
   };
+}
+
+function hasNodeTerminalOverrides(layout: RecipeLayout, nodeId: string): boolean {
+  return (
+    Boolean(layout.externalItems[getGraphTerminalId(nodeId, "input")]?.length) ||
+    Boolean(layout.externalItems[getGraphTerminalId(nodeId, "output")]?.length)
+  );
 }
 
 function getGraphHandlePosition(side: GraphSide): Position {
