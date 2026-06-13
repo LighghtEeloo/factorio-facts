@@ -1637,6 +1637,7 @@ button {
   height: 24px;
   border-color: #5f5a43;
   background: #191b15;
+  padding: 0;
 }
 
 .layout-graph-relay__icons .layout-graph-token:hover {
