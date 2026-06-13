@@ -237,6 +237,45 @@ export function App() {
     );
   }
 
+  function reorderLayout(
+    sourceLayoutId: string,
+    targetLayoutId: string,
+    placement: LayoutReorderPlacement,
+  ) {
+    if (sourceLayoutId === targetLayoutId) {
+      return;
+    }
+
+    setLayouts((currentLayouts) => {
+      const sourceIndex = currentLayouts.findIndex(
+        (layout) => layout.id === sourceLayoutId,
+      );
+      const targetIndex = currentLayouts.findIndex(
+        (layout) => layout.id === targetLayoutId,
+      );
+
+      if (sourceIndex < 0 || targetIndex < 0) {
+        return currentLayouts;
+      }
+
+      const nextLayouts = [...currentLayouts];
+      const [sourceLayout] = nextLayouts.splice(sourceIndex, 1);
+      const shiftedTargetIndex = nextLayouts.findIndex(
+        (layout) => layout.id === targetLayoutId,
+      );
+
+      if (!sourceLayout || shiftedTargetIndex < 0) {
+        return currentLayouts;
+      }
+
+      const insertIndex =
+        shiftedTargetIndex + (placement === "after" ? 1 : 0);
+
+      nextLayouts.splice(insertIndex, 0, sourceLayout);
+      return nextLayouts;
+    });
+  }
+
   function deleteLayout(layoutId: string) {
     const remainingLayouts = layouts.filter((layout) => layout.id !== layoutId);
     const nextLayouts = remainingLayouts.length
@@ -388,6 +427,7 @@ export function App() {
         onOpenLayoutGraph={setGraphLayoutId}
         onRemoveRecipeFromLayout={removeRecipeFromLayout}
         onRenameLayout={renameLayout}
+        onReorderLayout={reorderLayout}
         onReorderRecipeInLayout={reorderRecipeInLayout}
         onToggleLayoutCollapsed={toggleLayoutCollapsed}
         onSelect={selectItem}

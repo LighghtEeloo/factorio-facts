@@ -44,6 +44,11 @@ interface LayoutSidebarProps {
   onOpenLayoutGraph(layoutId: string): void;
   onRemoveRecipeFromLayout(layoutId: string, entryId: string): void;
   onRenameLayout(layoutId: string, name: string): void;
+  onReorderLayout(
+    sourceLayoutId: string,
+    targetLayoutId: string,
+    placement: LayoutReorderPlacement,
+  ): void;
   onReorderRecipeInLayout(
     layoutId: string,
     sourceEntryId: string,
@@ -65,6 +70,7 @@ export function LayoutSidebar({
   onOpenLayoutGraph,
   onRemoveRecipeFromLayout,
   onRenameLayout,
+  onReorderLayout,
   onReorderRecipeInLayout,
   onSelect,
   onToggleLayoutCollapsed,
@@ -72,6 +78,11 @@ export function LayoutSidebar({
   const [isSelectorOpen, setIsSelectorOpen] = useState(selectedItemId === null);
   const [isSelectorFullscreen, setIsSelectorFullscreen] = useState(false);
   const [selectorQuery, setSelectorQuery] = useState("");
+  const [draggedLayoutId, setDraggedLayoutId] = useState<string | null>(null);
+  const [layoutDropTarget, setLayoutDropTarget] = useState<{
+    layoutId: string;
+    placement: LayoutReorderPlacement;
+  } | null>(null);
   const selectorSearchRef = useRef<HTMLInputElement | null>(null);
   const selectorGroups = useMemo(
     () => groupItemsByCategory(data, searchItems(data.items, selectorQuery)),
@@ -109,11 +120,62 @@ export function LayoutSidebar({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isSelectorOpen]);
 
+  useEffect(() => {
+    if (!draggedLayoutId) {
+      return;
+    }
+
+    const activeLayoutId = draggedLayoutId;
+
+    function handlePointerMove(event: PointerEvent) {
+      const card = document
+        .elementFromPoint(event.clientX, event.clientY)
+        ?.closest<HTMLElement>("[data-layout-card]");
+      const targetLayoutId = card?.dataset.layoutCard;
+
+      if (!card || !targetLayoutId || targetLayoutId === activeLayoutId) {
+        setLayoutDropTarget(null);
+        return;
+      }
+
+      const rect = card.getBoundingClientRect();
+      const placement: LayoutReorderPlacement =
+        event.clientY < rect.top + rect.height / 2 ? "before" : "after";
+
+      setLayoutDropTarget({ layoutId: targetLayoutId, placement });
+    }
+
+    function handlePointerUp() {
+      if (layoutDropTarget) {
+        onReorderLayout(
+          activeLayoutId,
+          layoutDropTarget.layoutId,
+          layoutDropTarget.placement,
+        );
+      }
+
+      endLayoutDrag();
+    }
+
+    document.addEventListener("pointermove", handlePointerMove);
+    document.addEventListener("pointerup", handlePointerUp);
+
+    return () => {
+      document.removeEventListener("pointermove", handlePointerMove);
+      document.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [draggedLayoutId, layoutDropTarget, onReorderLayout]);
+
   function selectFromPicker(itemId: string) {
     onSelect(itemId);
     setIsSelectorOpen(false);
     setIsSelectorFullscreen(false);
     setSelectorQuery("");
+  }
+
+  function endLayoutDrag() {
+    setDraggedLayoutId(null);
+    setLayoutDropTarget(null);
   }
 
   return (
@@ -153,10 +215,21 @@ export function LayoutSidebar({
             <LayoutCard
               data={data}
               focused={layout.id === focusedLayoutId}
+              dragging={draggedLayoutId === layout.id}
+              dropPlacement={
+                layoutDropTarget?.layoutId === layout.id
+                  ? layoutDropTarget.placement
+                  : null
+              }
               key={layout.id}
               layout={layout}
               onDeleteLayout={onDeleteLayout}
               onFocusLayout={onFocusLayout}
+              onLayoutDragStart={() => {
+                onFocusLayout(layout.id);
+                setDraggedLayoutId(layout.id);
+                setLayoutDropTarget(null);
+              }}
               onOpenLayoutGraph={onOpenLayoutGraph}
               onRemoveRecipeFromLayout={onRemoveRecipeFromLayout}
               onRenameLayout={onRenameLayout}
@@ -283,10 +356,13 @@ export function LayoutSidebar({
 
 interface LayoutCardProps {
   data: RecipeExplorerData;
+  dragging: boolean;
+  dropPlacement: LayoutReorderPlacement | null;
   focused: boolean;
   layout: RecipeLayout;
   onDeleteLayout(layoutId: string): void;
   onFocusLayout(layoutId: string): void;
+  onLayoutDragStart(): void;
   onOpenLayoutGraph(layoutId: string): void;
   onRemoveRecipeFromLayout(layoutId: string, entryId: string): void;
   onRenameLayout(layoutId: string, name: string): void;
@@ -302,10 +378,13 @@ interface LayoutCardProps {
 
 function LayoutCard({
   data,
+  dragging,
+  dropPlacement,
   focused,
   layout,
   onDeleteLayout,
   onFocusLayout,
+  onLayoutDragStart,
   onOpenLayoutGraph,
   onRemoveRecipeFromLayout,
   onRenameLayout,
@@ -372,8 +451,36 @@ function LayoutCard({
   }
 
   return (
-    <article className={`layout-card ${focused ? "layout-card--focused" : ""}`}>
+    <article
+      className={`layout-card ${focused ? "layout-card--focused" : ""} ${
+        dragging ? "layout-card--dragging" : ""
+      } ${dropPlacement ? `layout-card--drop-${dropPlacement}` : ""}`}
+      data-layout-card={layout.id}
+    >
       <div className="layout-card__header">
+        <button
+          aria-label="Focus layout"
+          aria-pressed={focused}
+          className="layout-card__focus-button"
+          data-tooltip={focused ? "Focused; drag to reorder" : "Focus or drag to reorder"}
+          type="button"
+          onClick={() => onFocusLayout(layout.id)}
+          onPointerDown={(event) => {
+            event.preventDefault();
+            event.currentTarget.setPointerCapture(event.pointerId);
+            onLayoutDragStart();
+          }}
+        >
+          <CircleDot size={15} aria-hidden="true" />
+        </button>
+        <input
+          aria-label="Layout name"
+          className="layout-card__name"
+          placeholder="Untitled layout"
+          value={layout.name}
+          onChange={(event) => onRenameLayout(layout.id, event.target.value)}
+          onFocus={() => onFocusLayout(layout.id)}
+        />
         <button
           aria-label={layout.collapsed ? "Expand layout recipes" : "Collapse layout recipes"}
           className="layout-card__collapse"
@@ -387,24 +494,6 @@ function LayoutCard({
             <ChevronDown size={16} aria-hidden="true" />
           )}
         </button>
-        <button
-          aria-label="Focus layout"
-          aria-pressed={focused}
-          className="layout-card__focus-button"
-          data-tooltip={focused ? "Focused layout" : "Focus layout"}
-          type="button"
-          onClick={() => onFocusLayout(layout.id)}
-        >
-          <CircleDot size={15} aria-hidden="true" />
-        </button>
-        <input
-          aria-label="Layout name"
-          className="layout-card__name"
-          placeholder="Untitled layout"
-          value={layout.name}
-          onChange={(event) => onRenameLayout(layout.id, event.target.value)}
-          onFocus={() => onFocusLayout(layout.id)}
-        />
         <div className="layout-card__actions">
           {layout.entries.length ? (
             <button

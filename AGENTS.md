@@ -30,7 +30,7 @@ The app is a three-pane Vite/React workbench:
 - Center: selected item context plus `Made by` and `Used in` recipe columns.
 - Right: filters for surface, category, and recipe flags.
 
-Layouts are ordered lists of recipe instances. Duplicate recipes are allowed. The focused layout receives new recipe instances, row numbers act as reorder handles, populated layouts can open a React Flow graph, external layout inputs/outputs render as focusable node boundary terminals, and graph node positions plus edge endpoint sides, terminal sides, and individually resettable Bezier bend points are persisted in the URL. Layout-heavy URL state uses the compact `s=v1.<blob>` codec; old `layouts=` links remain readable.
+Layouts are ordered lists of recipe instances. Duplicate recipes are allowed. The focused layout receives new recipe instances, layout focus stems reorder layout cards, recipe row numbers reorder recipes inside a layout, populated layouts can open a React Flow graph, external layout inputs/outputs render as focusable node boundary terminals, and graph node positions plus edge endpoint sides, terminal sides, and individually resettable Bezier bend points are persisted in the URL. Layout-heavy URL state uses the compact `s=v1.<blob>` codec; old `layouts=` links remain readable.
 
 ## Source Map
 

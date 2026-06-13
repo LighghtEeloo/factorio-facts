@@ -274,12 +274,12 @@ button {
 
 .layout-card--focused {
   border-color: #d7b65f;
-  box-shadow: inset 3px 0 0 #d7b65f;
+  box-shadow: inset 0 0 0 1px #d7b65f;
 }
 
 .layout-card__header {
   display: grid;
-  grid-template-columns: 24px 24px minmax(0, 1fr) auto;
+  grid-template-columns: 24px minmax(0, 1fr) 24px auto;
   align-items: center;
   gap: 5px;
   min-width: 0;
@@ -322,6 +322,30 @@ button {
 
 .layout-card__focus-button[aria-pressed="true"] {
   color: #d7b65f;
+}
+
+.layout-card__focus-button {
+  cursor: grab;
+}
+
+.layout-card__focus-button:active {
+  cursor: grabbing;
+}
+
+.layout-card--dragging {
+  opacity: 0.58;
+}
+
+.layout-card--drop-before {
+  box-shadow:
+    inset 0 2px 0 #d7b65f,
+    inset 3px 0 0 #d7b65f;
+}
+
+.layout-card--drop-after {
+  box-shadow:
+    inset 0 -2px 0 #d7b65f,
+    inset 3px 0 0 #d7b65f;
 }
 
 .layout-card__actions {
