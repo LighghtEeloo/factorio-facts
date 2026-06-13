@@ -18,6 +18,7 @@ import type {
   GraphEdgeRoute,
   GraphEdgePorts,
   GraphNodePosition,
+  GraphRelay,
   GraphSide,
   GraphTerminalKind,
   LayoutReorderPlacement,
@@ -175,20 +176,38 @@ export function App() {
 
   function removeRecipeFromLayout(layoutId: string, entryId: string) {
     setLayouts((currentLayouts) =>
-      currentLayouts.map((layout) =>
-        layout.id === layoutId
-          ? {
-              ...layout,
-              entries: layout.entries.filter((entry) => entry.id !== entryId),
-              graphPositions: omitGraphPosition(layout.graphPositions, entryId),
-              edgePorts: omitGraphEdgePorts(layout.edgePorts, entryId),
-              edgeRoutes: omitGraphEdgeRoutes(layout.edgeRoutes, entryId),
-              edgeItems: omitGraphEdgeItems(layout.edgeItems, entryId),
-              externalItems: omitGraphExternalItems(layout.externalItems, entryId),
-              terminalSides: omitGraphTerminalSides(layout.terminalSides, entryId),
-            }
-          : layout,
-      ),
+      currentLayouts.map((layout) => {
+        if (layout.id !== layoutId) {
+          return layout;
+        }
+
+        const entries = layout.entries.filter((entry) => entry.id !== entryId);
+
+        if (!entries.length) {
+          return {
+            ...layout,
+            entries,
+            relays: [],
+            graphPositions: {},
+            edgePorts: {},
+            edgeRoutes: {},
+            edgeItems: {},
+            externalItems: {},
+            terminalSides: {},
+          };
+        }
+
+        return {
+          ...layout,
+          entries,
+          graphPositions: omitGraphPosition(layout.graphPositions, entryId),
+          edgePorts: omitGraphEdgePorts(layout.edgePorts, entryId),
+          edgeRoutes: omitGraphEdgeRoutes(layout.edgeRoutes, entryId),
+          edgeItems: omitGraphEdgeItems(layout.edgeItems, entryId),
+          externalItems: omitGraphExternalItems(layout.externalItems, entryId),
+          terminalSides: omitGraphTerminalSides(layout.terminalSides, entryId),
+        };
+      }),
     );
   }
 
@@ -303,7 +322,7 @@ export function App() {
 
   function updateLayoutGraphNodePosition(
     layoutId: string,
-    entryId: string,
+    nodeId: string,
     position: GraphNodePosition,
   ) {
     setLayouts((currentLayouts) =>
@@ -313,11 +332,71 @@ export function App() {
               ...layout,
               graphPositions: {
                 ...layout.graphPositions,
-                [entryId]: {
+                [nodeId]: {
                   x: Math.round(position.x),
                   y: Math.round(position.y),
                 },
               },
+            }
+          : layout,
+      ),
+    );
+  }
+
+  function createLayoutGraphRelay(
+    layoutId: string,
+    relay: GraphRelay,
+    position: GraphNodePosition,
+  ) {
+    setLayouts((currentLayouts) =>
+      currentLayouts.map((layout) => {
+        if (layout.id !== layoutId || !relay.itemKeys.length) {
+          return layout;
+        }
+
+        const nodeIds = new Set([
+          ...layout.entries.map((entry) => entry.id),
+          ...layout.relays.map((existingRelay) => existingRelay.id),
+        ]);
+
+        if (nodeIds.has(relay.id)) {
+          return layout;
+        }
+
+        return {
+          ...layout,
+          relays: [
+            ...layout.relays,
+            {
+              id: relay.id,
+              itemKeys: uniqueStrings(relay.itemKeys),
+            },
+          ],
+          graphPositions: {
+            ...layout.graphPositions,
+            [relay.id]: {
+              x: Math.round(position.x),
+              y: Math.round(position.y),
+            },
+          },
+        };
+      }),
+    );
+  }
+
+  function deleteLayoutGraphRelay(layoutId: string, relayId: string) {
+    setLayouts((currentLayouts) =>
+      currentLayouts.map((layout) =>
+        layout.id === layoutId
+          ? {
+              ...layout,
+              relays: layout.relays.filter((relay) => relay.id !== relayId),
+              graphPositions: omitGraphPosition(layout.graphPositions, relayId),
+              edgePorts: omitGraphEdgePorts(layout.edgePorts, relayId),
+              edgeRoutes: omitGraphEdgeRoutes(layout.edgeRoutes, relayId),
+              edgeItems: omitGraphEdgeItems(layout.edgeItems, relayId),
+              externalItems: omitGraphExternalItems(layout.externalItems, relayId),
+              terminalSides: omitGraphTerminalSides(layout.terminalSides, relayId),
             }
           : layout,
       ),
@@ -490,6 +569,7 @@ export function App() {
         layout.id === layoutId
           ? {
               ...layout,
+              relays: [],
               graphPositions: {},
               edgePorts: {},
               edgeRoutes: {},
@@ -627,6 +707,12 @@ export function App() {
           }
           onExternalItemsReset={(terminalIds) =>
             resetLayoutGraphExternalItems(graphLayout.id, terminalIds)
+          }
+          onRelayCreate={(relay, position) =>
+            createLayoutGraphRelay(graphLayout.id, relay, position)
+          }
+          onRelayDelete={(relayId) =>
+            deleteLayoutGraphRelay(graphLayout.id, relayId)
           }
           onNodePositionChange={(entryId, position) =>
             updateLayoutGraphNodePosition(graphLayout.id, entryId, position)
@@ -816,11 +902,17 @@ interface SerializedLayout {
   r?: unknown;
   t?: unknown;
   x?: unknown;
+  y?: unknown;
 }
 
 interface SerializedLayoutEntry {
   i?: unknown;
   r?: unknown;
+}
+
+interface SerializedGraphRelay {
+  i?: unknown;
+  k?: unknown;
 }
 
 function parseLayoutState(value: string | null): ParsedLayoutState {
@@ -881,6 +973,7 @@ function parseLayout(
     r: rawEdgeRoutes,
     t: rawTerminalSides,
     x: rawExternalItems,
+    y: rawRelays,
   } = rawLayout as SerializedLayout;
   const id = getUniqueId(
     typeof rawId === "string" && rawId ? rawId : `layout-${index + 1}`,
@@ -892,18 +985,29 @@ function parseLayout(
         parseLayoutEntry(rawEntry, entryIndex, seenEntryIds),
       )
     : [];
+  const seenNodeIds = new Set(entries.map((entry) => entry.id));
+  const relays = Array.isArray(rawRelays)
+    ? rawRelays.flatMap((rawRelay, relayIndex) =>
+        parseGraphRelay(rawRelay, relayIndex, seenNodeIds),
+      )
+    : [];
+  const nodeIds = new Set([
+    ...entries.map((entry) => entry.id),
+    ...relays.map((relay) => relay.id),
+  ]);
 
   return [
     {
       id,
       name: typeof rawName === "string" ? rawName : "",
       entries,
-      graphPositions: parseGraphPositions(rawGraphPositions, entries),
-      edgePorts: parseGraphEdgePorts(rawEdgePorts, entries),
-      edgeRoutes: parseGraphEdgeRoutes(rawEdgeRoutes, entries),
-      edgeItems: parseGraphEdgeItemKeys(rawEdgeItems, entries),
-      externalItems: parseGraphExternalItemKeys(rawExternalItems, entries),
-      terminalSides: parseGraphTerminalSides(rawTerminalSides, entries),
+      relays,
+      graphPositions: parseGraphPositions(rawGraphPositions, nodeIds),
+      edgePorts: parseGraphEdgePorts(rawEdgePorts, nodeIds),
+      edgeRoutes: parseGraphEdgeRoutes(rawEdgeRoutes, nodeIds),
+      edgeItems: parseGraphEdgeItemKeys(rawEdgeItems, nodeIds),
+      externalItems: parseGraphExternalItemKeys(rawExternalItems, nodeIds),
+      terminalSides: parseGraphTerminalSides(rawTerminalSides, nodeIds),
       collapsed: rawCollapsed === 1 || rawCollapsed === true,
     },
   ];
@@ -911,17 +1015,16 @@ function parseLayout(
 
 function parseGraphPositions(
   value: unknown,
-  entries: RecipeLayoutEntry[],
+  nodeIds: Set<string>,
 ): Record<string, GraphNodePosition> {
   if (!isRecord(value)) {
     return {};
   }
 
-  const entryIds = new Set(entries.map((entry) => entry.id));
   const graphPositions: Record<string, GraphNodePosition> = {};
 
-  for (const [entryId, rawPosition] of Object.entries(value)) {
-    if (!entryIds.has(entryId) || !Array.isArray(rawPosition)) {
+  for (const [nodeId, rawPosition] of Object.entries(value)) {
+    if (!nodeIds.has(nodeId) || !Array.isArray(rawPosition)) {
       continue;
     }
 
@@ -931,7 +1034,7 @@ function parseGraphPositions(
       continue;
     }
 
-    graphPositions[entryId] = {
+    graphPositions[nodeId] = {
       x: Math.round(rawX),
       y: Math.round(rawY),
     };
@@ -942,13 +1045,12 @@ function parseGraphPositions(
 
 function parseGraphEdgePorts(
   value: unknown,
-  entries: RecipeLayoutEntry[],
+  nodeIds: Set<string>,
 ): Record<string, GraphEdgePorts> {
   if (!isRecord(value)) {
     return {};
   }
 
-  const entryIds = new Set(entries.map((entry) => entry.id));
   const edgePorts: Record<string, GraphEdgePorts> = {};
 
   for (const [edgeId, rawPorts] of Object.entries(value)) {
@@ -956,8 +1058,8 @@ function parseGraphEdgePorts(
 
     if (
       !edgeEntryIds ||
-      !entryIds.has(edgeEntryIds.sourceId) ||
-      !entryIds.has(edgeEntryIds.targetId)
+      !nodeIds.has(edgeEntryIds.sourceId) ||
+      !nodeIds.has(edgeEntryIds.targetId)
     ) {
       continue;
     }
@@ -974,13 +1076,12 @@ function parseGraphEdgePorts(
 
 function parseGraphEdgeRoutes(
   value: unknown,
-  entries: RecipeLayoutEntry[],
+  nodeIds: Set<string>,
 ): Record<string, GraphEdgeRoute> {
   if (!isRecord(value)) {
     return {};
   }
 
-  const entryIds = new Set(entries.map((entry) => entry.id));
   const edgeRoutes: Record<string, GraphEdgeRoute> = {};
 
   for (const [edgeId, rawRoute] of Object.entries(value)) {
@@ -988,8 +1089,8 @@ function parseGraphEdgeRoutes(
 
     if (
       !edgeEntryIds ||
-      !entryIds.has(edgeEntryIds.sourceId) ||
-      !entryIds.has(edgeEntryIds.targetId)
+      !nodeIds.has(edgeEntryIds.sourceId) ||
+      !nodeIds.has(edgeEntryIds.targetId)
     ) {
       continue;
     }
@@ -1006,13 +1107,12 @@ function parseGraphEdgeRoutes(
 
 function parseGraphTerminalSides(
   value: unknown,
-  entries: RecipeLayoutEntry[],
+  nodeIds: Set<string>,
 ): Record<string, GraphSide> {
   if (!isRecord(value)) {
     return {};
   }
 
-  const entryIds = new Set(entries.map((entry) => entry.id));
   const terminalSides: Record<string, GraphSide> = {};
 
   for (const [terminalId, rawSide] of Object.entries(value)) {
@@ -1020,7 +1120,7 @@ function parseGraphTerminalSides(
 
     if (
       !terminalEntry ||
-      !entryIds.has(terminalEntry.entryId) ||
+      !nodeIds.has(terminalEntry.entryId) ||
       !isGraphSide(rawSide)
     ) {
       continue;
@@ -1034,13 +1134,12 @@ function parseGraphTerminalSides(
 
 function parseGraphEdgeItemKeys(
   value: unknown,
-  entries: RecipeLayoutEntry[],
+  nodeIds: Set<string>,
 ): Record<string, string[]> {
   if (!isRecord(value)) {
     return {};
   }
 
-  const entryIds = new Set(entries.map((entry) => entry.id));
   const edgeItems: Record<string, string[]> = {};
 
   for (const [edgeId, rawItemKeys] of Object.entries(value)) {
@@ -1048,8 +1147,8 @@ function parseGraphEdgeItemKeys(
 
     if (
       !edgeEntryIds ||
-      !entryIds.has(edgeEntryIds.sourceId) ||
-      !entryIds.has(edgeEntryIds.targetId)
+      !nodeIds.has(edgeEntryIds.sourceId) ||
+      !nodeIds.has(edgeEntryIds.targetId)
     ) {
       continue;
     }
@@ -1062,19 +1161,18 @@ function parseGraphEdgeItemKeys(
 
 function parseGraphExternalItemKeys(
   value: unknown,
-  entries: RecipeLayoutEntry[],
+  nodeIds: Set<string>,
 ): Record<string, string[]> {
   if (!isRecord(value)) {
     return {};
   }
 
-  const entryIds = new Set(entries.map((entry) => entry.id));
   const externalItems: Record<string, string[]> = {};
 
   for (const [terminalId, rawItemKeys] of Object.entries(value)) {
     const terminalEntry = parseGraphTerminalId(terminalId);
 
-    if (!terminalEntry || !entryIds.has(terminalEntry.entryId)) {
+    if (!terminalEntry || !nodeIds.has(terminalEntry.entryId)) {
       continue;
     }
 
@@ -1165,6 +1263,41 @@ function parseLayoutEntry(
   ];
 }
 
+function parseGraphRelay(
+  rawRelay: unknown,
+  index: number,
+  seenNodeIds: Set<string>,
+): GraphRelay[] {
+  let rawId: unknown;
+  let rawItemKeys: unknown;
+
+  if (Array.isArray(rawRelay)) {
+    rawId = rawRelay[0];
+    rawItemKeys = rawRelay[1];
+  } else if (isRecord(rawRelay)) {
+    const relay = rawRelay as SerializedGraphRelay;
+
+    rawId = relay.i;
+    rawItemKeys = relay.k;
+  }
+
+  const itemKeys = parseStringList(rawItemKeys);
+
+  if (!itemKeys.length) {
+    return [];
+  }
+
+  return [
+    {
+      id: getUniqueId(
+        typeof rawId === "string" && rawId ? rawId : `relay-${index + 1}`,
+        seenNodeIds,
+      ),
+      itemKeys,
+    },
+  ];
+}
+
 function serializeLayoutState(layouts: RecipeLayout[], focusedLayoutId: string): string {
   return JSON.stringify({
     f: focusedLayoutId,
@@ -1173,6 +1306,7 @@ function serializeLayoutState(layouts: RecipeLayout[], focusedLayoutId: string):
       n: layout.name,
       c: layout.collapsed ? 1 : 0,
       e: layout.entries.map((entry) => [entry.id, entry.recipeId]),
+      y: serializeGraphRelays(layout),
       h: serializeGraphEdgePorts(layout),
       m: serializeGraphEdgeItems(layout),
       p: serializeGraphPositions(layout),
@@ -1183,18 +1317,26 @@ function serializeLayoutState(layouts: RecipeLayout[], focusedLayoutId: string):
   });
 }
 
+function serializeGraphRelays(layout: RecipeLayout): Array<[string, string[]]> | undefined {
+  const relays = layout.relays
+    .map((relay) => [relay.id, uniqueStrings(relay.itemKeys)] as [string, string[]])
+    .filter(([, itemKeys]) => itemKeys.length);
+
+  return relays.length ? relays : undefined;
+}
+
 function serializeGraphPositions(
   layout: RecipeLayout,
 ): Record<string, [number, number]> | undefined {
-  const entryIds = new Set(layout.entries.map((entry) => entry.id));
+  const nodeIds = getLayoutGraphNodeIds(layout);
   const graphPositions: Record<string, [number, number]> = {};
 
-  for (const [entryId, position] of Object.entries(layout.graphPositions)) {
-    if (!entryIds.has(entryId)) {
+  for (const [nodeId, position] of Object.entries(layout.graphPositions)) {
+    if (!nodeIds.has(nodeId)) {
       continue;
     }
 
-    graphPositions[entryId] = [Math.round(position.x), Math.round(position.y)];
+    graphPositions[nodeId] = [Math.round(position.x), Math.round(position.y)];
   }
 
   return Object.keys(graphPositions).length ? graphPositions : undefined;
@@ -1203,7 +1345,7 @@ function serializeGraphPositions(
 function serializeGraphEdgePorts(
   layout: RecipeLayout,
 ): Record<string, [GraphSide, GraphSide]> | undefined {
-  const entryIds = new Set(layout.entries.map((entry) => entry.id));
+  const nodeIds = getLayoutGraphNodeIds(layout);
   const edgePorts: Record<string, [GraphSide, GraphSide]> = {};
 
   for (const [edgeId, ports] of Object.entries(layout.edgePorts)) {
@@ -1211,8 +1353,8 @@ function serializeGraphEdgePorts(
 
     if (
       !edgeEntryIds ||
-      !entryIds.has(edgeEntryIds.sourceId) ||
-      !entryIds.has(edgeEntryIds.targetId)
+      !nodeIds.has(edgeEntryIds.sourceId) ||
+      !nodeIds.has(edgeEntryIds.targetId)
     ) {
       continue;
     }
@@ -1226,7 +1368,7 @@ function serializeGraphEdgePorts(
 function serializeGraphEdgeRoutes(
   layout: RecipeLayout,
 ): Record<string, [number, number]> | undefined {
-  const entryIds = new Set(layout.entries.map((entry) => entry.id));
+  const nodeIds = getLayoutGraphNodeIds(layout);
   const edgeRoutes: Record<string, [number, number]> = {};
 
   for (const [edgeId, route] of Object.entries(layout.edgeRoutes)) {
@@ -1234,8 +1376,8 @@ function serializeGraphEdgeRoutes(
 
     if (
       !edgeEntryIds ||
-      !entryIds.has(edgeEntryIds.sourceId) ||
-      !entryIds.has(edgeEntryIds.targetId)
+      !nodeIds.has(edgeEntryIds.sourceId) ||
+      !nodeIds.has(edgeEntryIds.targetId)
     ) {
       continue;
     }
@@ -1249,7 +1391,7 @@ function serializeGraphEdgeRoutes(
 function serializeGraphTerminalSides(
   layout: RecipeLayout,
 ): Record<string, GraphSide> | undefined {
-  const entryIds = new Set(layout.entries.map((entry) => entry.id));
+  const nodeIds = getLayoutGraphNodeIds(layout);
   const terminalSides: Record<string, GraphSide> = {};
 
   for (const [terminalId, side] of Object.entries(layout.terminalSides)) {
@@ -1257,7 +1399,7 @@ function serializeGraphTerminalSides(
 
     if (
       !terminalEntry ||
-      !entryIds.has(terminalEntry.entryId) ||
+      !nodeIds.has(terminalEntry.entryId) ||
       !isGraphSide(side)
     ) {
       continue;
@@ -1272,7 +1414,7 @@ function serializeGraphTerminalSides(
 function serializeGraphEdgeItems(
   layout: RecipeLayout,
 ): Record<string, string[]> | undefined {
-  const entryIds = new Set(layout.entries.map((entry) => entry.id));
+  const nodeIds = getLayoutGraphNodeIds(layout);
   const edgeItems: Record<string, string[]> = {};
 
   for (const [edgeId, itemKeys] of Object.entries(layout.edgeItems)) {
@@ -1280,8 +1422,8 @@ function serializeGraphEdgeItems(
 
     if (
       !edgeEntryIds ||
-      !entryIds.has(edgeEntryIds.sourceId) ||
-      !entryIds.has(edgeEntryIds.targetId)
+      !nodeIds.has(edgeEntryIds.sourceId) ||
+      !nodeIds.has(edgeEntryIds.targetId)
     ) {
       continue;
     }
@@ -1295,13 +1437,13 @@ function serializeGraphEdgeItems(
 function serializeGraphExternalItems(
   layout: RecipeLayout,
 ): Record<string, string[]> | undefined {
-  const entryIds = new Set(layout.entries.map((entry) => entry.id));
+  const nodeIds = getLayoutGraphNodeIds(layout);
   const externalItems: Record<string, string[]> = {};
 
   for (const [terminalId, itemKeys] of Object.entries(layout.externalItems)) {
     const terminalEntry = parseGraphTerminalId(terminalId);
 
-    if (!terminalEntry || !entryIds.has(terminalEntry.entryId)) {
+    if (!terminalEntry || !nodeIds.has(terminalEntry.entryId)) {
       continue;
     }
 
@@ -1313,6 +1455,13 @@ function serializeGraphExternalItems(
   }
 
   return Object.keys(externalItems).length ? externalItems : undefined;
+}
+
+function getLayoutGraphNodeIds(layout: RecipeLayout): Set<string> {
+  return new Set([
+    ...layout.entries.map((entry) => entry.id),
+    ...layout.relays.map((relay) => relay.id),
+  ]);
 }
 
 function isDefaultLayoutState(
@@ -1328,6 +1477,7 @@ function isDefaultLayoutState(
     layout.name === "" &&
     !layout.collapsed &&
     layout.entries.length === 0 &&
+    layout.relays.length === 0 &&
     Object.keys(layout.graphPositions).length === 0 &&
     Object.keys(layout.edgePorts).length === 0 &&
     Object.keys(layout.edgeRoutes).length === 0 &&
@@ -1348,6 +1498,7 @@ function createEmptyLayout(id: string): RecipeLayout {
     id,
     name: "",
     entries: [],
+    relays: [],
     graphPositions: {},
     edgePorts: {},
     edgeRoutes: {},

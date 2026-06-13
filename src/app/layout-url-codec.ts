@@ -6,6 +6,7 @@ import type {
   GraphEdgePorts,
   GraphEdgeRoute,
   GraphNodePosition,
+  GraphRelay,
   GraphSide,
   GraphTerminalKind,
   RecipeLayout,
@@ -49,6 +50,7 @@ type CompactExternalItems = [
   kind: GraphTerminalKindCode,
   itemIndexes: number[],
 ];
+type CompactRelay = [itemIndexes: number[]];
 
 export interface ParsedLayoutUrlState {
   focusedLayoutId: string;
@@ -72,6 +74,10 @@ export function serializeCompactLayoutState(
   for (const layout of layouts) {
     for (const entry of layout.entries) {
       getRecipeIndex(entry.recipeId, recipeIds, recipeIndexById);
+    }
+
+    for (const itemKey of layout.relays.flatMap((relay) => relay.itemKeys)) {
+      getStringIndex(itemKey, itemKeys, itemIndexByKey);
     }
 
     for (const itemKey of Object.values(layout.edgeItems).flat()) {
@@ -139,9 +145,7 @@ function compactLayout(
   itemKeys: string[],
   itemIndexByKey: Map<string, number>,
 ): unknown[] {
-  const entryIndexById = new Map(
-    layout.entries.map((entry, index) => [entry.id, index] as const),
-  );
+  const nodeIndexById = getLayoutGraphNodeIndexById(layout);
   const compact: unknown[] = [
     layout.name,
     layout.collapsed ? 1 : 0,
@@ -150,27 +154,41 @@ function compactLayout(
     ),
   ];
 
-  setCompactSlot(compact, 3, compactGraphPositions(layout.graphPositions, entryIndexById));
-  setCompactSlot(compact, 4, compactGraphEdgePorts(layout.edgePorts, entryIndexById));
-  setCompactSlot(compact, 5, compactGraphEdgeRoutes(layout.edgeRoutes, entryIndexById));
-  setCompactSlot(compact, 6, compactGraphTerminalSides(layout.terminalSides, entryIndexById));
+  setCompactSlot(compact, 3, compactGraphPositions(layout.graphPositions, nodeIndexById));
+  setCompactSlot(compact, 4, compactGraphEdgePorts(layout.edgePorts, nodeIndexById));
+  setCompactSlot(compact, 5, compactGraphEdgeRoutes(layout.edgeRoutes, nodeIndexById));
+  setCompactSlot(compact, 6, compactGraphTerminalSides(layout.terminalSides, nodeIndexById));
   setCompactSlot(
     compact,
     7,
-    compactGraphEdgeItems(layout.edgeItems, entryIndexById, itemKeys, itemIndexByKey),
+    compactGraphEdgeItems(layout.edgeItems, nodeIndexById, itemKeys, itemIndexByKey),
   );
   setCompactSlot(
     compact,
     8,
     compactGraphExternalItems(
       layout.externalItems,
-      entryIndexById,
+      nodeIndexById,
       itemKeys,
       itemIndexByKey,
     ),
   );
+  setCompactSlot(
+    compact,
+    9,
+    compactGraphRelays(layout.relays, itemKeys, itemIndexByKey),
+  );
 
   return compact;
+}
+
+function getLayoutGraphNodeIndexById(layout: RecipeLayout): Map<string, number> {
+  return new Map([
+    ...layout.entries.map((entry, index) => [entry.id, index] as const),
+    ...layout.relays.map(
+      (relay, index) => [relay.id, layout.entries.length + index] as const,
+    ),
+  ]);
 }
 
 function compactGraphPositions(
@@ -335,6 +353,18 @@ function compactGraphExternalItems(
     .sort(compareFirstTwoNumbers);
 }
 
+function compactGraphRelays(
+  relays: GraphRelay[],
+  itemKeys: string[],
+  itemIndexByKey: Map<string, number>,
+): CompactRelay[] {
+  return relays
+    .map((relay) => [
+      compactStringIndexes(relay.itemKeys, itemKeys, itemIndexByKey),
+    ] satisfies CompactRelay)
+    .filter(([relayItemIndexes]) => relayItemIndexes.length);
+}
+
 function parseCompactState(
   value: Record<string, unknown>,
   options: LayoutUrlCodecOptions,
@@ -404,18 +434,26 @@ function parseCompactLayout(
     seenLayoutIds,
   );
   const { entries, entryIdByIndex } = parseCompactEntries(value[2], layoutId, recipeIds);
+  const { relays, relayIdByIndex } = parseCompactRelays(
+    value[9],
+    layoutId,
+    entries.length,
+    itemKeys,
+  );
+  const nodeIdByIndex = new Map([...entryIdByIndex, ...relayIdByIndex]);
 
   return [
     {
       id: layoutId,
       name: typeof value[0] === "string" ? value[0] : "",
       entries,
-      graphPositions: parseCompactGraphPositions(value[3], entryIdByIndex),
-      edgePorts: parseCompactGraphEdgePorts(value[4], entryIdByIndex),
-      edgeRoutes: parseCompactGraphEdgeRoutes(value[5], entryIdByIndex),
-      terminalSides: parseCompactGraphTerminalSides(value[6], entryIdByIndex),
-      edgeItems: parseCompactGraphEdgeItems(value[7], entryIdByIndex, itemKeys),
-      externalItems: parseCompactGraphExternalItems(value[8], entryIdByIndex, itemKeys),
+      relays,
+      graphPositions: parseCompactGraphPositions(value[3], nodeIdByIndex),
+      edgePorts: parseCompactGraphEdgePorts(value[4], nodeIdByIndex),
+      edgeRoutes: parseCompactGraphEdgeRoutes(value[5], nodeIdByIndex),
+      terminalSides: parseCompactGraphTerminalSides(value[6], nodeIdByIndex),
+      edgeItems: parseCompactGraphEdgeItems(value[7], nodeIdByIndex, itemKeys),
+      externalItems: parseCompactGraphExternalItems(value[8], nodeIdByIndex, itemKeys),
       collapsed: value[1] === 1 || value[1] === true,
     },
   ];
@@ -448,6 +486,40 @@ function parseCompactEntries(
   });
 
   return { entries, entryIdByIndex };
+}
+
+function parseCompactRelays(
+  value: unknown,
+  layoutId: string,
+  entryCount: number,
+  itemKeys: Array<string | null>,
+): { relays: GraphRelay[]; relayIdByIndex: Map<number, string> } {
+  const relays: GraphRelay[] = [];
+  const relayIdByIndex = new Map<number, string>();
+
+  if (!Array.isArray(value)) {
+    return { relays, relayIdByIndex };
+  }
+
+  value.forEach((rawRelay, relayIndex) => {
+    if (!Array.isArray(rawRelay)) {
+      return;
+    }
+
+    const relayItemKeys = parseCompactStringIndexes(rawRelay[0], itemKeys);
+
+    if (!relayItemKeys.length) {
+      return;
+    }
+
+    const relayId = `${layoutId}-relay-${relayIndex + 1}`;
+    const nodeIndex = entryCount + relayIndex;
+
+    relays.push({ id: relayId, itemKeys: relayItemKeys });
+    relayIdByIndex.set(nodeIndex, relayId);
+  });
+
+  return { relays, relayIdByIndex };
 }
 
 function parseCompactGraphPositions(
@@ -651,6 +723,7 @@ function defaultCompactLayoutState(defaultLayoutId: string): ParsedLayoutUrlStat
         id: defaultLayoutId,
         name: "",
         entries: [],
+        relays: [],
         graphPositions: {},
         edgePorts: {},
         edgeRoutes: {},

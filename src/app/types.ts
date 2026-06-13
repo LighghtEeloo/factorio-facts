@@ -5,6 +5,11 @@ export interface RecipeLayoutEntry {
   recipeId: string;
 }
 
+export interface GraphRelay {
+  id: string;
+  itemKeys: string[];
+}
+
 export type LayoutReorderPlacement = "before" | "after";
 
 export type GraphSide = "top" | "right" | "bottom" | "left";
@@ -35,6 +40,7 @@ export interface RecipeLayout {
   id: string;
   name: string;
   entries: RecipeLayoutEntry[];
+  relays: GraphRelay[];
   graphPositions: Record<string, GraphNodePosition>;
   edgePorts: Record<string, GraphEdgePorts>;
   edgeRoutes: Record<string, GraphEdgeRoute>;
