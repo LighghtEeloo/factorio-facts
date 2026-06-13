@@ -99,7 +99,7 @@ Each layout is an ordered list of recipe instances, not a set of recipe ids. The
 
 The left panel lets users create, focus, rename, collapse, and graph populated layouts. Empty layouts show delete in the same action slot where populated layouts show graph. Collapsed layouts keep their recipes but hide the list for scanning.
 
-Layout state is serialized into the URL once it differs from the default empty layout. The URL stores layout ids, entry ids, names, collapsed flags, focused layout id, ordered recipe entries, graph node positions, graph edge endpoint choices, graph edge bend points, and graph boundary terminal side choices so duplicate recipe instances and manual graph cleanup survive reloads.
+Layout state is serialized into the URL once it differs from the default empty layout. Simple app state such as the selected item, view mode, and filters remains readable as ordinary query params. Layout-heavy state is written as a compact `s=v1.<blob>` query param: recipe ids are dictionary-encoded, layout entries and graph details refer to entry indexes, side choices use small numeric codes, and the compact JSON is compressed with `lz-string`'s URL-safe codec. Old `layouts=` JSON links are still accepted and migrate to the compact `s=` format on the next URL update.
 
 ## Layout Graphs
 

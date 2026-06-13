@@ -31,6 +31,10 @@ import { LayoutGraphDialog } from "./components/LayoutGraphDialog";
 import { LayoutSidebar } from "./components/LayoutSidebar";
 import { RecipeColumn } from "./components/RecipeColumn";
 import { TooltipLayer } from "./components/TooltipLayer";
+import {
+  parseCompactLayoutState,
+  serializeCompactLayoutState,
+} from "./layout-url-codec";
 import "./styles.css";
 
 const defaultFilters: FilterState = {
@@ -539,7 +543,11 @@ function readAppStateFromUrl(): AppUrlState {
   const params = new URLSearchParams(window.location.search);
   const selectedItemId = parseItemId(params.get("item"));
   const viewMode = parseViewMode(params.get("view"));
-  const layoutState = parseLayoutState(params.get("layouts"));
+  const layoutState =
+    parseCompactLayoutState(params.get("s"), {
+      defaultLayoutId,
+      isRecipeIdAllowed: (recipeId) => explorerData.recipeById.has(recipeId),
+    }) ?? parseLayoutState(params.get("layouts"));
 
   return {
     selectedItemId,
@@ -636,7 +644,7 @@ function updateUrlFromAppState(state: AppUrlState) {
   );
 
   if (!isDefaultLayoutState(state.layouts, state.focusedLayoutId)) {
-    params.set("layouts", serializeLayoutState(state.layouts, state.focusedLayoutId));
+    params.set("s", serializeCompactLayoutState(state.layouts, state.focusedLayoutId));
   }
 
   const nextSearch = params.toString().replaceAll("%2C", ",");
