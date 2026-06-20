@@ -15,8 +15,10 @@ import {
   Link2,
   Maximize2,
   Minimize2,
+  Redo2,
   RotateCcw,
   Trash2,
+  Undo2,
   X,
 } from "lucide-react";
 import {
@@ -98,6 +100,8 @@ const edgeTypes = {
 } satisfies EdgeTypes;
 
 interface LayoutGraphDialogProps {
+  canRedoGraph: boolean;
+  canUndoGraph: boolean;
   data: RecipeExplorerData;
   layout: RecipeLayout;
   onClose(): void;
@@ -107,6 +111,9 @@ interface LayoutGraphDialogProps {
   onEdgeRouteChange(edgeId: string, route: GraphEdgeRoute): void;
   onEdgeRouteReset(edgeId: string): void;
   onExternalItemsChange(terminalId: string, itemKeys: string[]): void;
+  onGraphEditStart(): void;
+  onGraphRedo(): void;
+  onGraphUndo(): void;
   onRelayCreate(relay: GraphRelay, position: GraphNodePosition): void;
   onRelayDelete(relayId: string): void;
   onRelayItemsChange(relayId: string, itemKeys: string[]): void;
@@ -117,6 +124,8 @@ interface LayoutGraphDialogProps {
 }
 
 export function LayoutGraphDialog({
+  canRedoGraph,
+  canUndoGraph,
   data,
   layout,
   onClose,
@@ -126,6 +135,9 @@ export function LayoutGraphDialog({
   onEdgeRouteChange,
   onEdgeRouteReset,
   onExternalItemsChange,
+  onGraphEditStart,
+  onGraphRedo,
+  onGraphUndo,
   onRelayCreate,
   onRelayDelete,
   onRelayItemsChange,
@@ -163,6 +175,48 @@ export function LayoutGraphDialog({
     setConnectingFromNodeId(null);
     setPendingConnection(null);
   }, []);
+  const changeEdgeItems = useCallback(
+    (edgeId: string, itemKeys: string[]) => {
+      onGraphEditStart();
+      onEdgeItemsChange(edgeId, itemKeys);
+    },
+    [onEdgeItemsChange, onGraphEditStart],
+  );
+  const resetEdgeItems = useCallback(
+    (edgeId: string) => {
+      onGraphEditStart();
+      onEdgeItemsReset(edgeId);
+    },
+    [onEdgeItemsReset, onGraphEditStart],
+  );
+  const changeEdgePorts = useCallback(
+    (edgeId: string, ports: GraphEdgePorts) => {
+      onGraphEditStart();
+      onEdgePortsChange(edgeId, ports);
+    },
+    [onEdgePortsChange, onGraphEditStart],
+  );
+  const changeEdgeRoute = useCallback(
+    (edgeId: string, route: GraphEdgeRoute) => {
+      onGraphEditStart();
+      onEdgeRouteChange(edgeId, route);
+    },
+    [onEdgeRouteChange, onGraphEditStart],
+  );
+  const resetEdgeRoute = useCallback(
+    (edgeId: string) => {
+      onGraphEditStart();
+      onEdgeRouteReset(edgeId);
+    },
+    [onEdgeRouteReset, onGraphEditStart],
+  );
+  const changeTerminalSide = useCallback(
+    (terminalId: string, side: GraphSide) => {
+      onGraphEditStart();
+      onTerminalSideChange(terminalId, side);
+    },
+    [onGraphEditStart, onTerminalSideChange],
+  );
   const graph = useMemo(
     () =>
       buildLayoutGraph(
@@ -170,18 +224,18 @@ export function LayoutGraphDialog({
         layout,
         onSelectItem,
         focusEdge,
-        onEdgeRouteChange,
-        onEdgeRouteReset,
+        changeEdgeRoute,
+        resetEdgeRoute,
         focusTerminal,
         selectedTerminalId,
       ),
     [
       data,
+      changeEdgeRoute,
+      resetEdgeRoute,
       focusEdge,
       focusTerminal,
       layout,
-      onEdgeRouteChange,
-      onEdgeRouteReset,
       onSelectItem,
       selectedTerminalId,
     ],
@@ -228,9 +282,9 @@ export function LayoutGraphDialog({
         const endpointSelector = getEndpointSelectorForNode(
           node.id,
           selectedEdge,
-          onEdgePortsChange,
+          changeEdgePorts,
           selectedTerminal,
-          onTerminalSideChange,
+          changeTerminalSide,
         );
 
         return node.type === "recipe"
@@ -253,8 +307,8 @@ export function LayoutGraphDialog({
       }),
     [
       nodes,
-      onEdgePortsChange,
-      onTerminalSideChange,
+      changeEdgePorts,
+      changeTerminalSide,
       selectedEdge,
       selectedNodeId,
       selectedTerminal,
@@ -332,9 +386,10 @@ export function LayoutGraphDialog({
 
   const handleNodeDragStop = useCallback<OnNodeDrag<GraphFlowNode>>(
     (_event, node) => {
+      onGraphEditStart();
       onNodePositionChange(node.id, node.position);
     },
-    [onNodePositionChange],
+    [onGraphEditStart, onNodePositionChange],
   );
 
   function clearGraphFocus() {
@@ -411,6 +466,8 @@ export function LayoutGraphDialog({
     node: GraphFlowNode,
     changes: GraphNodeToolbarChanges,
   ) {
+    onGraphEditStart();
+
     if (node.data.kind === "relay" && changes.relayItemKeys) {
       onRelayItemsChange(node.id, changes.relayItemKeys);
     }
@@ -453,6 +510,7 @@ export function LayoutGraphDialog({
 
     const edgeId = getGraphEdgeId(pendingConnection.sourceId, pendingConnection.targetId);
 
+    onGraphEditStart();
     onEdgeItemsChange(edgeId, pendingConnection.itemKeys);
     setSelectedEdgeIds([edgeId]);
     setPendingConnection(null);
@@ -466,6 +524,11 @@ export function LayoutGraphDialog({
     const itemKeys = node.data.materials.map((material) => getEntityKey(material));
     const egressEdges = getRelayEgressEdges(node.id, itemKeys, graph.nodes);
 
+    if (!egressEdges.length) {
+      return;
+    }
+
+    onGraphEditStart();
     for (const edge of egressEdges) {
       onEdgeItemsChange(edge.edgeId, edge.itemKeys);
     }
@@ -508,6 +571,7 @@ export function LayoutGraphDialog({
       (itemKey) => !itemKeys.includes(itemKey),
     );
 
+    onGraphEditStart();
     onRelayCreate(relay, position);
     onEdgePortsChange(edgeId, ports);
     onTerminalSideChange(getGraphTerminalId(relay.id, terminal.kind), terminal.side);
@@ -547,6 +611,7 @@ export function LayoutGraphDialog({
     };
     const replacementEdgeItems = new Map<string, Set<string>>();
 
+    onGraphEditStart();
     onRelayCreate(relay, getRelayPositionFromEdges(relayEdges, graph.nodes));
 
     for (const edge of relayEdges) {
@@ -587,6 +652,7 @@ export function LayoutGraphDialog({
   }
 
   function deleteRelay(relayId: string) {
+    onGraphEditStart();
     onRelayDelete(relayId);
     clearGraphFocus();
   }
@@ -627,17 +693,43 @@ export function LayoutGraphDialog({
             terminal={selectedTerminal}
             onCancelPendingConnection={() => setPendingConnection(null)}
             onConfirmPendingConnection={confirmPendingConnection}
-            onApplyEdgeItems={onEdgeItemsChange}
+            onApplyEdgeItems={changeEdgeItems}
             onCreateRelayFromEdges={createRelayFromSelectedEdges}
             onCreateRelayFromTerminal={createRelayFromTerminal}
             onApplyNodeChanges={applyNodeToolbarChanges}
             onDeleteRelay={deleteRelay}
-            onResetEdgeItems={onEdgeItemsReset}
+            onResetEdgeItems={resetEdgeItems}
             onSmartMergeRelay={smartMergeRelay}
             onToggleConnectMode={toggleConnectMode}
             onTogglePendingConnectionItem={togglePendingConnectionItem}
           />
           <div className="popup-header-actions">
+            <button
+              aria-label="Undo layout graph change"
+              className="icon-button"
+              data-tooltip="Undo graph change"
+              disabled={!canUndoGraph}
+              type="button"
+              onClick={() => {
+                setIsResetConfirming(false);
+                onGraphUndo();
+              }}
+            >
+              <Undo2 size={18} aria-hidden="true" />
+            </button>
+            <button
+              aria-label="Redo layout graph change"
+              className="icon-button"
+              data-tooltip="Redo graph change"
+              disabled={!canRedoGraph}
+              type="button"
+              onClick={() => {
+                setIsResetConfirming(false);
+                onGraphRedo();
+              }}
+            >
+              <Redo2 size={18} aria-hidden="true" />
+            </button>
             {isResetConfirming ? (
               <div
                 aria-label="Confirm graph reset"
@@ -651,6 +743,7 @@ export function LayoutGraphDialog({
                   data-tooltip="Confirm reset"
                   type="button"
                   onClick={() => {
+                    onGraphEditStart();
                     onResetGraphPositions();
                     setIsResetConfirming(false);
                   }}

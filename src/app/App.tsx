@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
@@ -51,6 +51,7 @@ const defaultFilters: FilterState = {
 
 const defaultViewMode: ViewMode = "concise";
 const defaultLayoutId = "layout-1";
+const graphHistoryLimit = 80;
 
 let nextLayoutSequence = 2;
 let nextLayoutEntrySequence = 1;
@@ -63,6 +64,22 @@ interface AppUrlState {
   viewMode: ViewMode;
 }
 
+interface GraphLayoutSnapshot {
+  edgeItems: Record<string, string[]>;
+  edgePorts: Record<string, GraphEdgePorts>;
+  edgeRoutes: Record<string, GraphEdgeRoute>;
+  entries: RecipeLayoutEntry[];
+  externalItems: Record<string, string[]>;
+  graphPositions: Record<string, GraphNodePosition>;
+  relays: GraphRelay[];
+  terminalSides: Record<string, GraphSide>;
+}
+
+interface GraphLayoutHistory {
+  redo: GraphLayoutSnapshot[];
+  undo: GraphLayoutSnapshot[];
+}
+
 export function App() {
   const initialUrlState = useMemo(readAppStateFromUrl, []);
   const [selectedItemId, setSelectedItemId] = useState(initialUrlState.selectedItemId);
@@ -70,7 +87,11 @@ export function App() {
   const [focusedLayoutId, setFocusedLayoutId] = useState(initialUrlState.focusedLayoutId);
   const [layouts, setLayouts] = useState<RecipeLayout[]>(initialUrlState.layouts);
   const [graphLayoutId, setGraphLayoutId] = useState<string | null>(null);
+  const [graphHistories, setGraphHistories] = useState<
+    Record<string, GraphLayoutHistory | undefined>
+  >({});
   const [viewMode, setViewMode] = useState<ViewMode>(initialUrlState.viewMode);
+  const graphHistoryCaptureRef = useRef<Set<string>>(new Set());
   const selectedItem = selectedItemId
     ? explorerData.itemById.get(selectedItemId) ?? null
     : null;
@@ -78,6 +99,7 @@ export function App() {
   const graphLayout = graphLayoutId
     ? layouts.find((layout) => layout.id === graphLayoutId) ?? null
     : null;
+  const graphHistory = graphLayout ? graphHistories[graphLayout.id] : undefined;
 
   if (!explorerData.items.length) {
     throw new Error("FactorioLab data did not include any items");
@@ -120,6 +142,7 @@ export function App() {
       setFocusedLayoutId(nextState.focusedLayoutId);
       setLayouts(nextState.layouts);
       setGraphLayoutId(null);
+      setGraphHistories({});
       setViewMode(nextState.viewMode);
     }
 
@@ -165,6 +188,7 @@ export function App() {
 
     const entry = createLayoutEntry(recipeId);
 
+    clearGraphHistory(focusedLayout.id);
     setLayouts((currentLayouts) =>
       currentLayouts.map((layout) =>
         layout.id === focusedLayout.id
@@ -175,6 +199,7 @@ export function App() {
   }
 
   function removeRecipeFromLayout(layoutId: string, entryId: string) {
+    clearGraphHistory(layoutId);
     setLayouts((currentLayouts) =>
       currentLayouts.map((layout) => {
         if (layout.id !== layoutId) {
@@ -221,6 +246,7 @@ export function App() {
       return;
     }
 
+    clearGraphHistory(layoutId);
     setLayouts((currentLayouts) =>
       currentLayouts.map((layout) => {
         if (layout.id !== layoutId) {
@@ -298,6 +324,7 @@ export function App() {
   }
 
   function deleteLayout(layoutId: string) {
+    clearGraphHistory(layoutId);
     const remainingLayouts = layouts.filter((layout) => layout.id !== layoutId);
     const nextLayouts = remainingLayouts.length
       ? remainingLayouts
@@ -317,6 +344,111 @@ export function App() {
   function getFocusedLayoutRecipeCount(recipeId: string): number {
     return (
       focusedLayout?.entries.filter((entry) => entry.recipeId === recipeId).length ?? 0
+    );
+  }
+
+  function captureGraphHistory(layoutId: string) {
+    if (graphHistoryCaptureRef.current.has(layoutId)) {
+      return;
+    }
+
+    const layout = layouts.find((candidate) => candidate.id === layoutId);
+
+    if (!layout) {
+      return;
+    }
+
+    graphHistoryCaptureRef.current.add(layoutId);
+    window.setTimeout(() => {
+      graphHistoryCaptureRef.current.delete(layoutId);
+    }, 0);
+
+    const snapshot = createGraphLayoutSnapshot(layout);
+
+    setGraphHistories((currentHistories) => {
+      const history = currentHistories[layoutId] ?? { undo: [], redo: [] };
+
+      return {
+        ...currentHistories,
+        [layoutId]: {
+          undo: [...history.undo, snapshot].slice(-graphHistoryLimit),
+          redo: [],
+        },
+      };
+    });
+  }
+
+  function clearGraphHistory(layoutId: string) {
+    setGraphHistories((currentHistories) => {
+      if (!currentHistories[layoutId]) {
+        return currentHistories;
+      }
+
+      const { [layoutId]: _removedHistory, ...remainingHistories } = currentHistories;
+
+      return remainingHistories;
+    });
+  }
+
+  function undoLayoutGraph(layoutId: string) {
+    const layout = layouts.find((candidate) => candidate.id === layoutId);
+    const history = graphHistories[layoutId];
+    const previousSnapshot = history?.undo[history.undo.length - 1];
+
+    if (!layout || !history || !previousSnapshot) {
+      return;
+    }
+
+    const currentSnapshot = createGraphLayoutSnapshot(layout);
+
+    setGraphHistories((currentHistories) => {
+      const currentHistory = currentHistories[layoutId] ?? { undo: [], redo: [] };
+
+      return {
+        ...currentHistories,
+        [layoutId]: {
+          undo: currentHistory.undo.slice(0, -1),
+          redo: [currentSnapshot, ...currentHistory.redo].slice(0, graphHistoryLimit),
+        },
+      };
+    });
+    setLayouts((currentLayouts) =>
+      currentLayouts.map((currentLayout) =>
+        currentLayout.id === layoutId
+          ? applyGraphLayoutSnapshot(currentLayout, previousSnapshot)
+          : currentLayout,
+      ),
+    );
+  }
+
+  function redoLayoutGraph(layoutId: string) {
+    const layout = layouts.find((candidate) => candidate.id === layoutId);
+    const history = graphHistories[layoutId];
+    const nextSnapshot = history?.redo[0];
+
+    if (!layout || !history || !nextSnapshot) {
+      return;
+    }
+
+    const currentSnapshot = createGraphLayoutSnapshot(layout);
+
+    setGraphHistories((currentHistories) => {
+      const currentHistory = currentHistories[layoutId] ?? { undo: [], redo: [] };
+
+      return {
+        ...currentHistories,
+        [layoutId]: {
+          undo: [...currentHistory.undo, currentSnapshot].slice(-graphHistoryLimit),
+          redo: currentHistory.redo.slice(1),
+        },
+      };
+    });
+    setLayouts((currentLayouts) =>
+      currentLayouts.map((currentLayout) =>
+        currentLayout.id === layoutId
+          ? applyGraphLayoutSnapshot(currentLayout, nextSnapshot)
+          : currentLayout,
+      ),
     );
   }
 
@@ -710,6 +842,8 @@ export function App() {
       />
       {graphLayout ? (
         <LayoutGraphDialog
+          canRedoGraph={Boolean(graphHistory?.redo.length)}
+          canUndoGraph={Boolean(graphHistory?.undo.length)}
           data={explorerData}
           layout={graphLayout}
           onClose={() => setGraphLayoutId(null)}
@@ -740,6 +874,9 @@ export function App() {
           onRelayItemsChange={(relayId, itemKeys) =>
             updateLayoutGraphRelayItems(graphLayout.id, relayId, itemKeys)
           }
+          onGraphEditStart={() => captureGraphHistory(graphLayout.id)}
+          onGraphRedo={() => redoLayoutGraph(graphLayout.id)}
+          onGraphUndo={() => undoLayoutGraph(graphLayout.id)}
           onNodePositionChange={(entryId, position) =>
             updateLayoutGraphNodePosition(graphLayout.id, entryId, position)
           }
@@ -1548,6 +1685,77 @@ function createLayoutId(): string {
 
 function createLayoutEntryId(): string {
   return `entry-${Date.now().toString(36)}-${nextLayoutEntrySequence++}`;
+}
+
+function createGraphLayoutSnapshot(layout: RecipeLayout): GraphLayoutSnapshot {
+  return {
+    entries: layout.entries.map((entry) => ({ ...entry })),
+    relays: layout.relays.map((relay) => ({
+      ...relay,
+      itemKeys: [...relay.itemKeys],
+    })),
+    graphPositions: cloneGraphPositions(layout.graphPositions),
+    edgePorts: cloneGraphEdgePorts(layout.edgePorts),
+    edgeRoutes: cloneGraphEdgeRoutes(layout.edgeRoutes),
+    edgeItems: cloneStringListRecord(layout.edgeItems),
+    externalItems: cloneStringListRecord(layout.externalItems),
+    terminalSides: { ...layout.terminalSides },
+  };
+}
+
+function applyGraphLayoutSnapshot(
+  layout: RecipeLayout,
+  snapshot: GraphLayoutSnapshot,
+): RecipeLayout {
+  return {
+    ...layout,
+    entries: snapshot.entries.map((entry) => ({ ...entry })),
+    relays: snapshot.relays.map((relay) => ({
+      ...relay,
+      itemKeys: [...relay.itemKeys],
+    })),
+    graphPositions: cloneGraphPositions(snapshot.graphPositions),
+    edgePorts: cloneGraphEdgePorts(snapshot.edgePorts),
+    edgeRoutes: cloneGraphEdgeRoutes(snapshot.edgeRoutes),
+    edgeItems: cloneStringListRecord(snapshot.edgeItems),
+    externalItems: cloneStringListRecord(snapshot.externalItems),
+    terminalSides: { ...snapshot.terminalSides },
+  };
+}
+
+function cloneGraphPositions(
+  graphPositions: Record<string, GraphNodePosition>,
+): Record<string, GraphNodePosition> {
+  return Object.fromEntries(
+    Object.entries(graphPositions).map(([nodeId, position]) => [
+      nodeId,
+      { ...position },
+    ]),
+  );
+}
+
+function cloneGraphEdgePorts(
+  edgePorts: Record<string, GraphEdgePorts>,
+): Record<string, GraphEdgePorts> {
+  return Object.fromEntries(
+    Object.entries(edgePorts).map(([edgeId, ports]) => [edgeId, { ...ports }]),
+  );
+}
+
+function cloneGraphEdgeRoutes(
+  edgeRoutes: Record<string, GraphEdgeRoute>,
+): Record<string, GraphEdgeRoute> {
+  return Object.fromEntries(
+    Object.entries(edgeRoutes).map(([edgeId, route]) => [edgeId, { ...route }]),
+  );
+}
+
+function cloneStringListRecord(
+  values: Record<string, string[]>,
+): Record<string, string[]> {
+  return Object.fromEntries(
+    Object.entries(values).map(([key, itemKeys]) => [key, [...itemKeys]]),
+  );
 }
 
 function omitGraphPosition(
