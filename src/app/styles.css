@@ -378,6 +378,10 @@ button {
   gap: 2px;
 }
 
+.layout-card__import-input {
+  display: none;
+}
+
 .layout-action-button:disabled {
   cursor: default;
   opacity: 0.42;
@@ -422,7 +426,7 @@ button {
 
 .layout-recipe-row {
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) 24px;
+  grid-template-columns: 24px minmax(0, 1fr) 58px 24px;
   align-items: center;
   gap: 5px;
   min-width: 0;
@@ -478,6 +482,48 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.layout-recipe-row__size {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  height: 28px;
+  border: 1px solid #3f4235;
+  border-radius: 6px;
+  background: #151710;
+  color: #9f9a86;
+  padding: 0 4px;
+}
+
+.layout-recipe-row__size:focus-within {
+  border-color: #6d674b;
+  background: #1b1d17;
+}
+
+.layout-recipe-row__size span {
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.layout-recipe-row__size input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: #d7b65f;
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  outline: 0;
+  padding: 0;
+}
+
+.layout-recipe-row__size input::-webkit-inner-spin-button,
+.layout-recipe-row__size input::-webkit-outer-spin-button {
+  margin: 0;
 }
 
 .workspace {

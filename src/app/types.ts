@@ -1,7 +1,10 @@
 export type ViewMode = "detailed" | "concise";
 
+export const defaultProductionSize = 1;
+
 export interface RecipeLayoutEntry {
   id: string;
+  productionSize: number;
   recipeId: string;
 }
 

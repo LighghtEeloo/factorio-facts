@@ -2,6 +2,7 @@ import {
   compressToEncodedURIComponent,
   decompressFromEncodedURIComponent,
 } from "lz-string";
+import { defaultProductionSize } from "./types";
 import type {
   GraphEdgePorts,
   GraphEdgeRoute,
@@ -22,6 +23,7 @@ const defaultOutputSide: GraphSide = "right";
 
 type GraphSideCode = 0 | 1 | 2 | 3;
 type GraphTerminalKindCode = 0 | 1;
+type CompactEntry = number | [recipeIndex: number, productionSize: number];
 type CompactPosition = [entryIndex: number, x: number, y: number];
 type CompactEdgePorts = [
   sourceIndex: number,
@@ -150,7 +152,7 @@ function compactLayout(
     layout.name,
     layout.collapsed ? 1 : 0,
     layout.entries.map((entry) =>
-      getRecipeIndex(entry.recipeId, recipeIds, recipeIndexById),
+      compactLayoutEntry(entry, recipeIds, recipeIndexById),
     ),
   ];
 
@@ -180,6 +182,19 @@ function compactLayout(
   );
 
   return compact;
+}
+
+function compactLayoutEntry(
+  entry: RecipeLayoutEntry,
+  recipeIds: string[],
+  recipeIndexById: Map<string, number>,
+): CompactEntry {
+  const recipeIndex = getRecipeIndex(entry.recipeId, recipeIds, recipeIndexById);
+  const productionSize = normalizeProductionSize(entry.productionSize);
+
+  return productionSize === defaultProductionSize
+    ? recipeIndex
+    : [recipeIndex, productionSize];
 }
 
 function getLayoutGraphNodeIndexById(layout: RecipeLayout): Map<string, number> {
@@ -471,7 +486,9 @@ function parseCompactEntries(
     return { entries, entryIdByIndex };
   }
 
-  value.forEach((rawRecipeIndex, entryIndex) => {
+  value.forEach((rawEntry, entryIndex) => {
+    const rawRecipeIndex = Array.isArray(rawEntry) ? rawEntry[0] : rawEntry;
+    const rawProductionSize = Array.isArray(rawEntry) ? rawEntry[1] : undefined;
     const recipeIndex = parseNonNegativeInteger(rawRecipeIndex);
     const recipeId = recipeIndex === null ? null : recipeIds[recipeIndex] ?? null;
 
@@ -481,7 +498,11 @@ function parseCompactEntries(
 
     const entryId = `${layoutId}-entry-${entryIndex + 1}`;
 
-    entries.push({ id: entryId, recipeId });
+    entries.push({
+      id: entryId,
+      productionSize: parseProductionSize(rawProductionSize),
+      recipeId,
+    });
     entryIdByIndex.set(entryIndex, entryId);
   });
 
@@ -788,6 +809,18 @@ function parseCompactStringIndexes(
       return stringValue ? [stringValue] : [];
     }),
   );
+}
+
+function parseProductionSize(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? normalizeProductionSize(value)
+    : defaultProductionSize;
+}
+
+function normalizeProductionSize(value: number): number {
+  return Number.isFinite(value) && value > 0
+    ? Math.round(value * 1_000_000) / 1_000_000
+    : defaultProductionSize;
 }
 
 function uniqueStrings(values: string[]): string[] {

@@ -16,6 +16,7 @@ import {
   Plus,
   Search,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import type { RecipePrototype } from "../../factorio/prototypes";
@@ -41,8 +42,14 @@ interface LayoutSidebarProps {
   onCreateLayout(): void;
   onDeleteLayout(layoutId: string): void;
   onFocusLayout(layoutId: string): void;
+  onImportLayout(layoutId: string, file: File): void;
   onOpenLayoutGraph(layoutId: string): void;
   onRemoveRecipeFromLayout(layoutId: string, entryId: string): void;
+  onRecipeProductionSizeChange(
+    layoutId: string,
+    entryId: string,
+    productionSize: number,
+  ): void;
   onRenameLayout(layoutId: string, name: string): void;
   onReorderLayout(
     sourceLayoutId: string,
@@ -67,8 +74,10 @@ export function LayoutSidebar({
   onCreateLayout,
   onDeleteLayout,
   onFocusLayout,
+  onImportLayout,
   onOpenLayoutGraph,
   onRemoveRecipeFromLayout,
+  onRecipeProductionSizeChange,
   onRenameLayout,
   onReorderLayout,
   onReorderRecipeInLayout,
@@ -225,12 +234,14 @@ export function LayoutSidebar({
               layout={layout}
               onDeleteLayout={onDeleteLayout}
               onFocusLayout={onFocusLayout}
+              onImportLayout={onImportLayout}
               onLayoutDragStart={() => {
                 onFocusLayout(layout.id);
                 setDraggedLayoutId(layout.id);
                 setLayoutDropTarget(null);
               }}
               onOpenLayoutGraph={onOpenLayoutGraph}
+              onRecipeProductionSizeChange={onRecipeProductionSizeChange}
               onRemoveRecipeFromLayout={onRemoveRecipeFromLayout}
               onRenameLayout={onRenameLayout}
               onReorderRecipeInLayout={onReorderRecipeInLayout}
@@ -362,8 +373,14 @@ interface LayoutCardProps {
   layout: RecipeLayout;
   onDeleteLayout(layoutId: string): void;
   onFocusLayout(layoutId: string): void;
+  onImportLayout(layoutId: string, file: File): void;
   onLayoutDragStart(): void;
   onOpenLayoutGraph(layoutId: string): void;
+  onRecipeProductionSizeChange(
+    layoutId: string,
+    entryId: string,
+    productionSize: number,
+  ): void;
   onRemoveRecipeFromLayout(layoutId: string, entryId: string): void;
   onRenameLayout(layoutId: string, name: string): void;
   onReorderRecipeInLayout(
@@ -384,8 +401,10 @@ function LayoutCard({
   layout,
   onDeleteLayout,
   onFocusLayout,
+  onImportLayout,
   onLayoutDragStart,
   onOpenLayoutGraph,
+  onRecipeProductionSizeChange,
   onRemoveRecipeFromLayout,
   onRenameLayout,
   onReorderRecipeInLayout,
@@ -397,6 +416,7 @@ function LayoutCard({
     entryId: string;
     placement: LayoutReorderPlacement;
   } | null>(null);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!draggedEntryId) {
@@ -506,15 +526,42 @@ function LayoutCard({
               <Network size={15} aria-hidden="true" />
             </button>
           ) : (
-            <button
-              aria-label="Delete layout"
-              className="layout-action-button"
-              data-tooltip="Delete layout"
-              type="button"
-              onClick={() => onDeleteLayout(layout.id)}
-            >
-              <Trash2 size={15} aria-hidden="true" />
-            </button>
+            <>
+              <button
+                aria-label="Import layout"
+                className="layout-action-button"
+                data-tooltip="Import layout"
+                type="button"
+                onClick={() => importInputRef.current?.click()}
+              >
+                <Upload size={15} aria-hidden="true" />
+              </button>
+              <input
+                accept="application/json,.json"
+                aria-label="Import layout file"
+                className="layout-card__import-input"
+                ref={importInputRef}
+                type="file"
+                onChange={(event) => {
+                  const file = event.currentTarget.files?.[0];
+
+                  if (file) {
+                    onImportLayout(layout.id, file);
+                  }
+
+                  event.currentTarget.value = "";
+                }}
+              />
+              <button
+                aria-label="Delete layout"
+                className="layout-action-button"
+                data-tooltip="Delete layout"
+                type="button"
+                onClick={() => onDeleteLayout(layout.id)}
+              >
+                <Trash2 size={15} aria-hidden="true" />
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -544,6 +591,9 @@ function LayoutCard({
                     setDraggedEntryId(entry.id);
                     setDropTarget(null);
                   }}
+                  onProductionSizeChange={(productionSize) =>
+                    onRecipeProductionSizeChange(layout.id, entry.id, productionSize)
+                  }
                   onRemove={() => onRemoveRecipeFromLayout(layout.id, entry.id)}
                   onSelectItem={onSelectItem}
                 />
@@ -566,6 +616,7 @@ interface LayoutRecipeRowProps {
   dragging: boolean;
   dropPlacement: LayoutReorderPlacement | null;
   onDragStart(): void;
+  onProductionSizeChange(productionSize: number): void;
   onRemove(): void;
   onSelectItem(itemId: string): void;
 }
@@ -577,6 +628,7 @@ function LayoutRecipeRow({
   entry,
   index,
   onDragStart,
+  onProductionSizeChange,
   recipe,
   onRemove,
   onSelectItem,
@@ -584,6 +636,13 @@ function LayoutRecipeRow({
   const metadata = getRecipeMetadata(recipe);
   const icon = data.iconById.get(getRecipeIconId(recipe));
   const contextItemId = getRecipeContextItemId(data, recipe);
+  const [productionSizeDraft, setProductionSizeDraft] = useState(
+    formatProductionSize(entry.productionSize),
+  );
+
+  useEffect(() => {
+    setProductionSizeDraft(formatProductionSize(entry.productionSize));
+  }, [entry.productionSize]);
 
   return (
     <div
@@ -619,6 +678,37 @@ function LayoutRecipeRow({
         <IconSprite atlas={data.atlas} icon={icon} label={metadata.name} size={24} />
         <span>{metadata.name}</span>
       </button>
+      <label
+        className="layout-recipe-row__size"
+        data-tooltip="Production size"
+      >
+        <span>x</span>
+        <input
+          aria-label={`${metadata.name} production size`}
+          inputMode="decimal"
+          min="0.000001"
+          step="any"
+          type="number"
+          value={productionSizeDraft}
+          onBlur={() => {
+            if (parseProductionSizeInput(productionSizeDraft) === null) {
+              setProductionSizeDraft(formatProductionSize(entry.productionSize));
+            }
+          }}
+          onChange={(event) => {
+            const nextDraft = event.target.value;
+            const productionSize = parseProductionSizeInput(nextDraft);
+
+            setProductionSizeDraft(nextDraft);
+
+            if (productionSize !== null) {
+              onProductionSizeChange(productionSize);
+            }
+          }}
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+        />
+      </label>
       <button
         aria-label={`Remove ${metadata.name} from layout`}
         className="layout-recipe-row__remove"
@@ -630,6 +720,18 @@ function LayoutRecipeRow({
       </button>
     </div>
   );
+}
+
+function formatProductionSize(value: number): string {
+  return Number.isFinite(value) ? String(value) : "1";
+}
+
+function parseProductionSizeInput(value: string): number | null {
+  const productionSize = Number(value);
+
+  return Number.isFinite(productionSize) && productionSize > 0
+    ? productionSize
+    : null;
 }
 
 function getRecipeContextItemId(

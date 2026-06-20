@@ -13,6 +13,7 @@ import {
   getIconIdForItem,
   getRecipeMetadata,
 } from "./data/factoriolab";
+import { defaultProductionSize } from "./types";
 import type {
   FilterState,
   GraphEdgeRoute,
@@ -236,6 +237,29 @@ export function App() {
     );
   }
 
+  function updateRecipeProductionSize(
+    layoutId: string,
+    entryId: string,
+    productionSize: number,
+  ) {
+    const nextProductionSize = normalizeProductionSize(productionSize);
+
+    setLayouts((currentLayouts) =>
+      currentLayouts.map((layout) =>
+        layout.id === layoutId
+          ? {
+              ...layout,
+              entries: layout.entries.map((entry) =>
+                entry.id === entryId
+                  ? { ...entry, productionSize: nextProductionSize }
+                  : entry,
+              ),
+            }
+          : layout,
+      ),
+    );
+  }
+
   function reorderRecipeInLayout(
     layoutId: string,
     sourceEntryId: string,
@@ -345,6 +369,67 @@ export function App() {
     return (
       focusedLayout?.entries.filter((entry) => entry.recipeId === recipeId).length ?? 0
     );
+  }
+
+  function exportLayout(layoutId: string) {
+    const layout = layouts.find((candidate) => candidate.id === layoutId);
+
+    if (!layout) {
+      return;
+    }
+
+    const state = JSON.parse(serializeLayoutState([layout], layout.id)) as unknown;
+    const payload = {
+      type: "factorio-facts/layout",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      state,
+    };
+    const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `${slugifyFilename(layout.name.trim() || "untitled-layout")}.json`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+
+  async function importLayout(layoutId: string, file: File) {
+    const targetLayout = layouts.find((layout) => layout.id === layoutId);
+
+    if (!targetLayout || targetLayout.entries.length) {
+      return;
+    }
+
+    try {
+      const importedLayout = parseImportedLayout(await file.text());
+
+      if (!importedLayout) {
+        window.alert("That file is not a factorio-facts layout export.");
+        return;
+      }
+
+      setLayouts((currentLayouts) =>
+        currentLayouts.map((layout) =>
+          layout.id === layoutId
+            ? {
+                ...importedLayout,
+                id: layout.id,
+                collapsed: false,
+              }
+            : layout,
+        ),
+      );
+      setFocusedLayoutId(layoutId);
+      clearGraphHistory(layoutId);
+    } catch {
+      window.alert("Could not import that layout file.");
+    }
   }
 
   function captureGraphHistory(layoutId: string) {
@@ -749,7 +834,9 @@ export function App() {
         onCreateLayout={createLayout}
         onDeleteLayout={deleteLayout}
         onFocusLayout={focusLayout}
+        onImportLayout={importLayout}
         onOpenLayoutGraph={setGraphLayoutId}
+        onRecipeProductionSizeChange={updateRecipeProductionSize}
         onRemoveRecipeFromLayout={removeRecipeFromLayout}
         onRenameLayout={renameLayout}
         onReorderLayout={reorderLayout}
@@ -865,6 +952,7 @@ export function App() {
           onExternalItemsChange={(terminalId, itemKeys) =>
             updateLayoutGraphExternalItems(graphLayout.id, terminalId, itemKeys)
           }
+          onExportLayout={() => exportLayout(graphLayout.id)}
           onRelayCreate={(relay, position) =>
             createLayoutGraphRelay(graphLayout.id, relay, position)
           }
@@ -1071,6 +1159,7 @@ interface SerializedLayout {
 interface SerializedLayoutEntry {
   i?: unknown;
   r?: unknown;
+  s?: unknown;
 }
 
 interface SerializedGraphRelay {
@@ -1114,6 +1203,31 @@ function parseLayoutState(value: string | null): ParsedLayoutState {
   } catch {
     return defaultLayoutState();
   }
+}
+
+function parseImportedLayout(value: string): RecipeLayout | null {
+  const parsed = JSON.parse(value) as unknown;
+
+  if (!isRecord(parsed)) {
+    return null;
+  }
+
+  let state: unknown = parsed;
+
+  if (parsed.type === "factorio-facts/layout" && isRecord(parsed.state)) {
+    state = parsed.state;
+  } else if (!Array.isArray(parsed.l) && isRecord(parsed.layout)) {
+    state = { l: [parsed.layout] };
+  }
+
+  if (!isRecord(state) || !Array.isArray(state.l)) {
+    return null;
+  }
+
+  const importedState = parseLayoutState(JSON.stringify(state));
+  const importedLayout = importedState.layouts[0] ?? null;
+
+  return importedLayout && importedLayout.entries.length ? importedLayout : null;
 }
 
 function parseLayout(
@@ -1399,16 +1513,19 @@ function parseLayoutEntry(
   seenEntryIds: Set<string>,
 ): RecipeLayoutEntry[] {
   let rawId: unknown;
+  let rawProductionSize: unknown;
   let rawRecipeId: unknown;
 
   if (Array.isArray(rawEntry)) {
     rawId = rawEntry[0];
     rawRecipeId = rawEntry[1];
+    rawProductionSize = rawEntry[2];
   } else if (isRecord(rawEntry)) {
     const entry = rawEntry as SerializedLayoutEntry;
 
     rawId = entry.i;
     rawRecipeId = entry.r;
+    rawProductionSize = entry.s;
   }
 
   if (typeof rawRecipeId !== "string" || !explorerData.recipeById.has(rawRecipeId)) {
@@ -1421,9 +1538,16 @@ function parseLayoutEntry(
         typeof rawId === "string" && rawId ? rawId : `entry-${index + 1}`,
         seenEntryIds,
       ),
+      productionSize: parseProductionSize(rawProductionSize),
       recipeId: rawRecipeId,
     },
   ];
+}
+
+function parseProductionSize(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? normalizeProductionSize(value)
+    : defaultProductionSize;
 }
 
 function parseGraphRelay(
@@ -1468,7 +1592,15 @@ function serializeLayoutState(layouts: RecipeLayout[], focusedLayoutId: string):
       i: layout.id,
       n: layout.name,
       c: layout.collapsed ? 1 : 0,
-      e: layout.entries.map((entry) => [entry.id, entry.recipeId]),
+      e: layout.entries.map((entry) =>
+        isDefaultProductionSize(entry.productionSize)
+          ? [entry.id, entry.recipeId]
+          : [
+              entry.id,
+              entry.recipeId,
+              normalizeProductionSize(entry.productionSize),
+            ],
+      ),
       y: serializeGraphRelays(layout),
       h: serializeGraphEdgePorts(layout),
       m: serializeGraphEdgeItems(layout),
@@ -1675,6 +1807,7 @@ function createEmptyLayout(id: string): RecipeLayout {
 function createLayoutEntry(recipeId: string): RecipeLayoutEntry {
   return {
     id: createLayoutEntryId(),
+    productionSize: defaultProductionSize,
     recipeId,
   };
 }
@@ -1707,9 +1840,18 @@ function applyGraphLayoutSnapshot(
   layout: RecipeLayout,
   snapshot: GraphLayoutSnapshot,
 ): RecipeLayout {
+  const currentProductionSizeByEntryId = new Map(
+    layout.entries.map((entry) => [entry.id, entry.productionSize] as const),
+  );
+
   return {
     ...layout,
-    entries: snapshot.entries.map((entry) => ({ ...entry })),
+    entries: snapshot.entries.map((entry) => ({
+      ...entry,
+      productionSize:
+        currentProductionSizeByEntryId.get(entry.id) ??
+        normalizeProductionSize(entry.productionSize),
+    })),
     relays: snapshot.relays.map((relay) => ({
       ...relay,
       itemKeys: [...relay.itemKeys],
@@ -1989,6 +2131,26 @@ function parseStringList(value: unknown): string[] {
 
 function uniqueStrings(values: string[]): string[] {
   return [...new Set(values)].sort();
+}
+
+function normalizeProductionSize(value: number): number {
+  return Number.isFinite(value) && value > 0
+    ? Math.round(value * 1_000_000) / 1_000_000
+    : defaultProductionSize;
+}
+
+function isDefaultProductionSize(value: number): boolean {
+  return normalizeProductionSize(value) === defaultProductionSize;
+}
+
+function slugifyFilename(value: string): string {
+  return (
+    value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "layout"
+  );
 }
 
 function parseItemId(value: string | null): string | null {

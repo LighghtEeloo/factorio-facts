@@ -11,6 +11,7 @@ import {
 import {
   Check,
   CirclePlus,
+  Download,
   GitMerge,
   Link2,
   Maximize2,
@@ -111,6 +112,7 @@ interface LayoutGraphDialogProps {
   onEdgeRouteChange(edgeId: string, route: GraphEdgeRoute): void;
   onEdgeRouteReset(edgeId: string): void;
   onExternalItemsChange(terminalId: string, itemKeys: string[]): void;
+  onExportLayout(): void;
   onGraphEditStart(): void;
   onGraphRedo(): void;
   onGraphUndo(): void;
@@ -135,6 +137,7 @@ export function LayoutGraphDialog({
   onEdgeRouteChange,
   onEdgeRouteReset,
   onExternalItemsChange,
+  onExportLayout,
   onGraphEditStart,
   onGraphRedo,
   onGraphUndo,
@@ -705,6 +708,15 @@ export function LayoutGraphDialog({
             onTogglePendingConnectionItem={togglePendingConnectionItem}
           />
           <div className="popup-header-actions">
+            <button
+              aria-label="Export layout"
+              className="icon-button"
+              data-tooltip="Export layout"
+              type="button"
+              onClick={onExportLayout}
+            >
+              <Download size={18} aria-hidden="true" />
+            </button>
             <button
               aria-label="Undo layout graph change"
               className="icon-button"
