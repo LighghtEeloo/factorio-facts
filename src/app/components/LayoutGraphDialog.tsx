@@ -11,6 +11,7 @@ import {
 import {
   Check,
   CirclePlus,
+  GitMerge,
   Link2,
   Maximize2,
   Minimize2,
@@ -457,6 +458,19 @@ export function LayoutGraphDialog({
     setPendingConnection(null);
   }
 
+  function smartMergeRelay(node: GraphFlowNode) {
+    if (node.data.kind !== "relay") {
+      return;
+    }
+
+    const itemKeys = node.data.materials.map((material) => getEntityKey(material));
+    const egressEdges = getRelayEgressEdges(node.id, itemKeys, graph.nodes);
+
+    for (const edge of egressEdges) {
+      onEdgeItemsChange(edge.edgeId, edge.itemKeys);
+    }
+  }
+
   function createRelayFromTerminal(terminal: SelectedGraphTerminal) {
     const itemKeys = uniqueStringItems(terminal.entries.map((entry) => getEntityKey(entry)));
 
@@ -498,6 +512,12 @@ export function LayoutGraphDialog({
     onEdgePortsChange(edgeId, ports);
     onTerminalSideChange(getGraphTerminalId(relay.id, terminal.kind), terminal.side);
 
+    if (terminal.kind === "output") {
+      for (const egressEdge of getRelayEgressEdges(relay.id, itemKeys, graph.nodes)) {
+        onEdgeItemsChange(egressEdge.edgeId, []);
+      }
+    }
+
     if (remainingForcedItemKeys.length !== forcedItemKeys.length) {
       onExternalItemsChange(terminal.id, remainingForcedItemKeys);
     }
@@ -538,7 +558,6 @@ export function LayoutGraphDialog({
 
       const edgeItemKeys = edgeData.items.map((item) => getEntityKey(item));
       const sourceRelayEdgeId = getGraphEdgeId(edge.source, relay.id);
-      const relayTargetEdgeId = getGraphEdgeId(relay.id, edge.target);
 
       onEdgeItemsChange(edge.id, []);
 
@@ -550,16 +569,14 @@ export function LayoutGraphDialog({
         sourceSide: edgeData.ports.sourceSide,
         targetSide: getOppositeGraphSide(edgeData.ports.sourceSide),
       });
-      onEdgePortsChange(relayTargetEdgeId, {
-        sourceSide: getOppositeGraphSide(edgeData.ports.targetSide),
-        targetSide: edgeData.ports.targetSide,
-      });
       addReplacementEdgeItems(replacementEdgeItems, sourceRelayEdgeId, edgeItemKeys);
-      addReplacementEdgeItems(replacementEdgeItems, relayTargetEdgeId, edgeItemKeys);
     }
 
     for (const [edgeId, edgeItemKeys] of replacementEdgeItems) {
       onEdgeItemsChange(edgeId, [...edgeItemKeys]);
+    }
+    for (const egressEdge of getRelayEgressEdges(relay.id, itemKeys, graph.nodes)) {
+      onEdgeItemsChange(egressEdge.edgeId, []);
     }
 
     setSelectedNodeId(relay.id);
@@ -616,6 +633,7 @@ export function LayoutGraphDialog({
             onApplyNodeChanges={applyNodeToolbarChanges}
             onDeleteRelay={deleteRelay}
             onResetEdgeItems={onEdgeItemsReset}
+            onSmartMergeRelay={smartMergeRelay}
             onToggleConnectMode={toggleConnectMode}
             onTogglePendingConnectionItem={togglePendingConnectionItem}
           />
@@ -778,6 +796,7 @@ interface GraphHeaderToolbarProps {
   onCreateRelayFromTerminal(terminal: SelectedGraphTerminal): void;
   onDeleteRelay(relayId: string): void;
   onResetEdgeItems(edgeId: string): void;
+  onSmartMergeRelay(node: GraphFlowNode): void;
   onToggleConnectMode(nodeId: string): void;
   onTogglePendingConnectionItem(itemKey: string): void;
 }
@@ -800,6 +819,7 @@ function GraphHeaderToolbar({
   onCreateRelayFromTerminal,
   onDeleteRelay,
   onResetEdgeItems,
+  onSmartMergeRelay,
   onToggleConnectMode,
   onTogglePendingConnectionItem,
 }: GraphHeaderToolbarProps) {
@@ -888,6 +908,7 @@ function GraphHeaderToolbar({
         nodeHasTerminalOverrides={nodeHasTerminalOverrides}
         onApplyNodeChanges={onApplyNodeChanges}
         onDeleteRelay={onDeleteRelay}
+        onSmartMergeRelay={onSmartMergeRelay}
         onToggleConnectMode={onToggleConnectMode}
       />
     );
@@ -915,6 +936,7 @@ interface GraphNodeToolbarProps {
   nodeHasTerminalOverrides: boolean;
   onApplyNodeChanges(node: GraphFlowNode, changes: GraphNodeToolbarChanges): void;
   onDeleteRelay(relayId: string): void;
+  onSmartMergeRelay(node: GraphFlowNode): void;
   onToggleConnectMode(nodeId: string): void;
 }
 
@@ -925,6 +947,7 @@ function GraphNodeToolbar({
   nodeHasTerminalOverrides,
   onApplyNodeChanges,
   onDeleteRelay,
+  onSmartMergeRelay,
   onToggleConnectMode,
 }: GraphNodeToolbarProps) {
   const label = node.data.label;
@@ -1127,6 +1150,17 @@ function GraphNodeToolbar({
           onClick={() => onDeleteRelay(node.id)}
         >
           <Trash2 size={16} aria-hidden="true" />
+        </button>
+      ) : null}
+      {node.data.kind === "relay" ? (
+        <button
+          aria-label={`Smart merge ${label}`}
+          className="icon-button layout-graph-toolbar__button"
+          data-tooltip="Smart merge"
+          type="button"
+          onClick={() => onSmartMergeRelay(node)}
+        >
+          <GitMerge size={16} aria-hidden="true" />
         </button>
       ) : null}
       <button
@@ -3033,6 +3067,48 @@ function getOppositeGraphSide(side: GraphSide): GraphSide {
     case "left":
       return "right";
   }
+}
+
+function getRelayEgressEdges(
+  relayId: string,
+  itemKeys: string[],
+  nodes: GraphFlowNode[],
+): Array<{ edgeId: string; itemKeys: string[] }> {
+  const relayProducts = uniqueProducts(
+    itemKeys.flatMap((itemKey) => productFromEntityKey(itemKey) ?? []),
+  );
+
+  if (!relayProducts.length) {
+    return [];
+  }
+
+  return nodes.flatMap((target) => {
+    if (target.id === relayId) {
+      return [];
+    }
+
+    const ingredients = getGraphFlowNodeIngredients(target);
+    const availableItems = uniqueProducts(
+      relayProducts.filter((product) =>
+        ingredients.some((ingredient) => entitiesCanFlow(product, ingredient)),
+      ),
+    );
+
+    return availableItems.length
+      ? [
+          {
+            edgeId: getGraphEdgeId(relayId, target.id),
+            itemKeys: availableItems.map((item) => getEntityKey(item)),
+          },
+        ]
+      : [];
+  });
+}
+
+function getGraphFlowNodeIngredients(node: GraphFlowNode): IngredientPrototype[] {
+  return node.data.kind === "recipe"
+    ? (node.data.recipe.ingredients ?? [])
+    : node.data.materials.map(productToIngredient);
 }
 
 function addReplacementEdgeItems(
