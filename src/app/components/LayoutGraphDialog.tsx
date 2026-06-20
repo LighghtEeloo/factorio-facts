@@ -286,29 +286,30 @@ export function LayoutGraphDialog({
           selectedTerminal,
           changeTerminalSide,
         );
+        const isConnectableTarget = Boolean(
+          connectingFromNodeId &&
+            connectingFromNodeId !== node.id &&
+            getConnectionCandidateBetween(
+              graph.connectionCandidates,
+              connectingFromNodeId,
+              node.id,
+            ),
+        );
+        const nodeState = {
+          endpointSelector,
+          isConnectableTarget,
+          isConnecting: connectingFromNodeId === node.id,
+          isSelected: node.id === selectedNodeId,
+        };
 
-        return node.type === "recipe"
-          ? {
-              ...node,
-              selected: node.id === selectedNodeId,
-              data: {
-                ...node.data,
-                endpointSelector,
-              },
-            }
-          : {
-              ...node,
-              selected: node.id === selectedNodeId,
-              data: {
-                ...node.data,
-                endpointSelector,
-              },
-            };
+        return applyGraphNodeState(node, nodeState);
       }),
     [
       nodes,
       changeEdgePorts,
       changeTerminalSide,
+      connectingFromNodeId,
+      graph.connectionCandidates,
       selectedEdge,
       selectedNodeId,
       selectedTerminal,
@@ -1734,6 +1735,9 @@ interface BaseGraphNodeData extends Record<string, unknown> {
   externalOutputOptions: GraphExternalItemOption[];
   externalOutputs: ProductPrototype[];
   kind: "recipe" | "relay";
+  isConnectableTarget: boolean;
+  isConnecting: boolean;
+  isSelected: boolean;
   label: string;
   onFocusTerminal(terminalId: string): void;
   onSelectItem(itemId: string): void;
@@ -1760,6 +1764,13 @@ interface GraphEndpointSelector {
   onSelectSide(side: GraphSide): void;
 }
 
+interface GraphNodeInteractionState {
+  endpointSelector: GraphEndpointSelector | null;
+  isConnectableTarget: boolean;
+  isConnecting: boolean;
+  isSelected: boolean;
+}
+
 interface SelectedGraphTerminal {
   entries: Array<IngredientPrototype | ProductPrototype>;
   id: string;
@@ -1773,11 +1784,25 @@ type RecipeFlowNode = Node<RecipeNodeData, "recipe">;
 type RelayFlowNode = Node<RelayNodeData, "relay">;
 type GraphFlowNode = RecipeFlowNode | RelayFlowNode;
 
+function applyGraphNodeState<TNode extends GraphFlowNode>(
+  node: TNode,
+  state: GraphNodeInteractionState,
+): TNode {
+  return {
+    ...node,
+    selected: state.isSelected,
+    data: {
+      ...node.data,
+      ...state,
+    },
+  } as TNode;
+}
+
 function RecipeNode({ data, id }: NodeProps<RecipeFlowNode>) {
   const icon = data.data.iconById.get(getRecipeIconId(data.recipe));
 
   return (
-    <article className="layout-graph-node">
+    <article className={`layout-graph-node ${getGraphNodeStateClassName(data)}`}>
       <GraphNodeHandles />
       <GraphEndpointButtons
         endpointSelector={data.endpointSelector ?? null}
@@ -1825,7 +1850,11 @@ function RelayNode({ data, id }: NodeProps<RelayFlowNode>) {
   const hiddenCount = Math.max(0, data.materials.length - visibleMaterials.length);
 
   return (
-    <article className="layout-graph-node layout-graph-node--relay">
+    <article
+      className={`layout-graph-node layout-graph-node--relay ${getGraphNodeStateClassName(
+        data,
+      )}`}
+    >
       <GraphNodeHandles />
       <GraphEndpointButtons
         endpointSelector={data.endpointSelector ?? null}
@@ -1873,6 +1902,16 @@ function RelayNode({ data, id }: NodeProps<RelayFlowNode>) {
       />
     </article>
   );
+}
+
+function getGraphNodeStateClassName(data: BaseGraphNodeData): string {
+  return [
+    data.isSelected ? "layout-graph-node--selected" : "",
+    data.isConnecting ? "layout-graph-node--connecting" : "",
+    data.isConnectableTarget ? "layout-graph-node--connectable" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 function GraphNodeHandles() {
@@ -2583,6 +2622,9 @@ function buildFlowNode(
     externalInputs: node.externalInputs,
     externalOutputOptions: node.externalOutputOptions,
     externalOutputs: node.externalOutputs,
+    isConnectableTarget: false,
+    isConnecting: false,
+    isSelected: false,
     kind: node.kind,
     label: node.label,
     onFocusTerminal,
