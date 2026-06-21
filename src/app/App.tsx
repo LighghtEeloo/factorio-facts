@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
@@ -36,7 +36,6 @@ import type {
 import { AppSidebar } from "./components/AppSidebar";
 import { FilterPanel } from "./components/FilterPanel";
 import { IconSprite } from "./components/IconSprite";
-import { LayoutGraphDialog } from "./components/LayoutGraphDialog";
 import { LayoutWorkspace } from "./components/LayoutWorkspace";
 import { RecipeColumn } from "./components/RecipeColumn";
 import { TooltipLayer } from "./components/TooltipLayer";
@@ -68,6 +67,12 @@ const defaultFilters: FilterState = {
 const defaultAppView: AppView = "recipes";
 const defaultLayoutId = "layout-1";
 const graphHistoryLimit = 80;
+
+const LayoutGraphDialog = lazy(() =>
+  import("./components/LayoutGraphDialog").then((module) => ({
+    default: module.LayoutGraphDialog,
+  })),
+);
 
 let nextLayoutSequence = 2;
 let nextLayoutEntrySequence = 1;
@@ -1150,53 +1155,55 @@ export function App() {
       {activeView === "graph" ? (
         <section className="graph-workspace">
           {graphLayout ? (
-            <LayoutGraphDialog
-              canRedoGraph={Boolean(graphHistory?.redo.length)}
-              canUndoGraph={Boolean(graphHistory?.undo.length)}
-              data={recipeData}
-              layout={graphLayout}
-              variant="workspace"
-              onClose={() => setActiveView("layouts")}
-              onEdgePortsChange={(edgeId, ports) =>
-                updateLayoutGraphEdgePorts(graphLayout.id, edgeId, ports)
-              }
-              onEdgeRouteChange={(edgeId, route) =>
-                updateLayoutGraphEdgeRoute(graphLayout.id, edgeId, route)
-              }
-              onEdgeRouteReset={(edgeId) =>
-                resetLayoutGraphEdgeRoute(graphLayout.id, edgeId)
-              }
-              onEdgeItemsChange={(edgeId, itemKeys) =>
-                updateLayoutGraphEdgeItems(graphLayout.id, edgeId, itemKeys)
-              }
-              onEdgeItemsReset={(edgeId) =>
-                resetLayoutGraphEdgeItems(graphLayout.id, edgeId)
-              }
-              onExternalItemsChange={(terminalId, itemKeys) =>
-                updateLayoutGraphExternalItems(graphLayout.id, terminalId, itemKeys)
-              }
-              onExportLayout={() => exportLayout(graphLayout.id)}
-              onRelayCreate={(relay, position) =>
-                createLayoutGraphRelay(graphLayout.id, relay, position)
-              }
-              onRelayDelete={(relayId) =>
-                deleteLayoutGraphRelay(graphLayout.id, relayId)
-              }
-              onRelayItemsChange={(relayId, itemKeys) =>
-                updateLayoutGraphRelayItems(graphLayout.id, relayId, itemKeys)
-              }
-              onGraphEditStart={() => captureGraphHistory(graphLayout.id)}
-              onGraphRedo={() => redoLayoutGraph(graphLayout.id)}
-              onGraphUndo={() => undoLayoutGraph(graphLayout.id)}
-              onNodePositionChange={(entryId, position) =>
-                updateLayoutGraphNodePosition(graphLayout.id, entryId, position)
-              }
-              onResetGraphPositions={() => resetLayoutGraph(graphLayout.id)}
-              onSelectItem={selectItem}
-              onTerminalSideChange={(terminalId, side) =>
-                updateLayoutGraphTerminalSide(graphLayout.id, terminalId, side)
-              }
-            />
+            <Suspense fallback={<GraphLoadingState />}>
+              <LayoutGraphDialog
+                canRedoGraph={Boolean(graphHistory?.redo.length)}
+                canUndoGraph={Boolean(graphHistory?.undo.length)}
+                data={recipeData}
+                layout={graphLayout}
+                variant="workspace"
+                onClose={() => setActiveView("layouts")}
+                onEdgePortsChange={(edgeId, ports) =>
+                  updateLayoutGraphEdgePorts(graphLayout.id, edgeId, ports)
+                }
+                onEdgeRouteChange={(edgeId, route) =>
+                  updateLayoutGraphEdgeRoute(graphLayout.id, edgeId, route)
+                }
+                onEdgeRouteReset={(edgeId) =>
+                  resetLayoutGraphEdgeRoute(graphLayout.id, edgeId)
+                }
+                onEdgeItemsChange={(edgeId, itemKeys) =>
+                  updateLayoutGraphEdgeItems(graphLayout.id, edgeId, itemKeys)
+                }
+                onEdgeItemsReset={(edgeId) =>
+                  resetLayoutGraphEdgeItems(graphLayout.id, edgeId)
+                }
+                onExternalItemsChange={(terminalId, itemKeys) =>
+                  updateLayoutGraphExternalItems(graphLayout.id, terminalId, itemKeys)
+                }
+                onExportLayout={() => exportLayout(graphLayout.id)}
+                onRelayCreate={(relay, position) =>
+                  createLayoutGraphRelay(graphLayout.id, relay, position)
+                }
+                onRelayDelete={(relayId) =>
+                  deleteLayoutGraphRelay(graphLayout.id, relayId)
+                }
+                onRelayItemsChange={(relayId, itemKeys) =>
+                  updateLayoutGraphRelayItems(graphLayout.id, relayId, itemKeys)
+                }
+                onGraphEditStart={() => captureGraphHistory(graphLayout.id)}
+                onGraphRedo={() => redoLayoutGraph(graphLayout.id)}
+                onGraphUndo={() => undoLayoutGraph(graphLayout.id)}
+                onNodePositionChange={(entryId, position) =>
+                  updateLayoutGraphNodePosition(graphLayout.id, entryId, position)
+                }
+                onResetGraphPositions={() => resetLayoutGraph(graphLayout.id)}
+                onSelectItem={selectItem}
+                onTerminalSideChange={(terminalId, side) =>
+                  updateLayoutGraphTerminalSide(graphLayout.id, terminalId, side)
+                }
+              />
+            </Suspense>
           ) : (
             <div className="workspace-empty app-panel">
               <Package size={40} aria-hidden="true" />
@@ -1225,6 +1232,18 @@ function DataFootnote() {
         {explorerData.recipes.length} recipes
       </span>
     </footer>
+  );
+}
+
+function GraphLoadingState() {
+  return (
+    <div className="workspace-empty app-panel">
+      <Package size={40} aria-hidden="true" />
+      <div>
+        <h1>Loading graph</h1>
+        <span>Preparing layout graph tools</span>
+      </div>
+    </div>
   );
 }
 
