@@ -204,6 +204,8 @@ The current hidden/internal filter is approximated through FactorioLab recipe fl
 
 The UI should feel like a dense factory planning surface: compact, scan-friendly, icon-heavy, and restrained. Use the FactorioLab icon atlas for item recognition, keep cards small, and prioritize legibility over spectacle.
 
+Selected rows and pressed controls should avoid extra accent bars, doubled inset borders, or button-like ornamental highlights when the selected border/background already communicates focus. In dense editing surfaces, those extra accents compete with drag handles, graph actions, and item icons, making the interface feel noisier without adding useful state information.
+
 ## References
 
 - Factorio command line parameters: <https://wiki.factorio.com/Command_line_parameters>
