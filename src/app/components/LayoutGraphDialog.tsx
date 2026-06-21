@@ -36,6 +36,7 @@ import {
   ReactFlow,
   getBezierPath,
   useReactFlow,
+  useNodesInitialized,
   type Edge,
   type EdgeProps,
   type EdgeTypes,
@@ -80,6 +81,7 @@ const graphRowGap = 170;
 const recipeNodeWidth = 168;
 const recipeNodeHeight = 78;
 const relayNodeSize = 66;
+const graphOpenFitPadding = 0.18;
 const graphSides = ["top", "right", "bottom", "left"] as const satisfies readonly GraphSide[];
 const defaultGraphEdgePorts: GraphEdgePorts = {
   sourceSide: "right",
@@ -900,6 +902,7 @@ export function LayoutGraphDialog({
               onPaneClick={clearGraphFocus}
               proOptions={{ hideAttribution: true }}
             >
+              <GraphOpenAutoSizer layoutId={layout.id} nodeCount={graphNodes.length} />
               <Background color="#4b4735" gap={34} />
               <Controls showInteractive={false} />
               <GraphShortcutHints />
@@ -970,6 +973,37 @@ export function LayoutGraphDialog({
       ) : null}
     </div>
   );
+}
+
+function GraphOpenAutoSizer({
+  layoutId,
+  nodeCount,
+}: {
+  layoutId: string;
+  nodeCount: number;
+}) {
+  const reactFlow = useReactFlow<GraphFlowNode, ItemFlowEdgeType>();
+  const nodesInitialized = useNodesInitialized();
+  const fittedLayoutIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (
+      nodeCount === 0 ||
+      !nodesInitialized ||
+      fittedLayoutIdRef.current === layoutId
+    ) {
+      return;
+    }
+
+    const animationFrame = window.requestAnimationFrame(() => {
+      fittedLayoutIdRef.current = layoutId;
+      void reactFlow.fitView({ padding: graphOpenFitPadding, duration: 0 });
+    });
+
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [layoutId, nodeCount, nodesInitialized, reactFlow]);
+
+  return null;
 }
 
 function GraphShortcutHints() {
