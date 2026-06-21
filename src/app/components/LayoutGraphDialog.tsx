@@ -161,6 +161,8 @@ export function LayoutGraphDialog({
   const [isResetConfirming, setIsResetConfirming] = useState(false);
   const [exportText, setExportText] = useState<string | null>(null);
   const [isExportCopied, setIsExportCopied] = useState(false);
+  const graphNodesRef = useRef<GraphFlowNode[]>([]);
+  const connectionCandidatesRef = useRef<GraphConnectionCandidate[]>([]);
   const focusEdge = useCallback((edgeId: string, additive = false) => {
     setSelectedEdgeIds((currentEdgeIds) => {
       if (!additive) {
@@ -225,7 +227,50 @@ export function LayoutGraphDialog({
     },
     [onGraphEditStart, onTerminalSideChange],
   );
-  const graphNodesRef = useRef<GraphFlowNode[]>([]);
+  const beginPendingConnection = useCallback(
+    (firstNodeId: string, secondNodeId: string) => {
+      const candidate = getConnectionCandidateBetween(
+        connectionCandidatesRef.current,
+        firstNodeId,
+        secondNodeId,
+      );
+
+      if (!candidate) {
+        setConnectingFromNodeId(null);
+        setPendingConnection(null);
+        return;
+      }
+
+      setSelectedEdgeIds([]);
+      setSelectedNodeId(null);
+      setSelectedTerminalId(null);
+      setConnectingFromNodeId(null);
+      setPendingConnection(createPendingGraphConnection(candidate, layout.edgeItems));
+    },
+    [layout.edgeItems],
+  );
+  const selectConnectableNode = useCallback<GraphNodeSelectHandler>(
+    (nodeId, event) => {
+      event.stopPropagation();
+
+      if (connectingFromNodeId && connectingFromNodeId !== nodeId) {
+        beginPendingConnection(connectingFromNodeId, nodeId);
+        return;
+      }
+
+      if (event.shiftKey && selectedNodeId && selectedNodeId !== nodeId) {
+        beginPendingConnection(selectedNodeId, nodeId);
+        return;
+      }
+
+      setSelectedNodeId(nodeId);
+      setSelectedEdgeIds([]);
+      setSelectedTerminalId(null);
+      setConnectingFromNodeId(null);
+      setPendingConnection(null);
+    },
+    [beginPendingConnection, connectingFromNodeId, selectedNodeId],
+  );
   const createRelayFromTerminal = useCallback(
     (terminal: SelectedGraphTerminal) => {
       const itemKeys = uniqueStringItems(
@@ -310,6 +355,7 @@ export function LayoutGraphDialog({
         resetEdgeRoute,
         focusTerminal,
         createRelayFromTerminal,
+        selectConnectableNode,
         selectedTerminalId,
       ),
     [
@@ -321,10 +367,12 @@ export function LayoutGraphDialog({
       focusTerminal,
       layout,
       onSelectItem,
+      selectConnectableNode,
       selectedTerminalId,
     ],
   );
   graphNodesRef.current = graph.nodes;
+  connectionCandidatesRef.current = graph.connectionCandidates;
   const [nodes, setNodes] = useState<GraphFlowNode[]>(graph.nodes);
   const edges = useMemo(
     () =>
@@ -482,53 +530,7 @@ export function LayoutGraphDialog({
     event: ReactMouseEvent,
     node: GraphFlowNode,
   ) {
-    if (connectingFromNodeId && connectingFromNodeId !== node.id) {
-      event.stopPropagation();
-      startPendingConnection(connectingFromNodeId, node.id);
-      return;
-    }
-
-    if (event.shiftKey && selectedNodeId && selectedNodeId !== node.id) {
-      event.stopPropagation();
-      startPendingConnection(selectedNodeId, node.id);
-      return;
-    }
-
-    setSelectedNodeId(node.id);
-    setSelectedEdgeIds([]);
-    setSelectedTerminalId(null);
-    setConnectingFromNodeId(null);
-    setPendingConnection(null);
-  }
-
-  function startPendingConnection(firstNodeId: string, secondNodeId: string) {
-    const candidate = getConnectionCandidateBetween(
-      graph.connectionCandidates,
-      firstNodeId,
-      secondNodeId,
-    );
-
-    if (!candidate) {
-      setConnectingFromNodeId(null);
-      setPendingConnection(null);
-      return;
-    }
-
-    setSelectedEdgeIds([]);
-    setSelectedNodeId(null);
-    setSelectedTerminalId(null);
-    setConnectingFromNodeId(null);
-    const availableItemKeys = new Set<string>(
-      candidate.availableItems.map((item) => getEntityKey(item)),
-    );
-    const savedItemKeys = layout.edgeItems[candidate.id];
-    setPendingConnection({
-      sourceId: candidate.sourceId,
-      targetId: candidate.targetId,
-      itemKeys:
-        savedItemKeys?.filter((itemKey) => availableItemKeys.has(itemKey)) ??
-        [...availableItemKeys],
-    });
+    selectConnectableNode(node.id, event);
   }
 
   function toggleConnectMode(nodeId: string) {
@@ -973,6 +975,24 @@ interface PendingGraphConnection {
   itemKeys: string[];
   sourceId: string;
   targetId: string;
+}
+
+function createPendingGraphConnection(
+  candidate: GraphConnectionCandidate,
+  edgeItems: Record<string, string[]>,
+): PendingGraphConnection {
+  const availableItemKeys = new Set<string>(
+    candidate.availableItems.map((item) => getEntityKey(item)),
+  );
+  const savedItemKeys = edgeItems[candidate.id];
+
+  return {
+    sourceId: candidate.sourceId,
+    targetId: candidate.targetId,
+    itemKeys:
+      savedItemKeys?.filter((itemKey) => availableItemKeys.has(itemKey)) ??
+      [...availableItemKeys],
+  };
 }
 
 interface GraphHeaderToolbarProps {
@@ -1815,18 +1835,24 @@ function GraphItemToggle({
   );
 }
 
-interface BaseGraphNodeData extends Record<string, unknown> {
-  data: RecipeExplorerData;
+type GraphNodeSelectHandler = (nodeId: string, event: ReactMouseEvent) => void;
+
+interface SelectableConnectableGraphNodeData extends Record<string, unknown> {
   endpointSelector?: GraphEndpointSelector | null;
+  isConnectableTarget: boolean;
+  isConnecting: boolean;
+  isSelected: boolean;
+  label: string;
+  onSelectNode: GraphNodeSelectHandler;
+}
+
+interface BaseGraphNodeData extends SelectableConnectableGraphNodeData {
+  data: RecipeExplorerData;
   externalInputOptions: GraphExternalItemOption[];
   externalInputs: IngredientPrototype[];
   externalOutputOptions: GraphExternalItemOption[];
   externalOutputs: ProductPrototype[];
   kind: "recipe" | "relay";
-  isConnectableTarget: boolean;
-  isConnecting: boolean;
-  isSelected: boolean;
-  label: string;
   onFocusTerminal(terminalId: string): void;
   onCreateRelayFromTerminal(terminal: SelectedGraphTerminal): void;
   onSelectItem(itemId: string): void;
@@ -1875,8 +1901,12 @@ interface SelectedGraphTerminal {
 type RecipeFlowNode = Node<RecipeNodeData, "recipe">;
 type RelayFlowNode = Node<RelayNodeData, "relay">;
 type GraphFlowNode = RecipeFlowNode | RelayFlowNode;
+type SelectableConnectableGraphNode = Node<
+  SelectableConnectableGraphNodeData,
+  string
+>;
 
-function applyGraphNodeState<TNode extends GraphFlowNode>(
+function applyGraphNodeState<TNode extends SelectableConnectableGraphNode>(
   node: TNode,
   state: GraphNodeInteractionState,
 ): TNode {
@@ -1893,7 +1923,10 @@ function applyGraphNodeState<TNode extends GraphFlowNode>(
 
 function RecipeNode({ data, id }: NodeProps<RecipeFlowNode>) {
   return (
-    <article className={`layout-graph-node ${getGraphNodeStateClassName(data)}`}>
+    <article
+      className={`layout-graph-node ${getGraphNodeStateClassName(data)}`}
+      onClick={(event) => data.onSelectNode(id, event)}
+    >
       <GraphNodeHandles />
       <GraphEndpointButtons
         endpointSelector={data.endpointSelector ?? null}
@@ -1950,6 +1983,7 @@ function RelayNode({ data, id }: NodeProps<RelayFlowNode>) {
       className={`layout-graph-node layout-graph-node--relay ${getGraphNodeStateClassName(
         data,
       )}`}
+      onClick={(event) => data.onSelectNode(id, event)}
     >
       <GraphNodeHandles />
       <GraphEndpointButtons
@@ -2630,6 +2664,7 @@ function buildLayoutGraph(
   onEdgeRouteReset: (edgeId: string) => void,
   onFocusTerminal: (terminalId: string) => void,
   onCreateRelayFromTerminal: (terminal: SelectedGraphTerminal) => void,
+  onSelectNode: GraphNodeSelectHandler,
   selectedTerminalId: string | null,
 ): LayoutGraphModel {
   const entries = getGraphEntries(data, layout);
@@ -2662,6 +2697,7 @@ function buildLayoutGraph(
         layout,
         onFocusTerminal,
         onCreateRelayFromTerminal,
+        onSelectNode,
         onSelectItem,
         selectedTerminalId,
       ),
@@ -2766,6 +2802,7 @@ function buildFlowNode(
   layout: RecipeLayout,
   onFocusTerminal: (terminalId: string) => void,
   onCreateRelayFromTerminal: (terminal: SelectedGraphTerminal) => void,
+  onSelectNode: GraphNodeSelectHandler,
   onSelectItem: (itemId: string) => void,
   selectedTerminalId: string | null,
 ): GraphFlowNode {
@@ -2784,6 +2821,7 @@ function buildFlowNode(
     onCreateRelayFromTerminal,
     onFocusTerminal,
     onSelectItem,
+    onSelectNode,
     selectedTerminalId,
     subtitle: node.subtitle,
     terminalSides: {
