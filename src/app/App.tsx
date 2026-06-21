@@ -540,7 +540,7 @@ export function App() {
     }
   }
 
-  function uninstallInstalledRecipe(recipeId: string) {
+  function unloadInstalledRecipe(recipeId: string) {
     if (getInstalledRecipeReferenceCount(recipeId) > 0) {
       return;
     }
@@ -555,7 +555,7 @@ export function App() {
 
     const restoredLayout = cloneRecipeLayout(
       installedRecipe.layout,
-      createRestoredLayoutId(installedRecipe.layout.id, layouts),
+      createUnloadedLayoutId(installedRecipe.layout.id, layouts),
     );
 
     setInstalledRecipes((currentInstalledRecipes) =>
@@ -1037,7 +1037,7 @@ export function App() {
         onAddInstalledRecipeToLayout={addRecipeToFocusedLayout}
         onCreateLayout={createLayout}
         onFocusLayout={focusLayout}
-        onInstallRecipeUninstall={uninstallInstalledRecipe}
+        onInstalledRecipeUnload={unloadInstalledRecipe}
         onOpenLayoutGraph={openLayoutGraph}
         onReorderLayout={reorderLayout}
         onSelectItem={selectItem}
@@ -2251,7 +2251,7 @@ function createInstalledRecipeId(
   return recipeId;
 }
 
-function createRestoredLayoutId(
+function createUnloadedLayoutId(
   preferredLayoutId: string,
   layouts: readonly RecipeLayout[],
 ): string {

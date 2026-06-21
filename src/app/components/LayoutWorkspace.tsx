@@ -1,6 +1,7 @@
 import {
   ArrowRight,
   Boxes,
+  BookmarkPlus,
   Check,
   ChevronDown,
   ExternalLink,
@@ -9,7 +10,6 @@ import {
   Network,
   PackageOpen,
   Plus,
-  Save,
   Timer,
   Trash2,
   X,
@@ -326,13 +326,13 @@ export function LayoutWorkspace({
           ) : (
             <>
               <button
-                aria-label="Install layout"
+                aria-label="Install as recipe"
                 className="icon-button"
-                data-tooltip="Install layout"
+                data-tooltip="Install as recipe"
                 type="button"
                 onClick={() => onInstallLayout(focusedLayout.id)}
               >
-                <Save size={18} aria-hidden="true" />
+                <BookmarkPlus size={18} aria-hidden="true" />
               </button>
               <button
                 aria-label="Open layout graph"

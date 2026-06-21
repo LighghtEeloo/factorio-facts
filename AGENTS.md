@@ -31,7 +31,7 @@ Keep ingredient/result amounts and probabilities for labels and future work, but
 The app is a mode-based Vite/React workbench with a persistent left sidebar. Sidebar section headers are labels, and the controls under each section manage the current focus and main lens:
 
 - Recipes: the section shows only the focused item/fluid; clicking it opens the recipe explorer, while the picker button opens item selection.
-- Installed: saved layout snapshots appear as composite recipes that can be added to the focused layout, opened through their boundary item context, and uninstalled only when no layout or installed snapshot references them.
+- Installed: installed layout snapshots appear as composite recipes that can be added to the focused layout, opened through their boundary item context, and unloaded only when no layout or installed snapshot references them.
 - Layouts: global layout rows focus, reorder, and open fullscreen layout recipe editing or graph views for layouts; the layout editor itself only edits the focused layout.
 - Graph: fullscreen React Flow layout graph editing for the selected layout, entered from a layout row or the focused layout editor.
 

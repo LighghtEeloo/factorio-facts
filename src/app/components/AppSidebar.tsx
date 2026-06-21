@@ -1,6 +1,7 @@
 import {
-  Archive,
   BookOpen,
+  BookMarked,
+  BookmarkMinus,
   Boxes,
   CircleDot,
   Cog,
@@ -10,7 +11,6 @@ import {
   Package,
   Plus,
   Search,
-  Trash2,
   X,
 } from "lucide-react";
 import {
@@ -46,7 +46,7 @@ interface AppSidebarProps {
   onAddInstalledRecipeToLayout(recipeId: string): void;
   onCreateLayout(): void;
   onFocusLayout(layoutId: string): void;
-  onInstallRecipeUninstall(recipeId: string): void;
+  onInstalledRecipeUnload(recipeId: string): void;
   onOpenLayoutGraph(layoutId: string): void;
   onReorderLayout(
     sourceLayoutId: string,
@@ -68,7 +68,7 @@ export function AppSidebar({
   selectedItemId,
   onCreateLayout,
   onFocusLayout,
-  onInstallRecipeUninstall,
+  onInstalledRecipeUnload,
   onOpenLayoutGraph,
   onReorderLayout,
   onSelectItem,
@@ -242,7 +242,7 @@ export function AppSidebar({
       <section className="sidebar-section sidebar-installed" aria-label="Installed">
         <div className="sidebar-section__header">
           <span className="sidebar-section__title">
-            <Archive size={18} aria-hidden="true" />
+            <BookMarked size={18} aria-hidden="true" />
             <span>Installed</span>
           </span>
         </div>
@@ -292,20 +292,20 @@ export function AppSidebar({
                     <ListPlus size={15} aria-hidden="true" />
                   </button>
                   <button
-                    aria-label={`Uninstall ${metadata.name}`}
+                    aria-label={`Unload ${metadata.name}`}
                     className="layout-action-button"
                     data-tooltip={
                       referenceCount
                         ? `Used by ${referenceCount} layout ${
                             referenceCount === 1 ? "entry" : "entries"
                           }`
-                        : "Uninstall"
+                        : "Unload"
                     }
                     disabled={referenceCount > 0}
                     type="button"
-                    onClick={() => onInstallRecipeUninstall(installedRecipe.id)}
+                    onClick={() => onInstalledRecipeUnload(installedRecipe.id)}
                   >
-                    <Trash2 size={15} aria-hidden="true" />
+                    <BookmarkMinus size={15} aria-hidden="true" />
                   </button>
                 </div>
               );
