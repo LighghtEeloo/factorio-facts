@@ -120,6 +120,7 @@ export function createCompositeRecipePrototype(
     data,
     boundary.results,
     installedRecipe.layout.iconIds,
+    installedRecipe.layout.hiddenIconIds,
   );
   const name = getInstalledRecipeName(installedRecipe);
   const metadata: FactorioLabRecipeMetadata = {
@@ -205,6 +206,33 @@ export function getCompositeRecipeIconIds(
   data: RecipeExplorerData,
   results: readonly ProductPrototype[],
   preferredIconIds: readonly string[] = [],
+  hiddenIconIds: readonly string[] = [],
+): string[] {
+  return getCompositeRecipeVisibleIconIds(
+    data,
+    results,
+    preferredIconIds,
+    hiddenIconIds,
+  ).slice(0, 4);
+}
+
+export function getCompositeRecipeVisibleIconIds(
+  data: RecipeExplorerData,
+  results: readonly ProductPrototype[],
+  preferredIconIds: readonly string[] = [],
+  hiddenIconIds: readonly string[] = [],
+): string[] {
+  const hiddenIconIdSet = new Set(hiddenIconIds);
+
+  return getCompositeRecipeOrderedIconIds(data, results, preferredIconIds).filter(
+    (iconId) => !hiddenIconIdSet.has(iconId),
+  );
+}
+
+export function getCompositeRecipeOrderedIconIds(
+  data: RecipeExplorerData,
+  results: readonly ProductPrototype[],
+  preferredIconIds: readonly string[] = [],
 ): string[] {
   const outputIconIds = getCompositeRecipeOutputIconIds(data, results);
   const outputIconIdSet = new Set(outputIconIds);
@@ -218,13 +246,14 @@ export function getCompositeRecipeIconIds(
 
     preferredIconIdSet.add(iconId);
     preferredIcons.push(iconId);
-
-    if (preferredIcons.length >= 4) {
-      break;
-    }
   }
 
-  return preferredIcons.length ? preferredIcons : outputIconIds.slice(0, 4);
+  return preferredIcons.length
+    ? [
+        ...preferredIcons,
+        ...outputIconIds.filter((iconId) => !preferredIconIdSet.has(iconId)),
+      ]
+    : outputIconIds;
 }
 
 export function getCompositeRecipeOutputIconIds(

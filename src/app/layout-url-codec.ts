@@ -124,6 +124,10 @@ export function serializeCompactLayoutState(
     for (const iconId of layout.iconIds) {
       getStringIndex(iconId, itemKeys, itemIndexByKey);
     }
+
+    for (const iconId of layout.hiddenIconIds) {
+      getStringIndex(iconId, itemKeys, itemIndexByKey);
+    }
   }
 
   const focusedLayoutIndex = layouts.findIndex((layout) => layout.id === focusedLayoutId);
@@ -232,6 +236,11 @@ function compactLayout(
     compact,
     10,
     compactLayoutIconIds(layout.iconIds, itemKeys, itemIndexByKey),
+  );
+  setCompactSlot(
+    compact,
+    11,
+    compactLayoutIconIds(layout.hiddenIconIds, itemKeys, itemIndexByKey),
   );
 
   return compact;
@@ -679,7 +688,8 @@ function parseCompactLayout(
     {
       id: layoutId,
       name: typeof value[0] === "string" ? value[0] : "",
-      iconIds: parseCompactOrderedStringIndexes(value[10], itemKeys).slice(0, 4),
+      iconIds: parseCompactOrderedStringIndexes(value[10], itemKeys),
+      hiddenIconIds: parseCompactOrderedStringIndexes(value[11], itemKeys),
       entries,
       relays,
       graphPositions: parseCompactGraphPositions(value[3], nodeIdByIndex),
@@ -1034,6 +1044,7 @@ function defaultCompactLayoutState(defaultLayoutId: string): ParsedLayoutUrlStat
         id: defaultLayoutId,
         name: "",
         iconIds: [],
+        hiddenIconIds: [],
         entries: [],
         relays: [],
         graphPositions: {},

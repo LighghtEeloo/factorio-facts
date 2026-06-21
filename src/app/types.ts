@@ -62,6 +62,7 @@ export interface RecipeLayout {
   id: string;
   name: string;
   iconIds: string[];
+  hiddenIconIds: string[];
   entries: RecipeLayoutEntry[];
   relays: GraphRelay[];
   graphPositions: Record<string, GraphNodePosition>;

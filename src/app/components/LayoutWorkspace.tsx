@@ -4,8 +4,6 @@ import {
   BookmarkPlus,
   Check,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   ExternalLink,
   GripVertical,
   Import,
@@ -19,6 +17,7 @@ import {
 } from "lucide-react";
 import {
   type CSSProperties,
+  type DragEvent,
   type RefObject,
   useEffect,
   useRef,
@@ -37,7 +36,8 @@ import {
 } from "../data/factoriolab";
 import {
   getCompositeRecipeIconIds,
-  getCompositeRecipeOutputIconIds,
+  getCompositeRecipeOrderedIconIds,
+  getCompositeRecipeVisibleIconIds,
   inferLayoutCompositeBoundary,
   isCompositeRecipe,
 } from "../composite-recipes";
@@ -76,7 +76,11 @@ interface LayoutWorkspaceProps {
   onDeleteLayout(layoutId: string): void;
   onImportLayout(layoutId: string, value: string): boolean;
   onInstallLayout(layoutId: string): void;
-  onLayoutIconIdsChange(layoutId: string, iconIds: string[]): void;
+  onLayoutIconSettingsChange(
+    layoutId: string,
+    iconIds: string[],
+    hiddenIconIds: string[],
+  ): void;
   onOpenLayoutGraph(layoutId: string): void;
   onRecipeBeaconsChange(
     layoutId: string,
@@ -113,7 +117,7 @@ export function LayoutWorkspace({
   onDeleteLayout,
   onImportLayout,
   onInstallLayout,
-  onLayoutIconIdsChange,
+  onLayoutIconSettingsChange,
   onOpenLayoutGraph,
   onRecipeBeaconsChange,
   onRecipeMachineChange,
@@ -149,17 +153,28 @@ export function LayoutWorkspace({
   const compositeBoundary = focusedLayout
     ? inferLayoutCompositeBoundary(focusedLayout, data.recipeById)
     : { ingredients: [], results: [] };
-  const compositeOutputIconIds = getCompositeRecipeOutputIconIds(
+  const compositeOrderedIconIds = getCompositeRecipeOrderedIconIds(
     data,
     compositeBoundary.results,
+    focusedLayout?.iconIds ?? [],
+  );
+  const compositeVisibleIconIds = getCompositeRecipeVisibleIconIds(
+    data,
+    compositeBoundary.results,
+    focusedLayout?.iconIds ?? [],
+    focusedLayout?.hiddenIconIds ?? [],
   );
   const compositeIconIds = getCompositeRecipeIconIds(
     data,
     compositeBoundary.results,
     focusedLayout?.iconIds ?? [],
+    focusedLayout?.hiddenIconIds ?? [],
   );
   const compositeIconEntries = getCompositeIconEntries(data, compositeIconIds);
-  const compositeOutputIconEntries = getCompositeIconEntries(data, compositeOutputIconIds);
+  const compositeOrderedIconEntries = getCompositeIconEntries(
+    data,
+    compositeOrderedIconIds,
+  );
 
   useEffect(() => {
     if (!focusedLayout?.entries.length) {
@@ -303,12 +318,20 @@ export function LayoutWorkspace({
         <div className="layout-workspace__title">
           {focusedLayout.entries.length ? (
             <CompositeIconEditor
-              candidateIcons={compositeOutputIconEntries}
               customIconIds={focusedLayout.iconIds}
               data={data}
+              hiddenIconIds={focusedLayout.hiddenIconIds}
               icons={compositeIconEntries}
+              orderedIcons={compositeOrderedIconEntries}
               title={title}
-              onChange={(iconIds) => onLayoutIconIdsChange(focusedLayout.id, iconIds)}
+              visibleIconCount={compositeVisibleIconIds.length}
+              onChange={(iconIds, hiddenIconIds) =>
+                onLayoutIconSettingsChange(
+                  focusedLayout.id,
+                  iconIds,
+                  hiddenIconIds,
+                )
+              }
             />
           ) : (
             <Boxes size={42} aria-hidden="true" />
@@ -580,28 +603,38 @@ interface CompositeIconEntry {
 }
 
 interface CompositeIconEditorProps {
-  candidateIcons: CompositeIconEntry[];
   customIconIds: string[];
   data: RecipeExplorerData;
+  hiddenIconIds: string[];
   icons: CompositeIconEntry[];
+  orderedIcons: CompositeIconEntry[];
   title: string;
-  onChange(iconIds: string[]): void;
+  visibleIconCount: number;
+  onChange(iconIds: string[], hiddenIconIds: string[]): void;
 }
 
 function CompositeIconEditor({
-  candidateIcons,
   customIconIds,
   data,
+  hiddenIconIds,
   icons,
+  orderedIcons,
   title,
+  visibleIconCount,
   onChange,
 }: CompositeIconEditorProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [draggedIconId, setDraggedIconId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{
+    iconId: string;
+    placement: LayoutReorderPlacement;
+  } | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const selectedIconIds = icons.map((icon) => icon.id);
-  const selectedIconIdSet = new Set(selectedIconIds);
-  const canEdit = candidateIcons.length > 0;
-  const hasCustomIconIds = customIconIds.length > 0;
+  const orderedIconIds = orderedIcons.map((icon) => icon.id);
+  const hiddenIconIdSet = new Set(hiddenIconIds);
+  const canEdit = orderedIcons.length > 0;
+  const hasCustomIconSettings = customIconIds.length > 0 || hiddenIconIds.length > 0;
+  const renderedIconCount = Math.min(visibleIconCount, 4);
 
   useEffect(() => {
     if (!isOpen) {
@@ -634,54 +667,98 @@ function CompositeIconEditor({
     };
   }, [isOpen]);
 
-  function commit(nextIconIds: string[]) {
-    const sanitizedIconIds = sanitizeCompositeIconSelection(
+  function commit(nextIconIds: string[], nextHiddenIconIds = hiddenIconIds) {
+    const sanitizedIconIds = sanitizeCompositeIconList(
       nextIconIds,
-      candidateIcons,
+      orderedIcons,
+    );
+    const sanitizedHiddenIconIds = sanitizeCompositeIconList(
+      nextHiddenIconIds,
+      orderedIcons,
     );
 
-    if (sanitizedIconIds.length) {
-      onChange(sanitizedIconIds);
-    }
+    onChange(sanitizedIconIds, sanitizedHiddenIconIds);
   }
 
-  function moveIcon(index: number, direction: -1 | 1) {
-    const targetIndex = index + direction;
-
-    if (targetIndex < 0 || targetIndex >= selectedIconIds.length) {
+  function reorderIcon(
+    sourceIconId: string,
+    targetIconId: string,
+    placement: LayoutReorderPlacement,
+  ) {
+    if (sourceIconId === targetIconId) {
       return;
     }
 
-    const nextIconIds = [...selectedIconIds];
-    const [movedIconId] = nextIconIds.splice(index, 1);
+    const sourceIndex = orderedIconIds.indexOf(sourceIconId);
+    const targetIndex = orderedIconIds.indexOf(targetIconId);
+
+    if (sourceIndex < 0 || targetIndex < 0) {
+      return;
+    }
+
+    const nextIconIds = [...orderedIconIds];
+    const [movedIconId] = nextIconIds.splice(sourceIndex, 1);
 
     if (!movedIconId) {
       return;
     }
 
-    nextIconIds.splice(targetIndex, 0, movedIconId);
+    const shiftedTargetIndex = nextIconIds.indexOf(targetIconId);
+
+    if (shiftedTargetIndex < 0) {
+      return;
+    }
+
+    const insertIndex = shiftedTargetIndex + (placement === "after" ? 1 : 0);
+
+    nextIconIds.splice(insertIndex, 0, movedIconId);
     commit(nextIconIds);
   }
 
-  function removeIcon(iconId: string) {
-    if (selectedIconIds.length <= 1) {
+  function handleDragStart(event: DragEvent<HTMLDivElement>, iconId: string) {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", iconId);
+    setDraggedIconId(iconId);
+    setDropTarget(null);
+  }
+
+  function handleDragOver(event: DragEvent<HTMLDivElement>, iconId: string) {
+    if (!draggedIconId || draggedIconId === iconId) {
       return;
     }
 
-    commit(selectedIconIds.filter((selectedIconId) => selectedIconId !== iconId));
+    event.preventDefault();
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const placement: LayoutReorderPlacement =
+      event.clientY < rect.top + rect.height / 2 ? "before" : "after";
+
+    setDropTarget({ iconId, placement });
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>, iconId: string) {
+    const sourceIconId =
+      draggedIconId || event.dataTransfer.getData("text/plain") || null;
+
+    event.preventDefault();
+
+    if (!sourceIconId || sourceIconId === iconId) {
+      setDraggedIconId(null);
+      setDropTarget(null);
+      return;
+    }
+
+    reorderIcon(sourceIconId, iconId, dropTarget?.placement ?? "before");
+    setDraggedIconId(null);
+    setDropTarget(null);
   }
 
   function toggleIcon(iconId: string) {
-    if (selectedIconIdSet.has(iconId)) {
-      removeIcon(iconId);
-      return;
-    }
+    const nextHiddenIconIds = hiddenIconIdSet.has(iconId)
+      ? hiddenIconIds.filter((hiddenIconId) => hiddenIconId !== iconId)
+      : [...hiddenIconIds, iconId];
 
-    if (selectedIconIds.length >= 4) {
-      return;
-    }
-
-    commit([...selectedIconIds, iconId]);
+    commit(orderedIconIds, nextHiddenIconIds);
   }
 
   return (
@@ -719,92 +796,63 @@ function CompositeIconEditor({
             />
             <div className="layout-icon-editor__title">
               <strong>Recipe icon</strong>
-              <span>{selectedIconIds.length} / 4</span>
+              <span>
+                {renderedIconCount} shown / {visibleIconCount} selected
+              </span>
             </div>
             <button
               aria-label="Reset recipe icon"
               className="icon-button layout-icon-editor__mini-button"
               data-tooltip="Reset icon"
-              disabled={!hasCustomIconIds}
+              disabled={!hasCustomIconSettings}
               type="button"
-              onClick={() => onChange([])}
+              onClick={() => onChange([], [])}
             >
               <RotateCcw size={14} aria-hidden="true" />
             </button>
           </header>
 
-          <section className="layout-icon-editor__section" aria-label="Selected icons">
-            <span className="layout-icon-editor__section-label">Selected</span>
-            <div className="layout-icon-editor__selected-list" role="list">
-              {icons.map((entry, index) => (
-                <div
-                  className="layout-icon-editor__selected-row"
-                  key={`${entry.id}:${index}`}
-                  role="listitem"
-                >
-                  <IconSprite
-                    atlas={data.atlas}
-                    icon={entry.icon}
-                    label={entry.label}
-                    size={26}
-                  />
-                  <span className="layout-icon-editor__item-label">
-                    <strong>{entry.label}</strong>
-                    <small>{entry.id}</small>
-                  </span>
-                  <button
-                    aria-label={`Move ${entry.label} left`}
-                    className="icon-button layout-icon-editor__mini-button"
-                    data-tooltip="Move left"
-                    disabled={index === 0}
-                    type="button"
-                    onClick={() => moveIcon(index, -1)}
-                  >
-                    <ChevronLeft size={14} aria-hidden="true" />
-                  </button>
-                  <button
-                    aria-label={`Move ${entry.label} right`}
-                    className="icon-button layout-icon-editor__mini-button"
-                    data-tooltip="Move right"
-                    disabled={index === icons.length - 1}
-                    type="button"
-                    onClick={() => moveIcon(index, 1)}
-                  >
-                    <ChevronRight size={14} aria-hidden="true" />
-                  </button>
-                  <button
-                    aria-label={`Remove ${entry.label}`}
-                    className="icon-button layout-icon-editor__mini-button"
-                    data-tooltip="Remove"
-                    disabled={selectedIconIds.length <= 1}
-                    type="button"
-                    onClick={() => removeIcon(entry.id)}
-                  >
-                    <X size={14} aria-hidden="true" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </section>
-
           <section className="layout-icon-editor__section" aria-label="Output icons">
             <span className="layout-icon-editor__section-label">Outputs</span>
-            <div className="layout-icon-editor__candidate-list">
-              {candidateIcons.map((entry) => {
-                const isSelected = selectedIconIdSet.has(entry.id);
-                const isDisabled =
-                  (isSelected && selectedIconIds.length <= 1) ||
-                  (!isSelected && selectedIconIds.length >= 4);
+            <div className="layout-icon-editor__ordered-list" role="list">
+              {orderedIcons.map((entry) => {
+                const isVisible = !hiddenIconIdSet.has(entry.id);
+                const isDragging = draggedIconId === entry.id;
+                const dropPlacement =
+                  dropTarget?.iconId === entry.id ? dropTarget.placement : null;
+                const rowClassName = [
+                  "layout-icon-editor__ordered-row",
+                  isVisible ? "layout-icon-editor__ordered-row--visible" : "",
+                  isDragging ? "layout-icon-editor__ordered-row--dragging" : "",
+                  dropPlacement
+                    ? `layout-icon-editor__ordered-row--drop-${dropPlacement}`
+                    : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ");
 
                 return (
-                  <button
-                    aria-pressed={isSelected}
-                    className={`layout-icon-editor__candidate ${isSelected ? "layout-icon-editor__candidate--selected" : ""}`}
-                    disabled={isDisabled}
+                  <div
+                    className={rowClassName}
+                    draggable
                     key={entry.id}
-                    type="button"
-                    onClick={() => toggleIcon(entry.id)}
+                    role="listitem"
+                    onDragEnd={() => {
+                      setDraggedIconId(null);
+                      setDropTarget(null);
+                    }}
+                    onDragLeave={() => {
+                      if (dropTarget?.iconId === entry.id) {
+                        setDropTarget(null);
+                      }
+                    }}
+                    onDragOver={(event) => handleDragOver(event, entry.id)}
+                    onDragStart={(event) => handleDragStart(event, entry.id)}
+                    onDrop={(event) => handleDrop(event, entry.id)}
                   >
+                    <span className="layout-icon-editor__drag-handle" aria-hidden="true">
+                      <GripVertical size={14} />
+                    </span>
                     <IconSprite
                       atlas={data.atlas}
                       icon={entry.icon}
@@ -815,12 +863,16 @@ function CompositeIconEditor({
                       <strong>{entry.label}</strong>
                       <small>{entry.id}</small>
                     </span>
-                    {isSelected ? (
-                      <Check size={16} aria-hidden="true" />
-                    ) : (
-                      <Plus size={16} aria-hidden="true" />
-                    )}
-                  </button>
+                    <label className="layout-icon-editor__visibility-toggle">
+                      <input
+                        aria-label={`Show ${entry.label}`}
+                        checked={isVisible}
+                        type="checkbox"
+                        onChange={() => toggleIcon(entry.id)}
+                      />
+                      <span aria-hidden="true" />
+                    </label>
+                  </div>
                 );
               })}
             </div>
@@ -842,25 +894,21 @@ function getCompositeIconEntries(
   }));
 }
 
-function sanitizeCompositeIconSelection(
+function sanitizeCompositeIconList(
   iconIds: readonly string[],
-  candidateIcons: readonly CompositeIconEntry[],
+  orderedIcons: readonly CompositeIconEntry[],
 ): string[] {
-  const candidateIconIds = new Set(candidateIcons.map((icon) => icon.id));
+  const orderedIconIds = new Set(orderedIcons.map((icon) => icon.id));
   const seenIconIds = new Set<string>();
   const selectedIconIds: string[] = [];
 
   for (const iconId of iconIds) {
-    if (seenIconIds.has(iconId) || !candidateIconIds.has(iconId)) {
+    if (seenIconIds.has(iconId) || !orderedIconIds.has(iconId)) {
       continue;
     }
 
     seenIconIds.add(iconId);
     selectedIconIds.push(iconId);
-
-    if (selectedIconIds.length >= 4) {
-      break;
-    }
   }
 
   return selectedIconIds;
