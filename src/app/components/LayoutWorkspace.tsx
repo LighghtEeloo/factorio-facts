@@ -467,7 +467,6 @@ function LayoutEditorRecipeRow({
             <Timer size={13} aria-hidden="true" />
             {formatTime(recipe.energy_required)}
           </span>
-          <span>{formatId(metadata.category)}</span>
         </span>
       </button>
       <label className="layout-editor-row__size" data-tooltip="Production size">
