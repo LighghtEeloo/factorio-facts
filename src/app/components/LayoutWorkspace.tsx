@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import {
+  type CSSProperties,
   useEffect,
   useState,
 } from "react";
@@ -235,6 +236,13 @@ export function LayoutWorkspace({
     setImportError("That string is not a factorio-facts layout export.");
   }
 
+  const layoutEditorStyle = {
+    "--layout-editor-machine-width": `${getLayoutMachineSelectionWidth(
+      data,
+      focusedLayout,
+    )}px`,
+  } as LayoutEditorStyle;
+
   return (
     <section className="layout-workspace">
       <header className="layout-workspace__header app-panel">
@@ -293,7 +301,11 @@ export function LayoutWorkspace({
       </header>
 
       <div className="layout-workspace__body">
-        <section className="layout-editor app-panel" aria-label={`${title} recipes`}>
+        <section
+          className="layout-editor app-panel"
+          style={layoutEditorStyle}
+          aria-label={`${title} recipes`}
+        >
           <div className="layout-editor__recipes">
             {focusedLayout.entries.length ? (
               focusedLayout.entries.map((entry, index) => {
@@ -456,6 +468,41 @@ interface LayoutMachineOption {
   icon: FactorioLabIcon | undefined;
   id: string;
   name: string;
+}
+
+type LayoutEditorStyle = CSSProperties & {
+  "--layout-editor-machine-width": string;
+};
+
+const machineOptionButtonWidth = 32;
+const machineOptionGap = 5;
+const machineOptionChromeWidth = 8;
+const minMachineSelectionWidth = 84;
+const maxMachineSelectionWidth = 320;
+
+function getLayoutMachineSelectionWidth(
+  data: RecipeExplorerData,
+  layout: RecipeLayout,
+): number {
+  const longestProducerList = layout.entries.reduce((longest, entry) => {
+    const recipe = data.recipeById.get(entry.recipeId);
+
+    return recipe
+      ? Math.max(longest, getRecipeMetadata(recipe).producers.length)
+      : longest;
+  }, 0);
+  const listWidth =
+    longestProducerList > 0
+      ? longestProducerList * machineOptionButtonWidth +
+        Math.max(0, longestProducerList - 1) * machineOptionGap +
+        machineOptionChromeWidth
+      : minMachineSelectionWidth;
+
+  return clampNumber(
+    listWidth,
+    minMachineSelectionWidth,
+    maxMachineSelectionWidth,
+  );
 }
 
 function LayoutEditorRecipeRow({
@@ -1235,6 +1282,10 @@ function formatNumber(value: number): string {
   }
 
   return `${Number(value.toFixed(3))}`;
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
 }
 
 function formatId(id: string): string {
