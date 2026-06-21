@@ -388,13 +388,17 @@ export function App() {
     );
   }
 
-  function exportLayout(layoutId: string) {
+  function exportLayout(layoutId: string): string | null {
     const layout = layouts.find((candidate) => candidate.id === layoutId);
 
     if (!layout) {
-      return;
+      return null;
     }
 
+    return createLayoutExportString(layout);
+  }
+
+  function createLayoutExportString(layout: RecipeLayout): string {
     const state = JSON.parse(serializeLayoutState([layout], layout.id)) as unknown;
     const payload = {
       type: "factorio-facts/layout",
@@ -402,33 +406,22 @@ export function App() {
       exportedAt: new Date().toISOString(),
       state,
     };
-    const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
 
-    link.href = url;
-    link.download = `${slugifyFilename(layout.name.trim() || "untitled-layout")}.json`;
-    document.body.append(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    return `${JSON.stringify(payload, null, 2)}\n`;
   }
 
-  async function importLayout(layoutId: string, file: File) {
+  function importLayout(layoutId: string, value: string): boolean {
     const targetLayout = layouts.find((layout) => layout.id === layoutId);
 
     if (!targetLayout || targetLayout.entries.length) {
-      return;
+      return false;
     }
 
     try {
-      const importedLayout = parseImportedLayout(await file.text());
+      const importedLayout = parseImportedLayout(value);
 
       if (!importedLayout) {
-        window.alert("That file is not a factorio-facts layout export.");
-        return;
+        return false;
       }
 
       setLayouts((currentLayouts) =>
@@ -444,8 +437,9 @@ export function App() {
       );
       setFocusedLayoutId(layoutId);
       clearGraphHistory(layoutId);
+      return true;
     } catch {
-      window.alert("Could not import that layout file.");
+      return false;
     }
   }
 
@@ -2213,16 +2207,6 @@ function normalizeProductionSize(value: number): number {
 
 function isDefaultProductionSize(value: number): boolean {
   return normalizeProductionSize(value) === defaultProductionSize;
-}
-
-function slugifyFilename(value: string): string {
-  return (
-    value
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "layout"
-  );
 }
 
 function parseItemId(value: string | null): string | null {

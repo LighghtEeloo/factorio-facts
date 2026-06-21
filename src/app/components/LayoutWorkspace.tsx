@@ -1,17 +1,17 @@
 import {
   Boxes,
+  Check,
   CircleDot,
   GripVertical,
+  Import,
   Network,
   PackageOpen,
   Plus,
   Trash2,
-  Upload,
   X,
 } from "lucide-react";
 import {
   useEffect,
-  useRef,
   useState,
 } from "react";
 import type { RecipePrototype } from "../../factorio/prototypes";
@@ -34,7 +34,7 @@ interface LayoutWorkspaceProps {
   onCreateLayout(): void;
   onDeleteLayout(layoutId: string): void;
   onFocusLayout(layoutId: string): void;
-  onImportLayout(layoutId: string, file: File): void;
+  onImportLayout(layoutId: string, value: string): boolean;
   onOpenLayoutGraph(layoutId: string): void;
   onRecipeProductionSizeChange(
     layoutId: string,
@@ -83,7 +83,9 @@ export function LayoutWorkspace({
     entryId: string;
     placement: LayoutReorderPlacement;
   } | null>(null);
-  const importInputRef = useRef<HTMLInputElement | null>(null);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [importDraft, setImportDraft] = useState("");
+  const [importError, setImportError] = useState<string | null>(null);
   const focusedLayout =
     layouts.find((layout) => layout.id === focusedLayoutId) ?? layouts[0] ?? null;
   const title = focusedLayout?.name.trim() || "Untitled layout";
@@ -202,6 +204,38 @@ export function LayoutWorkspace({
     );
   }
 
+  function openImportDialog() {
+    setImportDraft("");
+    setImportError(null);
+    setIsImportDialogOpen(true);
+  }
+
+  function closeImportDialog() {
+    setIsImportDialogOpen(false);
+    setImportDraft("");
+    setImportError(null);
+  }
+
+  function submitImport() {
+    if (!focusedLayout) {
+      return;
+    }
+
+    const value = importDraft.trim();
+
+    if (!value) {
+      setImportError("Paste a layout JSON string.");
+      return;
+    }
+
+    if (onImportLayout(focusedLayout.id, value)) {
+      closeImportDialog();
+      return;
+    }
+
+    setImportError("That string is not a factorio-facts layout export.");
+  }
+
   return (
     <section className="layout-workspace">
       <header className="layout-workspace__header app-panel">
@@ -232,26 +266,10 @@ export function LayoutWorkspace({
                 className="icon-button"
                 data-tooltip="Import layout"
                 type="button"
-                onClick={() => importInputRef.current?.click()}
+                onClick={openImportDialog}
               >
-                <Upload size={18} aria-hidden="true" />
+                <Import size={18} aria-hidden="true" />
               </button>
-              <input
-                accept="application/json,.json"
-                aria-label="Import layout file"
-                className="layout-card__import-input"
-                ref={importInputRef}
-                type="file"
-                onChange={(event) => {
-                  const file = event.currentTarget.files?.[0];
-
-                  if (file) {
-                    onImportLayout(focusedLayout.id, file);
-                  }
-
-                  event.currentTarget.value = "";
-                }}
-              />
               <button
                 aria-label="Delete layout"
                 className="icon-button"
@@ -401,9 +419,9 @@ export function LayoutWorkspace({
                 <button
                   className="primary-action-button"
                   type="button"
-                  onClick={() => importInputRef.current?.click()}
+                  onClick={openImportDialog}
                 >
-                  <Upload size={18} aria-hidden="true" />
+                  <Import size={18} aria-hidden="true" />
                   Import layout
                 </button>
               </div>
@@ -411,6 +429,66 @@ export function LayoutWorkspace({
           </div>
         </section>
       </div>
+
+      {isImportDialogOpen ? (
+        <div
+          className="layout-string-backdrop"
+          onClick={closeImportDialog}
+        >
+          <section
+            aria-labelledby="layout-import-title"
+            aria-modal="true"
+            className="layout-string-dialog app-panel"
+            role="dialog"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="layout-string-dialog__header">
+              <h2 id="layout-import-title">Import layout string</h2>
+              <button
+                aria-label="Close import"
+                className="icon-button"
+                data-tooltip="Close"
+                type="button"
+                onClick={closeImportDialog}
+              >
+                <X size={16} aria-hidden="true" />
+              </button>
+            </header>
+            <label className="layout-string-dialog__field">
+              <span>Layout JSON</span>
+              <textarea
+                autoFocus
+                spellCheck={false}
+                value={importDraft}
+                onChange={(event) => {
+                  setImportDraft(event.target.value);
+                  setImportError(null);
+                }}
+              />
+            </label>
+            {importError ? (
+              <p className="layout-string-dialog__error">{importError}</p>
+            ) : null}
+            <div className="layout-string-dialog__actions">
+              <button
+                className="layout-string-dialog__secondary"
+                type="button"
+                onClick={closeImportDialog}
+              >
+                Cancel
+              </button>
+              <button
+                className="primary-action-button"
+                type="button"
+                onClick={submitImport}
+              >
+                <Check size={18} aria-hidden="true" />
+                Import
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </section>
   );
 }

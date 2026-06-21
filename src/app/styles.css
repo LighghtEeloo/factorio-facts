@@ -25,7 +25,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -344,6 +345,100 @@ button {
   align-items: center;
   gap: 6px;
   flex: 0 0 auto;
+}
+
+.layout-string-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 950;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(9, 10, 7, 0.72);
+}
+
+.layout-string-dialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  gap: 12px;
+  width: min(760px, calc(100vw - 36px));
+  max-height: min(720px, calc(100vh - 36px));
+  min-height: min(520px, calc(100vh - 36px));
+  padding: 12px;
+}
+
+.layout-string-dialog__header,
+.layout-string-dialog__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.layout-string-dialog__header h2 {
+  overflow: hidden;
+  margin: 0;
+  color: #e4d6a7;
+  font-size: 1rem;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layout-string-dialog__field {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 7px;
+  min-height: 0;
+}
+
+.layout-string-dialog__field span {
+  color: #a7a18d;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.layout-string-dialog__field textarea {
+  min-width: 0;
+  min-height: 300px;
+  resize: vertical;
+  border: 1px solid #48473a;
+  border-radius: 7px;
+  outline: 0;
+  background: #141610;
+  color: #f4f1e7;
+  font-family:
+    "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  padding: 10px;
+  white-space: pre;
+}
+
+.layout-string-dialog__field textarea:focus {
+  border-color: #6d674b;
+}
+
+.layout-string-dialog__error {
+  margin: 0;
+  color: #f09d6f;
+  font-size: 0.78rem;
+}
+
+.layout-string-dialog__secondary {
+  min-height: 38px;
+  border: 1px solid #4f4b3a;
+  border-radius: 7px;
+  background: #1b1d17;
+  color: #c9c4b3;
+  cursor: pointer;
+  padding: 0 12px;
+}
+
+.layout-string-dialog__secondary:hover {
+  background: #25261f;
+  color: #f0eee4;
 }
 
 .layout-graph-reset-confirm {
