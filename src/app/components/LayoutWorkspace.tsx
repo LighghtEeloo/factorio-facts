@@ -14,7 +14,9 @@ import {
 } from "lucide-react";
 import {
   type CSSProperties,
+  type RefObject,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import type { FactorioLabIcon } from "../../factoriolab/types";
@@ -112,9 +114,12 @@ export function LayoutWorkspace({
     placement: LayoutReorderPlacement;
   } | null>(null);
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
+  const [pendingInspectorFocusEntryId, setPendingInspectorFocusEntryId] =
+    useState<string | null>(null);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [importDraft, setImportDraft] = useState("");
   const [importError, setImportError] = useState<string | null>(null);
+  const inspectorRef = useRef<HTMLElement | null>(null);
   const focusedLayout =
     layouts.find((layout) => layout.id === focusedLayoutId) ?? layouts[0] ?? null;
   const selectedEntry =
@@ -129,6 +134,7 @@ export function LayoutWorkspace({
   useEffect(() => {
     if (!focusedLayout?.entries.length) {
       setSelectedEntryId(null);
+      setPendingInspectorFocusEntryId(null);
       return;
     }
 
@@ -136,6 +142,24 @@ export function LayoutWorkspace({
       setSelectedEntryId(focusedLayout.entries[0]?.id ?? null);
     }
   }, [focusedLayout?.entries, focusedLayout?.id, selectedEntryId]);
+
+  useEffect(() => {
+    if (!pendingInspectorFocusEntryId) {
+      return;
+    }
+
+    if (!focusedLayout?.entries.some((entry) => entry.id === pendingInspectorFocusEntryId)) {
+      setPendingInspectorFocusEntryId(null);
+      return;
+    }
+
+    if (selectedEntry?.id !== pendingInspectorFocusEntryId) {
+      return;
+    }
+
+    inspectorRef.current?.focus();
+    setPendingInspectorFocusEntryId(null);
+  }, [focusedLayout?.entries, pendingInspectorFocusEntryId, selectedEntry?.id]);
 
   useEffect(() => {
     if (!draggedEntryId || !focusedLayout) {
@@ -345,6 +369,10 @@ export function LayoutWorkspace({
                     }
                     onRemove={() => onRemoveRecipeFromLayout(focusedLayout.id, entry.id)}
                     onSelect={() => setSelectedEntryId(entry.id)}
+                    onSelectFactorySettings={() => {
+                      setSelectedEntryId(entry.id);
+                      setPendingInspectorFocusEntryId(entry.id);
+                    }}
                   />
                 );
               })
@@ -371,6 +399,7 @@ export function LayoutWorkspace({
         <LayoutRecipeInspector
           data={data}
           entry={selectedEntry}
+          inspectorRef={inspectorRef}
           recipe={selectedRecipe}
           onBeaconsChange={(beacons) => {
             if (focusedLayout && selectedEntry) {
@@ -462,6 +491,7 @@ interface LayoutEditorRecipeRowProps {
   onProductionSizeChange(productionSize: number): void;
   onRemove(): void;
   onSelect(): void;
+  onSelectFactorySettings(): void;
 }
 
 interface LayoutMachineOption {
@@ -516,6 +546,7 @@ function LayoutEditorRecipeRow({
   onProductionSizeChange,
   onRemove,
   onSelect,
+  onSelectFactorySettings,
   recipe,
   selected,
 }: LayoutEditorRecipeRowProps) {
@@ -616,7 +647,12 @@ function LayoutEditorRecipeRow({
           <span className="layout-editor-row__machine-none">natural</span>
         )}
       </div>
-      <FactorySettingsSummary data={data} entry={entry} />
+      <FactorySettingsSummary
+        data={data}
+        entry={entry}
+        recipeName={metadata.name}
+        onSelect={onSelectFactorySettings}
+      />
       <label className="layout-editor-row__size" data-tooltip="Production size">
         <span aria-hidden="true">×</span>
         <input
@@ -661,18 +697,25 @@ function LayoutEditorRecipeRow({
 function FactorySettingsSummary({
   data,
   entry,
+  onSelect,
+  recipeName,
 }: {
   data: RecipeExplorerData;
   entry: RecipeLayoutEntry;
+  recipeName: string;
+  onSelect(): void;
 }) {
   const summaryCount = getFactorySettingsSummaryCount(entry.modules, entry.beacons);
 
   return (
-    <div
+    <button
+      aria-label={`Edit modules and beacons for ${recipeName}`}
       className={`layout-editor-row__factory ${
         summaryCount ? "" : "layout-editor-row__factory--empty"
       }`}
       data-tooltip={summaryCount ? "Factory settings" : "No modules or beacons"}
+      type="button"
+      onClick={onSelect}
     >
       {entry.modules?.map((module) => (
         <FactorySettingChip
@@ -691,7 +734,7 @@ function FactorySettingsSummary({
         />
       ))}
       {summaryCount ? null : <span>empty</span>}
-    </div>
+    </button>
   );
 }
 
@@ -736,6 +779,7 @@ function getRecipeMachineOptions(
 interface LayoutRecipeInspectorProps {
   data: RecipeExplorerData;
   entry: RecipeLayoutEntry | null;
+  inspectorRef: RefObject<HTMLElement | null>;
   recipe: RecipePrototype | null;
   onBeaconsChange(beacons: LayoutBeaconSettings[]): void;
   onModulesChange(modules: LayoutModuleSettings[]): void;
@@ -745,6 +789,7 @@ interface LayoutRecipeInspectorProps {
 function LayoutRecipeInspector({
   data,
   entry,
+  inspectorRef,
   onBeaconsChange,
   onModulesChange,
   onOpenRecipeContext,
@@ -752,7 +797,12 @@ function LayoutRecipeInspector({
 }: LayoutRecipeInspectorProps) {
   if (!entry || !recipe) {
     return (
-      <aside className="layout-inspector app-panel" aria-label="Recipe inspector">
+      <aside
+        ref={inspectorRef}
+        className="layout-inspector app-panel"
+        aria-label="Recipe inspector"
+        tabIndex={-1}
+      >
         <div className="layout-inspector__empty">
           <PackageOpen size={34} aria-hidden="true" />
           <div>
@@ -776,7 +826,12 @@ function LayoutRecipeInspector({
   ];
 
   return (
-    <aside className="layout-inspector app-panel" aria-label="Recipe inspector">
+    <aside
+      ref={inspectorRef}
+      className="layout-inspector app-panel"
+      aria-label="Recipe inspector"
+      tabIndex={-1}
+    >
       <header className="layout-inspector__header">
         <RecipeIcon data={data} recipe={recipe} size={42} />
         <div>

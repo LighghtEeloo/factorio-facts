@@ -1161,7 +1161,19 @@ button {
   border-radius: 7px;
   background: #151710;
   color: #9f9a86;
+  cursor: pointer;
   padding: 0 7px;
+  text-align: left;
+}
+
+.layout-editor-row__factory:hover,
+.layout-editor-row__factory:focus-visible {
+  border-color: #57523d;
+  background: #1b1d17;
+}
+
+.layout-editor-row__factory:focus-visible {
+  outline: 0;
 }
 
 .layout-editor-row__factory--empty {
@@ -1274,6 +1286,14 @@ button {
   gap: 12px;
   padding: 12px;
   overflow: auto;
+}
+
+.layout-inspector:focus {
+  outline: 0;
+}
+
+.layout-inspector:focus-visible {
+  border-color: #57523d;
 }
 
 .layout-inspector__header {
