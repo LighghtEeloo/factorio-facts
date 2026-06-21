@@ -67,7 +67,9 @@ At the time of import, the Space Age dataset reports Factorio `2.0.77` for `base
 
 ## Data Model
 
-Keep imported recipes close to Factorio's `RecipePrototype` shape. Preserve fields such as `ingredients`, `results`, `category`, `enabled`, `hidden`, and `surface_conditions`; avoid flattening Space Age details that may matter for filtering by surface, planet, or crafting context.
+Keep imported recipes close to Factorio's `RecipePrototype` shape. Preserve fields such as `ingredients`, `results`, `main_product`, `icon`, `icons`, `icon_size`, `category`, `enabled`, `hidden`, and `surface_conditions`; avoid flattening Space Age details that may matter for filtering by surface, planet, icon display, or crafting context.
+
+Recipe icon display should follow Factorio's recipe icon semantics through one shared resolver: prefer an explicit recipe icon, fall back to an available atlas icon keyed by recipe id, then fall back to the explicit `main_product` or singular result product, and only then fall back to the first result. The current FactorioLab bootstrap adapter stores FactorioLab recipe icon ids in metadata, while FactorioLab's atlas also includes recipe-id icons for generated recipes such as recycling.
 
 Model dependencies as a graph, not a strict tree. Recipes can have many inputs, many outputs, alternate producers, fluids, surfaces, spoilage behavior, and recycling paths. The core questions are:
 

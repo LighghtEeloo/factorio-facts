@@ -16,7 +16,6 @@ import {
 } from "react";
 import type { RecipePrototype } from "../../factorio/prototypes";
 import {
-  getRecipeIconId,
   getRecipeMetadata,
   type RecipeExplorerData,
 } from "../data/factoriolab";
@@ -25,7 +24,7 @@ import type {
   RecipeLayout,
   RecipeLayoutEntry,
 } from "../types";
-import { IconSprite } from "./IconSprite";
+import { RecipeIcon } from "./RecipeIcon";
 
 interface LayoutWorkspaceProps {
   data: RecipeExplorerData;
@@ -519,7 +518,6 @@ function LayoutEditorRecipeRow({
   recipe,
 }: LayoutEditorRecipeRowProps) {
   const metadata = getRecipeMetadata(recipe);
-  const icon = data.iconById.get(getRecipeIconId(recipe));
   const contextItemId = getRecipeContextItemId(data, recipe);
   const [productionSizeDraft, setProductionSizeDraft] = useState(
     formatProductionSize(entry.productionSize),
@@ -559,7 +557,7 @@ function LayoutEditorRecipeRow({
           }
         }}
       >
-        <IconSprite atlas={data.atlas} icon={icon} label={metadata.name} size={32} />
+        <RecipeIcon data={data} recipe={recipe} size={32} />
         <span>
           <strong>{metadata.name}</strong>
           <small>{metadata.id}</small>

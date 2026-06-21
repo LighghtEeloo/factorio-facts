@@ -75,11 +75,23 @@ export interface SurfaceCondition {
   max?: number;
 }
 
+export interface IconData {
+  icon: string;
+  icon_size?: number;
+  scale?: number;
+  shift?: readonly [number, number];
+  tint?: unknown;
+  [field: string]: unknown;
+}
+
 export interface RecipePrototype extends PrototypeBase {
   type: "recipe";
   name: RecipeId;
   category?: RecipeCategoryId;
   additional_categories?: RecipeCategoryId[];
+  icon?: string;
+  icons?: IconData[];
+  icon_size?: number;
   ingredients?: IngredientPrototype[];
   results?: ProductPrototype[];
   main_product?: string;

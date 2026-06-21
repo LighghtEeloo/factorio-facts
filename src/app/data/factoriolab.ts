@@ -59,10 +59,68 @@ export function getIconIdForItem(item: FactorioLabItem): string {
   return item.icon ?? item.id;
 }
 
-export function getRecipeIconId(recipe: RecipePrototype): string {
-  const metadata = getRecipeMetadata(recipe);
+export function getIconIdForItemId(data: RecipeExplorerData, itemId: string): string {
+  const item = data.itemById.get(itemId);
 
-  return metadata.icon ?? recipe.results?.[0]?.name ?? recipe.name;
+  return item ? getIconIdForItem(item) : itemId;
+}
+
+export function getRecipeIconId(data: RecipeExplorerData, recipe: RecipePrototype): string {
+  const explicitIconId = getExplicitRecipeIconId(data, recipe);
+
+  if (explicitIconId) {
+    return explicitIconId;
+  }
+
+  const recipeAtlasIconId = getRecipeAtlasIconId(data, recipe);
+
+  if (recipeAtlasIconId) {
+    return recipeAtlasIconId;
+  }
+
+  const mainProductIconId = getMainProductIconId(data, recipe);
+
+  if (mainProductIconId) {
+    return mainProductIconId;
+  }
+
+  const firstResultName = recipe.results?.[0]?.name;
+
+  return firstResultName ? getIconIdForItemId(data, firstResultName) : recipe.name;
+}
+
+function getExplicitRecipeIconId(
+  data: RecipeExplorerData,
+  recipe: RecipePrototype,
+): string | null {
+  const metadata = getRecipeMetadata(recipe);
+  const explicitIconIds = [
+    metadata.icon,
+    typeof recipe.icon === "string" ? recipe.icon : undefined,
+    recipe.icons?.find((iconData) => data.iconById.has(iconData.icon))?.icon,
+  ];
+
+  return explicitIconIds.find(
+    (iconId): iconId is string => Boolean(iconId && data.iconById.has(iconId)),
+  ) ?? null;
+}
+
+function getRecipeAtlasIconId(
+  data: RecipeExplorerData,
+  recipe: RecipePrototype,
+): string | null {
+  return data.iconById.has(recipe.name) ? recipe.name : null;
+}
+
+function getMainProductIconId(
+  data: RecipeExplorerData,
+  recipe: RecipePrototype,
+): string | null {
+  const results = recipe.results ?? [];
+  const mainProductName =
+    recipe.main_product || (results.length === 1 ? results[0]?.name : undefined);
+
+  return mainProductName ? getIconIdForItemId(data, mainProductName) : null;
 }
 
 function createExplorerData(data: FactorioLabData): RecipeExplorerData {

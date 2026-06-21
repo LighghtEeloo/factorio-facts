@@ -2,13 +2,13 @@ import { ArrowRight, Factory, ListPlus, MapPin, Timer } from "lucide-react";
 import type { RecipePrototype } from "../../factorio/prototypes";
 import {
   getIconIdForItem,
-  getRecipeIconId,
   getRecipeMetadata,
   type RecipeExplorerData,
 } from "../data/factoriolab";
 import type { ViewMode } from "../types";
 import { IconSprite } from "./IconSprite";
 import { ItemChip } from "./ItemChip";
+import { RecipeIcon } from "./RecipeIcon";
 
 interface RecipeCardProps {
   data: RecipeExplorerData;
@@ -30,7 +30,6 @@ export function RecipeCard({
   onSelectItem,
 }: RecipeCardProps) {
   const metadata = getRecipeMetadata(recipe);
-  const icon = data.iconById.get(getRecipeIconId(recipe));
   const locations = metadata.locations.length ? metadata.locations.join(", ") : "all surfaces";
   const producerText = metadata.producers.length ? metadata.producers.join(", ") : "natural";
   const isConcise = viewMode === "concise";
@@ -39,12 +38,7 @@ export function RecipeCard({
     <article className={`recipe-card recipe-card--${viewMode}`} data-recipe-id={recipe.name}>
       <header className="recipe-card__header">
         <div className="recipe-card__identity">
-          <IconSprite
-            atlas={data.atlas}
-            icon={icon}
-            label={metadata.name}
-            size={isConcise ? 30 : 38}
-          />
+          <RecipeIcon data={data} recipe={recipe} size={isConcise ? 30 : 38} />
           <div className="recipe-card__title">
             <h3>{metadata.name}</h3>
             {isConcise ? null : <span>{metadata.id}</span>}

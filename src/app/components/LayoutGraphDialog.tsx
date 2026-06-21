@@ -56,7 +56,6 @@ import {
 } from "../../factorio/prototypes";
 import {
   getIconIdForItem,
-  getRecipeIconId,
   getRecipeMetadata,
   type RecipeExplorerData,
 } from "../data/factoriolab";
@@ -72,6 +71,7 @@ import type {
   RecipeLayoutEntry,
 } from "../types";
 import { IconSprite } from "./IconSprite";
+import { RecipeIcon } from "./RecipeIcon";
 
 const graphColumnGap = 310;
 const graphBaseX = 96;
@@ -1911,8 +1911,6 @@ function applyGraphNodeState<TNode extends GraphFlowNode>(
 }
 
 function RecipeNode({ data, id }: NodeProps<RecipeFlowNode>) {
-  const icon = data.data.iconById.get(getRecipeIconId(data.recipe));
-
   return (
     <article className={`layout-graph-node ${getGraphNodeStateClassName(data)}`}>
       <GraphNodeHandles />
@@ -1932,12 +1930,7 @@ function RecipeNode({ data, id }: NodeProps<RecipeFlowNode>) {
       />
 
       <div className="layout-graph-node__main">
-        <IconSprite
-          atlas={data.data.atlas}
-          icon={icon}
-          label={data.label}
-          size={30}
-        />
+        <RecipeIcon data={data.data} label={data.label} recipe={data.recipe} size={30} />
         <div>
           <h3>{data.label}</h3>
           <span>{data.subtitle}</span>
