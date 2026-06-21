@@ -527,41 +527,48 @@ function LayoutEditorRecipeRow({
           </span>
         </span>
       </button>
-      <label
+      <div
+        aria-label={`${metadata.name} producing machine`}
         className="layout-editor-row__machine"
+        role="group"
         data-tooltip={
           selectedMachine ? `Machine: ${selectedMachine.name}` : "No machine choice"
         }
       >
-        <span className="layout-editor-row__machine-icon" aria-hidden="true">
-          {selectedMachine ? (
-            <IconSprite
-              atlas={data.atlas}
-              icon={selectedMachine.icon}
-              label={selectedMachine.name}
-              size={22}
-            />
-          ) : null}
-        </span>
-        <select
-          aria-label={`${metadata.name} producing machine`}
-          disabled={!machineOptions.length}
-          value={selectedMachine?.id ?? ""}
-          onChange={(event) => onMachineChange(event.target.value)}
-          onClick={(event) => event.stopPropagation()}
-          onPointerDown={(event) => event.stopPropagation()}
-        >
-          {machineOptions.length ? (
-            machineOptions.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.name}
-              </option>
-            ))
-          ) : (
-            <option value="">natural</option>
-          )}
-        </select>
-      </label>
+        {machineOptions.length ? (
+          machineOptions.map((option) => {
+            const isSelected = option.id === selectedMachine?.id;
+
+            return (
+              <button
+                aria-label={`Use ${option.name}`}
+                aria-pressed={isSelected}
+                className="layout-editor-row__machine-option"
+                data-tooltip={option.name}
+                key={option.id}
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+
+                  if (!isSelected) {
+                    onMachineChange(option.id);
+                  }
+                }}
+                onPointerDown={(event) => event.stopPropagation()}
+              >
+                <IconSprite
+                  atlas={data.atlas}
+                  icon={option.icon}
+                  label={option.name}
+                  size={22}
+                />
+              </button>
+            );
+          })
+        ) : (
+          <span className="layout-editor-row__machine-none">natural</span>
+        )}
+      </div>
       <FactorySettingsSummary data={data} entry={entry} />
       <label className="layout-editor-row__size" data-tooltip="Production size">
         <span aria-hidden="true">×</span>

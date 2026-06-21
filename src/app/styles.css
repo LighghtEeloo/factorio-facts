@@ -956,7 +956,7 @@ button {
   display: grid;
   grid-template-areas: "drag main machine factory size remove";
   grid-template-columns:
-    40px minmax(0, 1fr) minmax(150px, 178px) minmax(108px, 160px) 90px
+    40px minmax(0, 1fr) minmax(120px, 320px) minmax(108px, 160px) 90px
     32px;
   align-items: center;
   gap: 7px;
@@ -1093,47 +1093,59 @@ button {
 
 .layout-editor-row__machine {
   grid-area: machine;
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr);
+  display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 5px;
   min-width: 0;
   min-height: 38px;
+  max-width: 320px;
+  overflow-x: auto;
+  overflow-y: hidden;
   border: 1px solid #3f4235;
   border-radius: 7px;
   background: #151710;
   color: #c9c4b3;
-  padding: 0 8px;
+  padding: 3px;
+  scrollbar-width: thin;
 }
 
-.layout-editor-row__machine:focus-within {
-  border-color: #6d674b;
-  background: #1b1d17;
+.layout-editor-row__machine:focus-within,
+.layout-editor-row__machine:hover {
+  border-color: #57523d;
 }
 
-.layout-editor-row__machine-icon {
+.layout-editor-row__machine-option {
+  flex: 0 0 auto;
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
-}
-
-.layout-editor-row__machine select {
-  width: 100%;
-  min-width: 0;
-  border: 0;
-  outline: 0;
+  width: 32px;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: 6px;
   background: transparent;
-  color: #f0eee4;
-  font-size: 0.76rem;
-  overflow: hidden;
-  padding: 0 16px 0 0;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: #c9c4b3;
+  cursor: pointer;
+  padding: 0;
 }
 
-.layout-editor-row__machine select:disabled {
+.layout-editor-row__machine-option:hover,
+.layout-editor-row__machine-option:focus-visible {
+  border-color: #57523d;
+  background: #25261f;
+}
+
+.layout-editor-row__machine-option[aria-pressed="true"] {
+  border-color: #d7b65f;
+  background: #2b281b;
+}
+
+.layout-editor-row__machine-none {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
   color: #85806c;
+  font-size: 0.7rem;
+  padding: 0 8px;
 }
 
 .layout-editor-row__factory {
