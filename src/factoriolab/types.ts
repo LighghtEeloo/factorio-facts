@@ -21,6 +21,38 @@ export interface FactorioLabIcon {
   y: number;
 }
 
+export type FactorioLabModuleEffect =
+  | "consumption"
+  | "pollution"
+  | "productivity"
+  | "quality"
+  | "speed";
+
+export interface FactorioLabMachine {
+  modules?: number | true;
+  disallowedEffects?: FactorioLabModuleEffect[];
+  speed?: number | string;
+  usage?: number | string;
+}
+
+export interface FactorioLabModule {
+  consumption?: number | string;
+  pollution?: number | string;
+  productivity?: number | string;
+  quality?: number | string;
+  speed?: number | string;
+  limitation?: string;
+}
+
+export interface FactorioLabBeacon {
+  effectivity: number | string;
+  modules: number | string;
+  range?: number | string;
+  usage?: number | string;
+  disallowedEffects?: FactorioLabModuleEffect[];
+  profile?: number[];
+}
+
 export interface FactorioLabItem {
   id: FactorioLabId;
   name: string;
@@ -31,11 +63,11 @@ export interface FactorioLabItem {
   icon?: FactorioLabId;
   iconText?: string;
   fuel?: unknown;
-  machine?: unknown;
-  module?: unknown;
+  machine?: FactorioLabMachine;
+  module?: FactorioLabModule;
   technology?: unknown;
   belt?: unknown;
-  beacon?: unknown;
+  beacon?: FactorioLabBeacon;
   cargoWagon?: unknown;
   fluidWagon?: unknown;
   inserter?: unknown;
@@ -51,7 +83,7 @@ export type FactorioLabRecipeFlag =
   | "showCount"
   | "technology";
 
-export type FactorioLabDisallowedEffect = "productivity" | "quality";
+export type FactorioLabDisallowedEffect = FactorioLabModuleEffect;
 
 export interface FactorioLabRecipe {
   id: FactorioLabId;

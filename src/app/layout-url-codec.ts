@@ -10,6 +10,8 @@ import type {
   GraphRelay,
   GraphSide,
   GraphTerminalKind,
+  LayoutBeaconSettings,
+  LayoutModuleSettings,
   RecipeLayout,
   RecipeLayoutEntry,
 } from "./types";
@@ -26,7 +28,23 @@ type GraphTerminalKindCode = 0 | 1;
 type CompactEntry =
   | number
   | [recipeIndex: number, productionSize: number]
-  | [recipeIndex: number, productionSize: number, machineId: string];
+  | [recipeIndex: number, productionSize: number, machineId: string]
+  | [
+      recipeIndex: number,
+      productionSize: number,
+      machineId: string | null,
+      factorySettings: CompactFactorySettings,
+    ];
+type CompactModuleSettings = [moduleId: string, count: number];
+type CompactBeaconSettings = [
+  beaconId: string,
+  count: number,
+  modules: CompactModuleSettings[],
+];
+interface CompactFactorySettings {
+  b?: CompactBeaconSettings[];
+  u?: CompactModuleSettings[];
+}
 type CompactPosition = [entryIndex: number, x: number, y: number];
 type CompactEdgePorts = [
   sourceIndex: number,
@@ -195,14 +213,69 @@ function compactLayoutEntry(
 ): CompactEntry {
   const recipeIndex = getRecipeIndex(entry.recipeId, recipeIds, recipeIndexById);
   const productionSize = normalizeProductionSize(entry.productionSize);
+  const factorySettings = compactFactorySettings(entry);
 
-  if (!entry.machineId && productionSize === defaultProductionSize) {
+  if (
+    !factorySettings &&
+    !entry.machineId &&
+    productionSize === defaultProductionSize
+  ) {
     return recipeIndex;
   }
 
-  return entry.machineId
-    ? [recipeIndex, productionSize, entry.machineId]
-    : [recipeIndex, productionSize];
+  if (factorySettings) {
+    return [recipeIndex, productionSize, entry.machineId ?? null, factorySettings];
+  }
+
+  return entry.machineId ? [recipeIndex, productionSize, entry.machineId] : [recipeIndex, productionSize];
+}
+
+function compactFactorySettings(entry: RecipeLayoutEntry): CompactFactorySettings | null {
+  const modules = compactModuleSettings(entry.modules);
+  const beacons = compactBeaconSettings(entry.beacons);
+
+  return modules || beacons
+    ? {
+        ...(beacons ? { b: beacons } : {}),
+        ...(modules ? { u: modules } : {}),
+      }
+    : null;
+}
+
+function compactModuleSettings(
+  modules: readonly LayoutModuleSettings[] | undefined,
+): CompactModuleSettings[] | null {
+  const settings = modules
+    ?.flatMap((module) => {
+      const count = normalizeFactorySettingCount(module.count);
+
+      return count === null
+        ? []
+        : ([[module.id, count]] satisfies CompactModuleSettings[]);
+    });
+
+  return settings?.length ? settings : null;
+}
+
+function compactBeaconSettings(
+  beacons: readonly LayoutBeaconSettings[] | undefined,
+): CompactBeaconSettings[] | null {
+  const settings = beacons
+    ?.flatMap((beacon) => {
+      const count = normalizeFactorySettingCount(beacon.count);
+
+      return count === null
+        ? []
+        : ([
+            [
+              beacon.id,
+              count,
+              compactModuleSettings(beacon.modules) ?? [],
+            ],
+          ] satisfies CompactBeaconSettings[]);
+    });
+
+  return settings?.length ? settings : null;
 }
 
 function getLayoutGraphNodeIndexById(layout: RecipeLayout): Map<string, number> {
@@ -504,6 +577,7 @@ function parseCompactEntries(
     const rawRecipeIndex = Array.isArray(rawEntry) ? rawEntry[0] : rawEntry;
     const rawProductionSize = Array.isArray(rawEntry) ? rawEntry[1] : undefined;
     const rawMachineId = Array.isArray(rawEntry) ? rawEntry[2] : undefined;
+    const rawFactorySettings = Array.isArray(rawEntry) ? rawEntry[3] : undefined;
     const recipeIndex = parseNonNegativeInteger(rawRecipeIndex);
     const recipeId = recipeIndex === null ? null : recipeIds[recipeIndex] ?? null;
 
@@ -521,6 +595,7 @@ function parseCompactEntries(
     entries.push({
       id: entryId,
       ...(machineId ? { machineId } : {}),
+      ...parseCompactFactorySettings(rawFactorySettings),
       productionSize: parseProductionSize(rawProductionSize),
       recipeId,
     });
@@ -528,6 +603,66 @@ function parseCompactEntries(
   });
 
   return { entries, entryIdByIndex };
+}
+
+function parseCompactFactorySettings(
+  value: unknown,
+): Pick<RecipeLayoutEntry, "beacons" | "modules"> {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  const modules = parseCompactModuleSettings(value.u);
+  const beacons = parseCompactBeaconSettings(value.b);
+
+  return {
+    ...(beacons.length ? { beacons } : {}),
+    ...(modules.length ? { modules } : {}),
+  };
+}
+
+function parseCompactModuleSettings(value: unknown): LayoutModuleSettings[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((rawSetting) => {
+    if (!Array.isArray(rawSetting)) {
+      return [];
+    }
+
+    const id = rawSetting[0];
+    const count = rawSetting[1];
+
+    return typeof id === "string" && typeof count === "number"
+      ? [{ id, count: parseProductionSize(count) }]
+      : [];
+  });
+}
+
+function parseCompactBeaconSettings(value: unknown): LayoutBeaconSettings[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((rawSetting) => {
+    if (!Array.isArray(rawSetting)) {
+      return [];
+    }
+
+    const id = rawSetting[0];
+    const count = rawSetting[1];
+
+    return typeof id === "string" && typeof count === "number"
+      ? [
+          {
+            id,
+            count: parseProductionSize(count),
+            modules: parseCompactModuleSettings(rawSetting[2]),
+          },
+        ]
+      : [];
+  });
 }
 
 function parseCompactRelays(
@@ -842,6 +977,12 @@ function normalizeProductionSize(value: number): number {
   return Number.isFinite(value) && value > 0
     ? Math.round(value * 1_000_000) / 1_000_000
     : defaultProductionSize;
+}
+
+function normalizeFactorySettingCount(value: number): number | null {
+  return Number.isFinite(value) && value > 0
+    ? Math.round(value * 1_000_000) / 1_000_000
+    : null;
 }
 
 function uniqueStrings(values: string[]): string[] {

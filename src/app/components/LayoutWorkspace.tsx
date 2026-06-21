@@ -27,7 +27,24 @@ import {
   getRecipeMetadata,
   type RecipeExplorerData,
 } from "../data/factoriolab";
+import {
+  getBeaconModuleCapacity,
+  getBeaconModuleOptions,
+  getBeaconOptions,
+  getDefaultBeaconModuleSettings,
+  getDefaultBeaconSettings,
+  getDefaultMachineModuleSettings,
+  getFactorySettingsSummaryCount,
+  getMachineModuleCapacity,
+  getRecipeModuleOptions,
+  getRecipeSelectedMachineId,
+  sanitizeBeaconSettings,
+  sanitizeModuleSettings,
+  type LayoutFactoryItemOption,
+} from "../layout-factory-settings";
 import type {
+  LayoutBeaconSettings,
+  LayoutModuleSettings,
   LayoutReorderPlacement,
   RecipeLayout,
   RecipeLayoutEntry,
@@ -44,7 +61,17 @@ interface LayoutWorkspaceProps {
   onDeleteLayout(layoutId: string): void;
   onImportLayout(layoutId: string, value: string): boolean;
   onOpenLayoutGraph(layoutId: string): void;
+  onRecipeBeaconsChange(
+    layoutId: string,
+    entryId: string,
+    beacons: LayoutBeaconSettings[],
+  ): void;
   onRecipeMachineChange(layoutId: string, entryId: string, machineId: string): void;
+  onRecipeModulesChange(
+    layoutId: string,
+    entryId: string,
+    modules: LayoutModuleSettings[],
+  ): void;
   onRecipeProductionSizeChange(
     layoutId: string,
     entryId: string,
@@ -69,7 +96,9 @@ export function LayoutWorkspace({
   onDeleteLayout,
   onImportLayout,
   onOpenLayoutGraph,
+  onRecipeBeaconsChange,
   onRecipeMachineChange,
+  onRecipeModulesChange,
   onRecipeProductionSizeChange,
   onRemoveRecipeFromLayout,
   onRenameLayout,
@@ -331,6 +360,16 @@ export function LayoutWorkspace({
           data={data}
           entry={selectedEntry}
           recipe={selectedRecipe}
+          onBeaconsChange={(beacons) => {
+            if (focusedLayout && selectedEntry) {
+              onRecipeBeaconsChange(focusedLayout.id, selectedEntry.id, beacons);
+            }
+          }}
+          onModulesChange={(modules) => {
+            if (focusedLayout && selectedEntry) {
+              onRecipeModulesChange(focusedLayout.id, selectedEntry.id, modules);
+            }
+          }}
           onOpenRecipeContext={onSelectItem}
         />
       </div>
@@ -523,6 +562,7 @@ function LayoutEditorRecipeRow({
           )}
         </select>
       </label>
+      <FactorySettingsSummary data={data} entry={entry} />
       <label className="layout-editor-row__size" data-tooltip="Production size">
         <span aria-hidden="true">×</span>
         <input
@@ -564,6 +604,64 @@ function LayoutEditorRecipeRow({
   );
 }
 
+function FactorySettingsSummary({
+  data,
+  entry,
+}: {
+  data: RecipeExplorerData;
+  entry: RecipeLayoutEntry;
+}) {
+  const summaryCount = getFactorySettingsSummaryCount(entry.modules, entry.beacons);
+
+  return (
+    <div
+      className={`layout-editor-row__factory ${
+        summaryCount ? "" : "layout-editor-row__factory--empty"
+      }`}
+      data-tooltip={summaryCount ? "Factory settings" : "No modules or beacons"}
+    >
+      {entry.modules?.map((module) => (
+        <FactorySettingChip
+          count={module.count}
+          data={data}
+          id={module.id}
+          key={`module:${module.id}`}
+        />
+      ))}
+      {entry.beacons?.map((beacon, index) => (
+        <FactorySettingChip
+          count={beacon.count}
+          data={data}
+          id={beacon.id}
+          key={`beacon:${beacon.id}:${index}`}
+        />
+      ))}
+      {summaryCount ? null : <span>empty</span>}
+    </div>
+  );
+}
+
+function FactorySettingChip({
+  count,
+  data,
+  id,
+}: {
+  count: number;
+  data: RecipeExplorerData;
+  id: string;
+}) {
+  const item = data.itemById.get(id);
+  const icon = data.iconById.get(item ? getIconIdForItem(item) : id);
+  const label = item?.name ?? formatId(id);
+
+  return (
+    <span className="factory-setting-chip" title={`${label} x ${formatNumber(count)}`}>
+      <IconSprite atlas={data.atlas} icon={icon} label={label} size={20} />
+      <em>{formatNumber(count)}</em>
+    </span>
+  );
+}
+
 function getRecipeMachineOptions(
   data: RecipeExplorerData,
   producerIds: string[],
@@ -585,12 +683,16 @@ interface LayoutRecipeInspectorProps {
   data: RecipeExplorerData;
   entry: RecipeLayoutEntry | null;
   recipe: RecipePrototype | null;
+  onBeaconsChange(beacons: LayoutBeaconSettings[]): void;
+  onModulesChange(modules: LayoutModuleSettings[]): void;
   onOpenRecipeContext(itemId: string): void;
 }
 
 function LayoutRecipeInspector({
   data,
   entry,
+  onBeaconsChange,
+  onModulesChange,
   onOpenRecipeContext,
   recipe,
 }: LayoutRecipeInspectorProps) {
@@ -610,7 +712,10 @@ function LayoutRecipeInspector({
 
   const metadata = getRecipeMetadata(recipe);
   const contextItemId = getRecipeContextItemId(data, recipe);
-  const selectedMachineId = getSelectedMachineId(entry, metadata.producers);
+  const selectedMachineId = getRecipeSelectedMachineId(recipe, entry.machineId);
+  const machineModuleOptions = getRecipeModuleOptions(data, recipe, selectedMachineId);
+  const machineModuleCapacity = getMachineModuleCapacity(data, selectedMachineId);
+  const canUseFactorySettings = machineModuleOptions.length > 0 && Boolean(machineModuleCapacity);
   const tags = [
     ...metadata.flags,
     ...metadata.disallowedEffects.map((effect) => `no ${effect}`),
@@ -670,6 +775,46 @@ function LayoutRecipeInspector({
         </div>
       ) : null}
 
+      <section className="layout-inspector__factory">
+        <header className="layout-inspector__section-heading">
+          <h3>Modules</h3>
+          {machineModuleCapacity && machineModuleCapacity !== true ? (
+            <span>
+              {formatNumber(sumModuleCounts(entry.modules))}/
+              {formatNumber(machineModuleCapacity)}
+            </span>
+          ) : null}
+        </header>
+        {canUseFactorySettings ? (
+          <ModuleSettingsRows
+            addLabel="Add module"
+            capacity={machineModuleCapacity}
+            data={data}
+            emptyLabel="No modules selected"
+            options={machineModuleOptions}
+            value={entry.modules ?? []}
+            onChange={onModulesChange}
+          />
+        ) : (
+          <p className="layout-inspector__muted">Selected machine has no module slots.</p>
+        )}
+      </section>
+
+      <section className="layout-inspector__factory">
+        <header className="layout-inspector__section-heading">
+          <h3>Beacons</h3>
+        </header>
+        {canUseFactorySettings ? (
+          <BeaconSettingsRows
+            data={data}
+            value={entry.beacons ?? []}
+            onChange={onBeaconsChange}
+          />
+        ) : (
+          <p className="layout-inspector__muted">Beacons need a module-capable machine.</p>
+        )}
+      </section>
+
       <button
         className="layout-inspector__open primary-action-button"
         disabled={!contextItemId}
@@ -685,6 +830,282 @@ function LayoutRecipeInspector({
       </button>
     </aside>
   );
+}
+
+interface ModuleSettingsRowsProps {
+  addLabel: string;
+  capacity: number | true | null;
+  data: RecipeExplorerData;
+  emptyLabel: string;
+  getDefaultSetting?(): LayoutModuleSettings | null;
+  options: LayoutFactoryItemOption[];
+  value: LayoutModuleSettings[];
+  onChange(value: LayoutModuleSettings[]): void;
+}
+
+function ModuleSettingsRows({
+  addLabel,
+  capacity,
+  data,
+  emptyLabel,
+  getDefaultSetting,
+  options,
+  value,
+  onChange,
+}: ModuleSettingsRowsProps) {
+  const usedSlots = sumModuleCounts(value);
+  const finiteCapacity = capacity === true ? null : capacity;
+  const remainingSlots =
+    finiteCapacity === null ? Number.POSITIVE_INFINITY : Math.max(0, finiteCapacity - usedSlots);
+  const canAdd = options.length > 0 && remainingSlots > 0;
+
+  function commit(nextValue: LayoutModuleSettings[]) {
+    onChange(sanitizeModuleSettings(nextValue, options, capacity));
+  }
+
+  function addModule() {
+    if (!canAdd) {
+      return;
+    }
+
+    const defaults = getDefaultSetting
+      ? [getDefaultSetting()].filter(
+          (setting): setting is LayoutModuleSettings => setting !== null,
+        )
+      : getDefaultMachineModuleSettings(options, capacity);
+    const fallbackId = options[0]?.id;
+    const nextSetting = defaults[0] ?? (fallbackId ? { id: fallbackId, count: 1 } : null);
+
+    if (!nextSetting) {
+      return;
+    }
+
+    commit([...value, { ...nextSetting, count: Math.min(nextSetting.count, remainingSlots) }]);
+  }
+
+  return (
+    <div className="factory-settings-editor">
+      {value.length ? (
+        value.map((setting, index) => (
+          <FactoryModuleSettingRow
+            data={data}
+            key={`${setting.id}:${index}`}
+            options={options}
+            setting={setting}
+            onCountChange={(count) =>
+              commit(value.map((item, itemIndex) =>
+                itemIndex === index ? { ...item, count } : item,
+              ))
+            }
+            onIdChange={(id) =>
+              commit(value.map((item, itemIndex) =>
+                itemIndex === index ? { ...item, id } : item,
+              ))
+            }
+            onRemove={() => commit(value.filter((_, itemIndex) => itemIndex !== index))}
+          />
+        ))
+      ) : (
+        <p className="layout-inspector__muted">{emptyLabel}</p>
+      )}
+      <button
+        className="factory-settings-editor__add"
+        disabled={!canAdd}
+        type="button"
+        onClick={addModule}
+      >
+        <Plus size={15} aria-hidden="true" />
+        {addLabel}
+      </button>
+    </div>
+  );
+}
+
+interface FactoryModuleSettingRowProps {
+  data: RecipeExplorerData;
+  options: LayoutFactoryItemOption[];
+  setting: LayoutModuleSettings;
+  onCountChange(count: number): void;
+  onIdChange(id: string): void;
+  onRemove(): void;
+}
+
+function FactoryModuleSettingRow({
+  data,
+  onCountChange,
+  onIdChange,
+  onRemove,
+  options,
+  setting,
+}: FactoryModuleSettingRowProps) {
+  const item = data.itemById.get(setting.id);
+  const icon = data.iconById.get(item ? getIconIdForItem(item) : setting.id);
+  const label = item?.name ?? formatId(setting.id);
+
+  return (
+    <div className="factory-settings-row">
+      <span className="factory-settings-row__icon" aria-hidden="true">
+        <IconSprite atlas={data.atlas} icon={icon} label={label} size={24} />
+      </span>
+      <input
+        aria-label={`${label} count`}
+        inputMode="decimal"
+        min="0"
+        step="1"
+        type="number"
+        value={formatProductionSize(setting.count)}
+        onChange={(event) => onCountChange(Number(event.target.value))}
+      />
+      <select
+        aria-label="Module"
+        value={setting.id}
+        onChange={(event) => onIdChange(event.target.value)}
+      >
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.name}
+          </option>
+        ))}
+      </select>
+      <button
+        aria-label={`Remove ${label}`}
+        className="factory-settings-row__remove"
+        data-tooltip="Remove"
+        type="button"
+        onClick={onRemove}
+      >
+        <X size={14} aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
+interface BeaconSettingsRowsProps {
+  data: RecipeExplorerData;
+  value: LayoutBeaconSettings[];
+  onChange(value: LayoutBeaconSettings[]): void;
+}
+
+function BeaconSettingsRows({ data, onChange, value }: BeaconSettingsRowsProps) {
+  const beaconOptions = getBeaconOptions(data);
+
+  function commit(nextValue: LayoutBeaconSettings[]) {
+    onChange(sanitizeBeaconSettings(data, nextValue));
+  }
+
+  function addBeacon() {
+    const defaults = getDefaultBeaconSettings(data);
+    const fallbackBeacon = beaconOptions[0];
+
+    if (defaults[0]) {
+      commit([...value, defaults[0]]);
+    } else if (fallbackBeacon) {
+      commit([...value, { id: fallbackBeacon.id, count: 1, modules: [] }]);
+    }
+  }
+
+  return (
+    <div className="factory-settings-editor">
+      {value.length ? (
+        value.map((beacon, index) => {
+          const moduleOptions = getBeaconModuleOptions(data, beacon.id);
+          const moduleCapacity = getBeaconModuleCapacity(data, beacon.id);
+          const item = data.itemById.get(beacon.id);
+          const icon = data.iconById.get(item ? getIconIdForItem(item) : beacon.id);
+          const label = item?.name ?? formatId(beacon.id);
+
+          return (
+            <div className="beacon-settings-card" key={`${beacon.id}:${index}`}>
+              <div className="factory-settings-row">
+                <span className="factory-settings-row__icon" aria-hidden="true">
+                  <IconSprite atlas={data.atlas} icon={icon} label={label} size={24} />
+                </span>
+                <input
+                  aria-label={`${label} count`}
+                  inputMode="decimal"
+                  min="0"
+                  step="1"
+                  type="number"
+                  value={formatProductionSize(beacon.count)}
+                  onChange={(event) =>
+                    commit(value.map((item, itemIndex) =>
+                      itemIndex === index
+                        ? { ...item, count: Number(event.target.value) }
+                        : item,
+                    ))
+                  }
+                />
+                <select
+                  aria-label="Beacon"
+                  value={beacon.id}
+                  onChange={(event) => {
+                    const nextBeaconId = event.target.value;
+                    const nextModules = sanitizeModuleSettings(
+                      beacon.modules,
+                      getBeaconModuleOptions(data, nextBeaconId),
+                      getBeaconModuleCapacity(data, nextBeaconId),
+                    );
+
+                    commit(value.map((item, itemIndex) =>
+                      itemIndex === index
+                        ? { ...item, id: nextBeaconId, modules: nextModules }
+                        : item,
+                    ));
+                  }}
+                >
+                  {beaconOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  aria-label={`Remove ${label}`}
+                  className="factory-settings-row__remove"
+                  data-tooltip="Remove"
+                  type="button"
+                  onClick={() => commit(value.filter((_, itemIndex) => itemIndex !== index))}
+                >
+                  <X size={14} aria-hidden="true" />
+                </button>
+              </div>
+              <ModuleSettingsRows
+                addLabel="Add beacon module"
+                capacity={moduleCapacity}
+                data={data}
+                emptyLabel="No beacon modules selected"
+                getDefaultSetting={() =>
+                  getDefaultBeaconModuleSettings(data, beacon.id)[0] ?? null
+                }
+                options={moduleOptions}
+                value={beacon.modules}
+                onChange={(modules) =>
+                  commit(value.map((item, itemIndex) =>
+                    itemIndex === index ? { ...item, modules } : item,
+                  ))
+                }
+              />
+            </div>
+          );
+        })
+      ) : (
+        <p className="layout-inspector__muted">No beacons selected</p>
+      )}
+      <button
+        className="factory-settings-editor__add"
+        disabled={!beaconOptions.length}
+        type="button"
+        onClick={addBeacon}
+      >
+        <Plus size={15} aria-hidden="true" />
+        Add beacon
+      </button>
+    </div>
+  );
+}
+
+function sumModuleCounts(modules: readonly LayoutModuleSettings[] | undefined): number {
+  return modules?.reduce((sum, module) => sum + module.count, 0) ?? 0;
 }
 
 interface InspectorMaterialGroupProps {
@@ -763,15 +1184,6 @@ function getRecipeContextItemId(
   }
 
   return recipe.ingredients?.find((entry) => data.itemById.has(entry.name))?.name ?? null;
-}
-
-function getSelectedMachineId(
-  entry: RecipeLayoutEntry,
-  producerIds: string[],
-): string | null {
-  return producerIds.includes(entry.machineId ?? "")
-    ? (entry.machineId ?? null)
-    : (producerIds[0] ?? null);
 }
 
 function formatMaterialAmount(entry: IngredientPrototype | ProductPrototype): string {

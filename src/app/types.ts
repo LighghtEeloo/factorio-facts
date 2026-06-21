@@ -2,9 +2,22 @@ export type AppView = "recipes" | "layouts" | "graph";
 
 export const defaultProductionSize = 1;
 
+export interface LayoutModuleSettings {
+  count: number;
+  id: string;
+}
+
+export interface LayoutBeaconSettings {
+  count: number;
+  id: string;
+  modules: LayoutModuleSettings[];
+}
+
 export interface RecipeLayoutEntry {
+  beacons?: LayoutBeaconSettings[];
   id: string;
   machineId?: string;
+  modules?: LayoutModuleSettings[];
   productionSize: number;
   recipeId: string;
 }
