@@ -105,6 +105,7 @@ interface LayoutGraphDialogProps {
   canUndoGraph: boolean;
   data: RecipeExplorerData;
   layout: RecipeLayout;
+  variant?: "dialog" | "workspace";
   onClose(): void;
   onEdgeItemsChange(edgeId: string, itemKeys: string[]): void;
   onEdgeItemsReset(edgeId: string): void;
@@ -130,6 +131,7 @@ export function LayoutGraphDialog({
   canUndoGraph,
   data,
   layout,
+  variant = "dialog",
   onClose,
   onEdgeItemsChange,
   onEdgeItemsReset,
@@ -319,6 +321,7 @@ export function LayoutGraphDialog({
     ],
   );
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const isWorkspace = variant === "workspace";
   const hasSavedGraphState =
     layout.relays.length > 0 ||
     Object.keys(layout.graphPositions).length > 0 ||
@@ -374,6 +377,10 @@ export function LayoutGraphDialog({
   }, [hasSavedGraphState]);
 
   useEffect(() => {
+    if (isWorkspace) {
+      return;
+    }
+
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         onClose();
@@ -382,7 +389,7 @@ export function LayoutGraphDialog({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  }, [isWorkspace, onClose]);
 
   const handleNodesChange = useCallback((changes: NodeChange<GraphFlowNode>[]) => {
     setNodes((currentNodes) => applyNodeChanges(changes, currentNodes));
@@ -663,18 +670,24 @@ export function LayoutGraphDialog({
 
   return (
     <div
-      className={`layout-graph-backdrop ${isFullscreen ? "popup-backdrop--fullscreen" : ""}`}
+      className={
+        isWorkspace
+          ? "layout-graph-view"
+          : `layout-graph-backdrop ${isFullscreen ? "popup-backdrop--fullscreen" : ""}`
+      }
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
+        if (!isWorkspace && event.target === event.currentTarget) {
           onClose();
         }
       }}
     >
       <section
         aria-labelledby="layout-graph-title"
-        aria-modal="true"
-        className={`layout-graph-dialog app-panel ${isFullscreen ? "popup-dialog--fullscreen" : ""}`}
-        role="dialog"
+        aria-modal={isWorkspace ? undefined : true}
+        className={`layout-graph-dialog app-panel ${
+          isWorkspace ? "layout-graph-dialog--workspace" : ""
+        } ${!isWorkspace && isFullscreen ? "popup-dialog--fullscreen" : ""}`}
+        role={isWorkspace ? undefined : "dialog"}
       >
         <header className="layout-graph-dialog__header">
           <div>
@@ -785,26 +798,28 @@ export function LayoutGraphDialog({
                 <RotateCcw size={18} aria-hidden="true" />
               </button>
             )}
+            {!isWorkspace ? (
+              <button
+                aria-label={
+                  isFullscreen ? "Exit fullscreen layout graph" : "Fullscreen layout graph"
+                }
+                aria-pressed={isFullscreen}
+                className="icon-button"
+                data-tooltip={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                type="button"
+                onClick={() => setIsFullscreen((current) => !current)}
+              >
+                {isFullscreen ? (
+                  <Minimize2 size={18} aria-hidden="true" />
+                ) : (
+                  <Maximize2 size={18} aria-hidden="true" />
+                )}
+              </button>
+            ) : null}
             <button
-              aria-label={
-                isFullscreen ? "Exit fullscreen layout graph" : "Fullscreen layout graph"
-              }
-              aria-pressed={isFullscreen}
+              aria-label={isWorkspace ? "Close graph view" : "Close layout graph"}
               className="icon-button"
-              data-tooltip={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-              type="button"
-              onClick={() => setIsFullscreen((current) => !current)}
-            >
-              {isFullscreen ? (
-                <Minimize2 size={18} aria-hidden="true" />
-              ) : (
-                <Maximize2 size={18} aria-hidden="true" />
-              )}
-            </button>
-            <button
-              aria-label="Close layout graph"
-              className="icon-button"
-              data-tooltip="Close"
+              data-tooltip={isWorkspace ? "Layouts" : "Close"}
               type="button"
               onClick={onClose}
             >

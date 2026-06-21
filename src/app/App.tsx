@@ -15,6 +15,7 @@ import {
 } from "./data/factoriolab";
 import { defaultProductionSize } from "./types";
 import type {
+  AppView,
   FilterState,
   GraphEdgeRoute,
   GraphEdgePorts,
@@ -27,10 +28,11 @@ import type {
   RecipeLayoutEntry,
   ViewMode,
 } from "./types";
+import { AppSidebar } from "./components/AppSidebar";
 import { FilterPanel } from "./components/FilterPanel";
 import { IconSprite } from "./components/IconSprite";
 import { LayoutGraphDialog } from "./components/LayoutGraphDialog";
-import { LayoutSidebar } from "./components/LayoutSidebar";
+import { LayoutWorkspace } from "./components/LayoutWorkspace";
 import { RecipeColumn } from "./components/RecipeColumn";
 import { TooltipLayer } from "./components/TooltipLayer";
 import {
@@ -51,6 +53,7 @@ const defaultFilters: FilterState = {
 };
 
 const defaultViewMode: ViewMode = "concise";
+const defaultAppView: AppView = "recipes";
 const defaultLayoutId = "layout-1";
 const graphHistoryLimit = 80;
 
@@ -58,9 +61,11 @@ let nextLayoutSequence = 2;
 let nextLayoutEntrySequence = 1;
 
 interface AppUrlState {
+  activeView: AppView;
   selectedItemId: string | null;
   filters: FilterState;
   focusedLayoutId: string;
+  graphLayoutId: string | null;
   layouts: RecipeLayout[];
   viewMode: ViewMode;
 }
@@ -83,11 +88,14 @@ interface GraphLayoutHistory {
 
 export function App() {
   const initialUrlState = useMemo(readAppStateFromUrl, []);
+  const [activeView, setActiveView] = useState<AppView>(initialUrlState.activeView);
   const [selectedItemId, setSelectedItemId] = useState(initialUrlState.selectedItemId);
   const [filters, setFilters] = useState<FilterState>(initialUrlState.filters);
   const [focusedLayoutId, setFocusedLayoutId] = useState(initialUrlState.focusedLayoutId);
   const [layouts, setLayouts] = useState<RecipeLayout[]>(initialUrlState.layouts);
-  const [graphLayoutId, setGraphLayoutId] = useState<string | null>(null);
+  const [graphLayoutId, setGraphLayoutId] = useState<string | null>(
+    initialUrlState.graphLayoutId,
+  );
   const [graphHistories, setGraphHistories] = useState<
     Record<string, GraphLayoutHistory | undefined>
   >({});
@@ -97,9 +105,9 @@ export function App() {
     ? explorerData.itemById.get(selectedItemId) ?? null
     : null;
   const focusedLayout = layouts.find((layout) => layout.id === focusedLayoutId) ?? layouts[0];
-  const graphLayout = graphLayoutId
-    ? layouts.find((layout) => layout.id === graphLayoutId) ?? null
-    : null;
+  const graphLayout =
+    (graphLayoutId ? layouts.find((layout) => layout.id === graphLayoutId) : null) ??
+    (activeView === "graph" ? focusedLayout ?? null : null);
   const graphHistory = graphLayout ? graphHistories[graphLayout.id] : undefined;
 
   if (!explorerData.items.length) {
@@ -131,18 +139,27 @@ export function App() {
     : undefined;
 
   useEffect(() => {
-    updateUrlFromAppState({ selectedItemId, filters, focusedLayoutId, layouts, viewMode });
-  }, [filters, focusedLayoutId, layouts, selectedItemId, viewMode]);
+    updateUrlFromAppState({
+      activeView,
+      selectedItemId,
+      filters,
+      focusedLayoutId,
+      graphLayoutId,
+      layouts,
+      viewMode,
+    });
+  }, [activeView, filters, focusedLayoutId, graphLayoutId, layouts, selectedItemId, viewMode]);
 
   useEffect(() => {
     function handlePopState() {
       const nextState = readAppStateFromUrl();
 
       setSelectedItemId(nextState.selectedItemId);
+      setActiveView(nextState.activeView);
       setFilters(nextState.filters);
       setFocusedLayoutId(nextState.focusedLayoutId);
       setLayouts(nextState.layouts);
-      setGraphLayoutId(null);
+      setGraphLayoutId(nextState.graphLayoutId);
       setGraphHistories({});
       setViewMode(nextState.viewMode);
     }
@@ -153,6 +170,7 @@ export function App() {
 
   function selectItem(itemId: string) {
     setSelectedItemId(itemId);
+    setActiveView("recipes");
   }
 
   function createLayout() {
@@ -160,6 +178,7 @@ export function App() {
 
     setLayouts((currentLayouts) => [...currentLayouts, layout]);
     setFocusedLayoutId(layout.id);
+    setActiveView("layouts");
   }
 
   function renameLayout(layoutId: string, name: string) {
@@ -174,12 +193,10 @@ export function App() {
     setFocusedLayoutId(layoutId);
   }
 
-  function toggleLayoutCollapsed(layoutId: string) {
-    setLayouts((currentLayouts) =>
-      currentLayouts.map((layout) =>
-        layout.id === layoutId ? { ...layout, collapsed: !layout.collapsed } : layout,
-      ),
-    );
+  function openLayoutGraph(layoutId: string) {
+    setFocusedLayoutId(layoutId);
+    setGraphLayoutId(layoutId);
+    setActiveView("graph");
   }
 
   function addRecipeToFocusedLayout(recipeId: string) {
@@ -361,7 +378,7 @@ export function App() {
     setFocusedLayoutId(nextFocusedLayoutId);
 
     if (graphLayoutId === layoutId) {
-      setGraphLayoutId(null);
+      setGraphLayoutId(nextFocusedLayoutId);
     }
   }
 
@@ -826,160 +843,199 @@ export function App() {
   }
 
   return (
-    <main className="app-shell">
-      <LayoutSidebar
+    <main className={`app-shell app-shell--${activeView}`}>
+      <AppSidebar
+        activeView={activeView}
         data={explorerData}
         focusedLayoutId={focusedLayout?.id ?? defaultLayoutId}
         layouts={layouts}
         onCreateLayout={createLayout}
-        onDeleteLayout={deleteLayout}
         onFocusLayout={focusLayout}
-        onImportLayout={importLayout}
-        onOpenLayoutGraph={setGraphLayoutId}
-        onRecipeProductionSizeChange={updateRecipeProductionSize}
-        onRemoveRecipeFromLayout={removeRecipeFromLayout}
-        onRenameLayout={renameLayout}
-        onReorderLayout={reorderLayout}
-        onReorderRecipeInLayout={reorderRecipeInLayout}
-        onToggleLayoutCollapsed={toggleLayoutCollapsed}
-        onSelect={selectItem}
+        onOpenLayoutGraph={openLayoutGraph}
+        onSelectItem={selectItem}
+        onViewChange={setActiveView}
         selectedItemId={selectedItem?.id ?? null}
       />
 
-      <section className={`workspace ${selectedItem ? "" : "workspace--empty"}`}>
-        {selectedItem ? (
-          <>
-            <header className="workspace-header app-panel">
-              <div className="selected-item">
-                <IconSprite
-                  atlas={explorerData.atlas}
-                  icon={selectedIcon}
-                  label={selectedItem.name}
-                  size={48}
-                />
+      {activeView === "recipes" ? (
+        <>
+          <section className={`workspace ${selectedItem ? "" : "workspace--empty"}`}>
+            {selectedItem ? (
+              <>
+                <header className="workspace-header app-panel">
+                  <div className="selected-item">
+                    <IconSprite
+                      atlas={explorerData.atlas}
+                      icon={selectedIcon}
+                      label={selectedItem.name}
+                      size={48}
+                    />
+                    <div>
+                      <h1>{selectedItem.name}</h1>
+                      <span>{selectedItem.id}</span>
+                    </div>
+                  </div>
+
+                  <div className="workspace-stats">
+                    <span>
+                      <ArrowDownToLine size={16} aria-hidden="true" />
+                      {madeBy.length} made by
+                    </span>
+                    <span>
+                      <ArrowUpFromLine size={16} aria-hidden="true" />
+                      {usedIn.length} used in
+                    </span>
+                    <ViewModeToggle value={viewMode} onChange={setViewMode} />
+                  </div>
+                </header>
+
+                <div className="recipe-grid">
+                  <RecipeColumn
+                    data={explorerData}
+                    getFocusedLayoutRecipeCount={getFocusedLayoutRecipeCount}
+                    onAddRecipeToLayout={addRecipeToFocusedLayout}
+                    onSelectItem={selectItem}
+                    recipes={madeBy}
+                    selectedItemId={selectedItem.id}
+                    viewMode={viewMode}
+                    variant="made-by"
+                    title="Made by"
+                  />
+                  <RecipeColumn
+                    data={explorerData}
+                    getFocusedLayoutRecipeCount={getFocusedLayoutRecipeCount}
+                    onAddRecipeToLayout={addRecipeToFocusedLayout}
+                    onSelectItem={selectItem}
+                    recipes={usedIn}
+                    selectedItemId={selectedItem.id}
+                    viewMode={viewMode}
+                    variant="used-in"
+                    title="Used in"
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="workspace-empty app-panel">
+                <Package size={40} aria-hidden="true" />
                 <div>
-                  <h1>{selectedItem.name}</h1>
-                  <span>{selectedItem.id}</span>
+                  <h1>Select item</h1>
+                  <span>No item selected</span>
                 </div>
               </div>
+            )}
 
-              <div className="workspace-stats">
-                <span>
-                  <ArrowDownToLine size={16} aria-hidden="true" />
-                  {madeBy.length} made by
-                </span>
-                <span>
-                  <ArrowUpFromLine size={16} aria-hidden="true" />
-                  {usedIn.length} used in
-                </span>
-                <ViewModeToggle value={viewMode} onChange={setViewMode} />
-              </div>
-            </header>
+            <DataFootnote />
+          </section>
 
-            <div className="recipe-grid">
-              <RecipeColumn
-                data={explorerData}
-                getFocusedLayoutRecipeCount={getFocusedLayoutRecipeCount}
-                onAddRecipeToLayout={addRecipeToFocusedLayout}
-                onSelectItem={selectItem}
-                recipes={madeBy}
-                selectedItemId={selectedItem.id}
-                viewMode={viewMode}
-                variant="made-by"
-                title="Made by"
-              />
-              <RecipeColumn
-                data={explorerData}
-                getFocusedLayoutRecipeCount={getFocusedLayoutRecipeCount}
-                onAddRecipeToLayout={addRecipeToFocusedLayout}
-                onSelectItem={selectItem}
-                recipes={usedIn}
-                selectedItemId={selectedItem.id}
-                viewMode={viewMode}
-                variant="used-in"
-                title="Used in"
-              />
-            </div>
-          </>
-        ) : (
-          <div className="workspace-empty app-panel">
-            <Package size={40} aria-hidden="true" />
-            <div>
-              <h1>Select item</h1>
-              <span>No item selected</span>
-            </div>
-          </div>
-        )}
-
-        <footer className="data-footnote">
-          <span className="data-footnote__version">{explorerData.versionLabel}</span>
-          <span className="data-footnote__separator">/</span>
-          <span className="data-footnote__recipes">
-            <Database size={14} aria-hidden="true" />
-            {explorerData.recipes.length} recipes
-          </span>
-        </footer>
-      </section>
-
-      <FilterPanel
-        data={explorerData}
-        filters={filters}
-        onChange={setFilters}
-        onReset={() => setFilters(defaultFilters)}
-      />
-      {graphLayout ? (
-        <LayoutGraphDialog
-          canRedoGraph={Boolean(graphHistory?.redo.length)}
-          canUndoGraph={Boolean(graphHistory?.undo.length)}
-          data={explorerData}
-          layout={graphLayout}
-          onClose={() => setGraphLayoutId(null)}
-          onEdgePortsChange={(edgeId, ports) =>
-            updateLayoutGraphEdgePorts(graphLayout.id, edgeId, ports)
-          }
-          onEdgeRouteChange={(edgeId, route) =>
-            updateLayoutGraphEdgeRoute(graphLayout.id, edgeId, route)
-          }
-          onEdgeRouteReset={(edgeId) =>
-            resetLayoutGraphEdgeRoute(graphLayout.id, edgeId)
-          }
-          onEdgeItemsChange={(edgeId, itemKeys) =>
-            updateLayoutGraphEdgeItems(graphLayout.id, edgeId, itemKeys)
-          }
-          onEdgeItemsReset={(edgeId) =>
-            resetLayoutGraphEdgeItems(graphLayout.id, edgeId)
-          }
-          onExternalItemsChange={(terminalId, itemKeys) =>
-            updateLayoutGraphExternalItems(graphLayout.id, terminalId, itemKeys)
-          }
-          onExportLayout={() => exportLayout(graphLayout.id)}
-          onRelayCreate={(relay, position) =>
-            createLayoutGraphRelay(graphLayout.id, relay, position)
-          }
-          onRelayDelete={(relayId) =>
-            deleteLayoutGraphRelay(graphLayout.id, relayId)
-          }
-          onRelayItemsChange={(relayId, itemKeys) =>
-            updateLayoutGraphRelayItems(graphLayout.id, relayId, itemKeys)
-          }
-          onGraphEditStart={() => captureGraphHistory(graphLayout.id)}
-          onGraphRedo={() => redoLayoutGraph(graphLayout.id)}
-          onGraphUndo={() => undoLayoutGraph(graphLayout.id)}
-          onNodePositionChange={(entryId, position) =>
-            updateLayoutGraphNodePosition(graphLayout.id, entryId, position)
-          }
-          onResetGraphPositions={() => resetLayoutGraph(graphLayout.id)}
-          onSelectItem={(itemId) => {
-            selectItem(itemId);
-            setGraphLayoutId(null);
-          }}
-          onTerminalSideChange={(terminalId, side) =>
-            updateLayoutGraphTerminalSide(graphLayout.id, terminalId, side)
-          }
-        />
+          <FilterPanel
+            data={explorerData}
+            filters={filters}
+            onChange={setFilters}
+            onReset={() => setFilters(defaultFilters)}
+          />
+        </>
       ) : null}
+
+      {activeView === "layouts" ? (
+        <div className="layout-view">
+          <LayoutWorkspace
+            data={explorerData}
+            focusedLayoutId={focusedLayout?.id ?? defaultLayoutId}
+            layouts={layouts}
+            onCreateLayout={createLayout}
+            onDeleteLayout={deleteLayout}
+            onFocusLayout={focusLayout}
+            onImportLayout={importLayout}
+            onOpenLayoutGraph={openLayoutGraph}
+            onRecipeProductionSizeChange={updateRecipeProductionSize}
+            onRemoveRecipeFromLayout={removeRecipeFromLayout}
+            onRenameLayout={renameLayout}
+            onReorderLayout={reorderLayout}
+            onReorderRecipeInLayout={reorderRecipeInLayout}
+            onSelectItem={selectItem}
+          />
+          <DataFootnote />
+        </div>
+      ) : null}
+
+      {activeView === "graph" ? (
+        <section className="graph-workspace">
+          {graphLayout ? (
+            <LayoutGraphDialog
+              canRedoGraph={Boolean(graphHistory?.redo.length)}
+              canUndoGraph={Boolean(graphHistory?.undo.length)}
+              data={explorerData}
+              layout={graphLayout}
+              variant="workspace"
+              onClose={() => setActiveView("layouts")}
+              onEdgePortsChange={(edgeId, ports) =>
+                updateLayoutGraphEdgePorts(graphLayout.id, edgeId, ports)
+              }
+              onEdgeRouteChange={(edgeId, route) =>
+                updateLayoutGraphEdgeRoute(graphLayout.id, edgeId, route)
+              }
+              onEdgeRouteReset={(edgeId) =>
+                resetLayoutGraphEdgeRoute(graphLayout.id, edgeId)
+              }
+              onEdgeItemsChange={(edgeId, itemKeys) =>
+                updateLayoutGraphEdgeItems(graphLayout.id, edgeId, itemKeys)
+              }
+              onEdgeItemsReset={(edgeId) =>
+                resetLayoutGraphEdgeItems(graphLayout.id, edgeId)
+              }
+              onExternalItemsChange={(terminalId, itemKeys) =>
+                updateLayoutGraphExternalItems(graphLayout.id, terminalId, itemKeys)
+              }
+              onExportLayout={() => exportLayout(graphLayout.id)}
+              onRelayCreate={(relay, position) =>
+                createLayoutGraphRelay(graphLayout.id, relay, position)
+              }
+              onRelayDelete={(relayId) =>
+                deleteLayoutGraphRelay(graphLayout.id, relayId)
+              }
+              onRelayItemsChange={(relayId, itemKeys) =>
+                updateLayoutGraphRelayItems(graphLayout.id, relayId, itemKeys)
+              }
+              onGraphEditStart={() => captureGraphHistory(graphLayout.id)}
+              onGraphRedo={() => redoLayoutGraph(graphLayout.id)}
+              onGraphUndo={() => undoLayoutGraph(graphLayout.id)}
+              onNodePositionChange={(entryId, position) =>
+                updateLayoutGraphNodePosition(graphLayout.id, entryId, position)
+              }
+              onResetGraphPositions={() => resetLayoutGraph(graphLayout.id)}
+              onSelectItem={selectItem}
+              onTerminalSideChange={(terminalId, side) =>
+                updateLayoutGraphTerminalSide(graphLayout.id, terminalId, side)
+              }
+            />
+          ) : (
+            <div className="workspace-empty app-panel">
+              <Package size={40} aria-hidden="true" />
+              <div>
+                <h1>No graph</h1>
+                <span>No layout selected</span>
+              </div>
+            </div>
+          )}
+          <DataFootnote />
+        </section>
+      ) : null}
+
       <TooltipLayer />
     </main>
+  );
+}
+
+function DataFootnote() {
+  return (
+    <footer className="data-footnote">
+      <span className="data-footnote__version">{explorerData.versionLabel}</span>
+      <span className="data-footnote__separator">/</span>
+      <span className="data-footnote__recipes">
+        <Database size={14} aria-hidden="true" />
+        {explorerData.recipes.length} recipes
+      </span>
+    </footer>
   );
 }
 
@@ -1024,8 +1080,11 @@ function readAppStateFromUrl(): AppUrlState {
       defaultLayoutId,
       isRecipeIdAllowed: (recipeId) => explorerData.recipeById.has(recipeId),
     }) ?? parseLayoutState(params.get("layouts"));
+  const activeView = parseAppView(params.get("mode"));
+  const graphLayoutId = parseGraphLayoutId(params.get("graph"), layoutState.layouts);
 
   return {
+    activeView,
     selectedItemId,
     filters: {
       locations: parseIdList(params, "surface", (id) => explorerData.locationById.has(id)),
@@ -1064,6 +1123,7 @@ function readAppStateFromUrl(): AppUrlState {
       ),
     },
     focusedLayoutId: layoutState.focusedLayoutId,
+    graphLayoutId,
     layouts: layoutState.layouts,
     viewMode,
   };
@@ -1078,6 +1138,18 @@ function updateUrlFromAppState(state: AppUrlState) {
 
   if (state.viewMode !== defaultViewMode) {
     params.set("view", state.viewMode);
+  }
+
+  if (state.activeView !== defaultAppView) {
+    params.set("mode", state.activeView);
+  }
+
+  if (
+    state.activeView === "graph" &&
+    state.graphLayoutId &&
+    state.graphLayoutId !== state.focusedLayoutId
+  ) {
+    params.set("graph", state.graphLayoutId);
   }
 
   setListParam(params, "surface", state.filters.locations);
@@ -2159,6 +2231,19 @@ function parseItemId(value: string | null): string | null {
 
 function parseViewMode(value: string | null): ViewMode {
   return value === "detailed" || value === "concise" ? value : defaultViewMode;
+}
+
+function parseAppView(value: string | null): AppView {
+  return value === "layouts" || value === "graph" || value === "recipes"
+    ? value
+    : defaultAppView;
+}
+
+function parseGraphLayoutId(
+  value: string | null,
+  layouts: RecipeLayout[],
+): string | null {
+  return value && layouts.some((layout) => layout.id === value) ? value : null;
 }
 
 function parseBooleanParam(
