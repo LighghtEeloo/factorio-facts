@@ -902,6 +902,7 @@ export function LayoutGraphDialog({
             >
               <Background color="#4b4735" gap={34} />
               <Controls showInteractive={false} />
+              <GraphShortcutHints />
               <MiniMap
                 maskColor="rgba(12, 13, 10, 0.62)"
                 nodeColor="#d7b65f"
@@ -968,6 +969,24 @@ export function LayoutGraphDialog({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function GraphShortcutHints() {
+  return (
+    <aside
+      aria-label="Graph keyboard shortcuts"
+      className="layout-graph-shortcuts nodrag nopan"
+    >
+      <span>
+        <kbd>Shift</kbd>
+        click node
+      </span>
+      <span>
+        <kbd>Shift</kbd>/<kbd>Cmd</kbd>
+        click edge
+      </span>
+    </aside>
   );
 }
 
