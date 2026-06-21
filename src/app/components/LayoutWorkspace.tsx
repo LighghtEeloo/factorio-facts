@@ -210,7 +210,13 @@ export function LayoutWorkspace({
         <div className="layout-workspace__title">
           <Boxes size={28} aria-hidden="true" />
           <label className="layout-title-field">
-            <span>Layout</span>
+            <span className="layout-title-field__meta">
+              <span>Layout</span>
+              <span className="layout-workspace__count">
+                {focusedLayout.entries.length}{" "}
+                {focusedLayout.entries.length === 1 ? "recipe" : "recipes"}
+              </span>
+            </span>
             <input
               aria-label="Layout name"
               placeholder="Untitled layout"
@@ -218,10 +224,6 @@ export function LayoutWorkspace({
               onChange={(event) => onRenameLayout(focusedLayout.id, event.target.value)}
             />
           </label>
-          <span className="layout-workspace__count">
-            {focusedLayout.entries.length}{" "}
-            {focusedLayout.entries.length === 1 ? "recipe" : "recipes"}
-          </span>
         </div>
         <div className="layout-workspace__actions">
           {!focusedLayout.entries.length ? (

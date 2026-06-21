@@ -858,7 +858,7 @@ button {
 
 .layout-workspace__title {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) auto;
+  grid-template-columns: 36px minmax(0, 1fr);
   align-items: center;
   gap: 12px;
   min-width: 0;
@@ -889,11 +889,19 @@ button {
   min-width: 0;
 }
 
-.layout-title-field span {
+.layout-title-field__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
   color: #a7a18d;
   font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;
+}
+
+.layout-title-field__meta span {
+  min-width: 0;
 }
 
 .layout-title-field input {
@@ -915,16 +923,10 @@ button {
 }
 
 .layout-workspace__count {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  border: 1px solid #4b4b3d;
-  border-radius: 999px;
-  background: #1b1d17;
   color: #d7b65f;
-  font-size: 0.75rem;
+  font-size: 0.68rem;
   font-variant-numeric: tabular-nums;
-  padding: 0 9px;
+  text-transform: none;
   white-space: nowrap;
 }
 
@@ -2990,15 +2992,6 @@ button {
 
   .layout-workspace__body {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .layout-workspace__title {
-    grid-template-columns: 36px minmax(0, 1fr);
-  }
-
-  .layout-workspace__count {
-    grid-column: 2;
-    justify-self: start;
   }
 
   .layout-editor-row {
