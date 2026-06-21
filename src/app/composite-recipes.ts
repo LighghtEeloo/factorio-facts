@@ -116,7 +116,11 @@ export function createCompositeRecipePrototype(
   recipeById: ReadonlyMap<string, RecipePrototype>,
 ): RecipePrototype {
   const boundary = inferLayoutCompositeBoundary(installedRecipe.layout, recipeById);
-  const iconIds = getCompositeRecipeIconIds(data, boundary.results);
+  const iconIds = getCompositeRecipeIconIds(
+    data,
+    boundary.results,
+    installedRecipe.layout.iconIds,
+  );
   const name = getInstalledRecipeName(installedRecipe);
   const metadata: FactorioLabRecipeMetadata = {
     source: "composite",
@@ -200,6 +204,32 @@ export function inferLayoutCompositeBoundary(
 export function getCompositeRecipeIconIds(
   data: RecipeExplorerData,
   results: readonly ProductPrototype[],
+  preferredIconIds: readonly string[] = [],
+): string[] {
+  const outputIconIds = getCompositeRecipeOutputIconIds(data, results);
+  const outputIconIdSet = new Set(outputIconIds);
+  const preferredIconIdSet = new Set<string>();
+  const preferredIcons: string[] = [];
+
+  for (const iconId of preferredIconIds) {
+    if (preferredIconIdSet.has(iconId) || !outputIconIdSet.has(iconId)) {
+      continue;
+    }
+
+    preferredIconIdSet.add(iconId);
+    preferredIcons.push(iconId);
+
+    if (preferredIcons.length >= 4) {
+      break;
+    }
+  }
+
+  return preferredIcons.length ? preferredIcons : outputIconIds.slice(0, 4);
+}
+
+export function getCompositeRecipeOutputIconIds(
+  data: RecipeExplorerData,
+  results: readonly ProductPrototype[],
 ): string[] {
   const iconIds: string[] = [];
   const seenIconIds = new Set<string>();
@@ -213,10 +243,6 @@ export function getCompositeRecipeIconIds(
 
     seenIconIds.add(iconId);
     iconIds.push(iconId);
-
-    if (iconIds.length >= 4) {
-      break;
-    }
   }
 
   return iconIds;

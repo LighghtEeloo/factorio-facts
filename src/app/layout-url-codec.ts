@@ -76,6 +76,7 @@ type CompactExternalItems = [
   itemIndexes: number[],
 ];
 type CompactRelay = [itemIndexes: number[]];
+type CompactLayoutIconIds = number[];
 type CompactInstalledRecipe = [recipeId: string, layout: unknown[]];
 
 export interface ParsedLayoutUrlState {
@@ -118,6 +119,10 @@ export function serializeCompactLayoutState(
 
     for (const itemKey of Object.values(layout.externalItems).flat()) {
       getStringIndex(itemKey, itemKeys, itemIndexByKey);
+    }
+
+    for (const iconId of layout.iconIds) {
+      getStringIndex(iconId, itemKeys, itemIndexByKey);
     }
   }
 
@@ -222,6 +227,11 @@ function compactLayout(
     compact,
     9,
     compactGraphRelays(layout.relays, itemKeys, itemIndexByKey),
+  );
+  setCompactSlot(
+    compact,
+    10,
+    compactLayoutIconIds(layout.iconIds, itemKeys, itemIndexByKey),
   );
 
   return compact;
@@ -482,6 +492,14 @@ function compactGraphRelays(
     .filter(([relayItemIndexes]) => relayItemIndexes.length);
 }
 
+function compactLayoutIconIds(
+  iconIds: string[],
+  itemKeys: string[],
+  itemIndexByKey: Map<string, number>,
+): CompactLayoutIconIds {
+  return compactOrderedStringIndexes(iconIds, itemKeys, itemIndexByKey);
+}
+
 function parseCompactState(
   value: Record<string, unknown>,
   options: LayoutUrlCodecOptions,
@@ -661,6 +679,7 @@ function parseCompactLayout(
     {
       id: layoutId,
       name: typeof value[0] === "string" ? value[0] : "",
+      iconIds: parseCompactOrderedStringIndexes(value[10], itemKeys).slice(0, 4),
       entries,
       relays,
       graphPositions: parseCompactGraphPositions(value[3], nodeIdByIndex),
@@ -1014,6 +1033,7 @@ function defaultCompactLayoutState(defaultLayoutId: string): ParsedLayoutUrlStat
       {
         id: defaultLayoutId,
         name: "",
+        iconIds: [],
         entries: [],
         relays: [],
         graphPositions: {},
@@ -1064,6 +1084,16 @@ function compactStringIndexes(
   );
 }
 
+function compactOrderedStringIndexes(
+  values: string[],
+  stringValues: string[],
+  indexByValue: Map<string, number>,
+): number[] {
+  return uniqueOrderedStrings(values).map((value) =>
+    getStringIndex(value, stringValues, indexByValue),
+  );
+}
+
 function parseCompactStringIndexes(
   value: unknown,
   stringValues: Array<string | null>,
@@ -1073,6 +1103,24 @@ function parseCompactStringIndexes(
   }
 
   return uniqueStrings(
+    value.flatMap((rawIndex) => {
+      const index = parseNonNegativeInteger(rawIndex);
+      const stringValue = index === null ? null : stringValues[index] ?? null;
+
+      return stringValue ? [stringValue] : [];
+    }),
+  );
+}
+
+function parseCompactOrderedStringIndexes(
+  value: unknown,
+  stringValues: Array<string | null>,
+): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return uniqueOrderedStrings(
     value.flatMap((rawIndex) => {
       const index = parseNonNegativeInteger(rawIndex);
       const stringValue = index === null ? null : stringValues[index] ?? null;
@@ -1108,6 +1156,22 @@ function parseFactorySettingCount(value: unknown): number {
 
 function uniqueStrings(values: string[]): string[] {
   return [...new Set(values)].sort();
+}
+
+function uniqueOrderedStrings(values: string[]): string[] {
+  const seenValues = new Set<string>();
+  const uniqueValues: string[] = [];
+
+  for (const value of values) {
+    if (seenValues.has(value)) {
+      continue;
+    }
+
+    seenValues.add(value);
+    uniqueValues.push(value);
+  }
+
+  return uniqueValues;
 }
 
 function setCompactSlot(compact: unknown[], index: number, value: unknown[]) {

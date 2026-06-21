@@ -4,12 +4,15 @@ import {
   BookmarkPlus,
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ExternalLink,
   GripVertical,
   Import,
   Network,
   PackageOpen,
   Plus,
+  RotateCcw,
   Timer,
   Trash2,
   X,
@@ -34,6 +37,7 @@ import {
 } from "../data/factoriolab";
 import {
   getCompositeRecipeIconIds,
+  getCompositeRecipeOutputIconIds,
   inferLayoutCompositeBoundary,
   isCompositeRecipe,
 } from "../composite-recipes";
@@ -72,6 +76,7 @@ interface LayoutWorkspaceProps {
   onDeleteLayout(layoutId: string): void;
   onImportLayout(layoutId: string, value: string): boolean;
   onInstallLayout(layoutId: string): void;
+  onLayoutIconIdsChange(layoutId: string, iconIds: string[]): void;
   onOpenLayoutGraph(layoutId: string): void;
   onRecipeBeaconsChange(
     layoutId: string,
@@ -108,6 +113,7 @@ export function LayoutWorkspace({
   onDeleteLayout,
   onImportLayout,
   onInstallLayout,
+  onLayoutIconIdsChange,
   onOpenLayoutGraph,
   onRecipeBeaconsChange,
   onRecipeMachineChange,
@@ -143,13 +149,17 @@ export function LayoutWorkspace({
   const compositeBoundary = focusedLayout
     ? inferLayoutCompositeBoundary(focusedLayout, data.recipeById)
     : { ingredients: [], results: [] };
-  const compositeIconEntries = getCompositeRecipeIconIds(
+  const compositeOutputIconIds = getCompositeRecipeOutputIconIds(
     data,
     compositeBoundary.results,
-  ).map((iconId) => ({
-    icon: data.iconById.get(iconId),
-    label: data.itemById.get(iconId)?.name ?? formatId(iconId),
-  }));
+  );
+  const compositeIconIds = getCompositeRecipeIconIds(
+    data,
+    compositeBoundary.results,
+    focusedLayout?.iconIds ?? [],
+  );
+  const compositeIconEntries = getCompositeIconEntries(data, compositeIconIds);
+  const compositeOutputIconEntries = getCompositeIconEntries(data, compositeOutputIconIds);
 
   useEffect(() => {
     if (!focusedLayout?.entries.length) {
@@ -292,11 +302,13 @@ export function LayoutWorkspace({
       <header className="layout-workspace__header app-panel">
         <div className="layout-workspace__title">
           {focusedLayout.entries.length ? (
-            <CompositeRecipeIcon
-              atlas={data.atlas}
+            <CompositeIconEditor
+              candidateIcons={compositeOutputIconEntries}
+              customIconIds={focusedLayout.iconIds}
+              data={data}
               icons={compositeIconEntries}
-              label={`${title} icon`}
-              size={42}
+              title={title}
+              onChange={(iconIds) => onLayoutIconIdsChange(focusedLayout.id, iconIds)}
             />
           ) : (
             <Boxes size={42} aria-hidden="true" />
@@ -559,6 +571,299 @@ function LayoutCompositeDetails({
       </div>
     </section>
   );
+}
+
+interface CompositeIconEntry {
+  icon: FactorioLabIcon | undefined;
+  id: string;
+  label: string;
+}
+
+interface CompositeIconEditorProps {
+  candidateIcons: CompositeIconEntry[];
+  customIconIds: string[];
+  data: RecipeExplorerData;
+  icons: CompositeIconEntry[];
+  title: string;
+  onChange(iconIds: string[]): void;
+}
+
+function CompositeIconEditor({
+  candidateIcons,
+  customIconIds,
+  data,
+  icons,
+  title,
+  onChange,
+}: CompositeIconEditorProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const selectedIconIds = icons.map((icon) => icon.id);
+  const selectedIconIdSet = new Set(selectedIconIds);
+  const canEdit = candidateIcons.length > 0;
+  const hasCustomIconIds = customIconIds.length > 0;
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      if (
+        event.target instanceof Node &&
+        rootRef.current?.contains(event.target)
+      ) {
+        return;
+      }
+
+      setIsOpen(false);
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
+
+  function commit(nextIconIds: string[]) {
+    const sanitizedIconIds = sanitizeCompositeIconSelection(
+      nextIconIds,
+      candidateIcons,
+    );
+
+    if (sanitizedIconIds.length) {
+      onChange(sanitizedIconIds);
+    }
+  }
+
+  function moveIcon(index: number, direction: -1 | 1) {
+    const targetIndex = index + direction;
+
+    if (targetIndex < 0 || targetIndex >= selectedIconIds.length) {
+      return;
+    }
+
+    const nextIconIds = [...selectedIconIds];
+    const [movedIconId] = nextIconIds.splice(index, 1);
+
+    if (!movedIconId) {
+      return;
+    }
+
+    nextIconIds.splice(targetIndex, 0, movedIconId);
+    commit(nextIconIds);
+  }
+
+  function removeIcon(iconId: string) {
+    if (selectedIconIds.length <= 1) {
+      return;
+    }
+
+    commit(selectedIconIds.filter((selectedIconId) => selectedIconId !== iconId));
+  }
+
+  function toggleIcon(iconId: string) {
+    if (selectedIconIdSet.has(iconId)) {
+      removeIcon(iconId);
+      return;
+    }
+
+    if (selectedIconIds.length >= 4) {
+      return;
+    }
+
+    commit([...selectedIconIds, iconId]);
+  }
+
+  return (
+    <div className="layout-composite-icon-control" ref={rootRef}>
+      <button
+        aria-expanded={isOpen}
+        aria-haspopup="dialog"
+        aria-label={`Edit ${title} recipe icon`}
+        className="layout-composite-icon-button"
+        data-tooltip={canEdit ? "Edit recipe icon" : "No output icons"}
+        disabled={!canEdit}
+        type="button"
+        onClick={() => setIsOpen((current) => !current)}
+      >
+        <CompositeRecipeIcon
+          atlas={data.atlas}
+          icons={icons}
+          label={`${title} icon`}
+          size={42}
+        />
+      </button>
+
+      {isOpen ? (
+        <div
+          aria-label={`${title} recipe icon`}
+          className="layout-icon-editor app-panel"
+          role="dialog"
+        >
+          <header className="layout-icon-editor__header">
+            <CompositeRecipeIcon
+              atlas={data.atlas}
+              icons={icons}
+              label={`${title} icon preview`}
+              size={48}
+            />
+            <div className="layout-icon-editor__title">
+              <strong>Recipe icon</strong>
+              <span>{selectedIconIds.length} / 4</span>
+            </div>
+            <button
+              aria-label="Reset recipe icon"
+              className="icon-button layout-icon-editor__mini-button"
+              data-tooltip="Reset icon"
+              disabled={!hasCustomIconIds}
+              type="button"
+              onClick={() => onChange([])}
+            >
+              <RotateCcw size={14} aria-hidden="true" />
+            </button>
+          </header>
+
+          <section className="layout-icon-editor__section" aria-label="Selected icons">
+            <span className="layout-icon-editor__section-label">Selected</span>
+            <div className="layout-icon-editor__selected-list" role="list">
+              {icons.map((entry, index) => (
+                <div
+                  className="layout-icon-editor__selected-row"
+                  key={`${entry.id}:${index}`}
+                  role="listitem"
+                >
+                  <IconSprite
+                    atlas={data.atlas}
+                    icon={entry.icon}
+                    label={entry.label}
+                    size={26}
+                  />
+                  <span className="layout-icon-editor__item-label">
+                    <strong>{entry.label}</strong>
+                    <small>{entry.id}</small>
+                  </span>
+                  <button
+                    aria-label={`Move ${entry.label} left`}
+                    className="icon-button layout-icon-editor__mini-button"
+                    data-tooltip="Move left"
+                    disabled={index === 0}
+                    type="button"
+                    onClick={() => moveIcon(index, -1)}
+                  >
+                    <ChevronLeft size={14} aria-hidden="true" />
+                  </button>
+                  <button
+                    aria-label={`Move ${entry.label} right`}
+                    className="icon-button layout-icon-editor__mini-button"
+                    data-tooltip="Move right"
+                    disabled={index === icons.length - 1}
+                    type="button"
+                    onClick={() => moveIcon(index, 1)}
+                  >
+                    <ChevronRight size={14} aria-hidden="true" />
+                  </button>
+                  <button
+                    aria-label={`Remove ${entry.label}`}
+                    className="icon-button layout-icon-editor__mini-button"
+                    data-tooltip="Remove"
+                    disabled={selectedIconIds.length <= 1}
+                    type="button"
+                    onClick={() => removeIcon(entry.id)}
+                  >
+                    <X size={14} aria-hidden="true" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="layout-icon-editor__section" aria-label="Output icons">
+            <span className="layout-icon-editor__section-label">Outputs</span>
+            <div className="layout-icon-editor__candidate-list">
+              {candidateIcons.map((entry) => {
+                const isSelected = selectedIconIdSet.has(entry.id);
+                const isDisabled =
+                  (isSelected && selectedIconIds.length <= 1) ||
+                  (!isSelected && selectedIconIds.length >= 4);
+
+                return (
+                  <button
+                    aria-pressed={isSelected}
+                    className={`layout-icon-editor__candidate ${isSelected ? "layout-icon-editor__candidate--selected" : ""}`}
+                    disabled={isDisabled}
+                    key={entry.id}
+                    type="button"
+                    onClick={() => toggleIcon(entry.id)}
+                  >
+                    <IconSprite
+                      atlas={data.atlas}
+                      icon={entry.icon}
+                      label={entry.label}
+                      size={26}
+                    />
+                    <span className="layout-icon-editor__item-label">
+                      <strong>{entry.label}</strong>
+                      <small>{entry.id}</small>
+                    </span>
+                    {isSelected ? (
+                      <Check size={16} aria-hidden="true" />
+                    ) : (
+                      <Plus size={16} aria-hidden="true" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function getCompositeIconEntries(
+  data: RecipeExplorerData,
+  iconIds: readonly string[],
+): CompositeIconEntry[] {
+  return iconIds.map((iconId) => ({
+    icon: data.iconById.get(iconId),
+    id: iconId,
+    label: data.itemById.get(iconId)?.name ?? formatId(iconId),
+  }));
+}
+
+function sanitizeCompositeIconSelection(
+  iconIds: readonly string[],
+  candidateIcons: readonly CompositeIconEntry[],
+): string[] {
+  const candidateIconIds = new Set(candidateIcons.map((icon) => icon.id));
+  const seenIconIds = new Set<string>();
+  const selectedIconIds: string[] = [];
+
+  for (const iconId of iconIds) {
+    if (seenIconIds.has(iconId) || !candidateIconIds.has(iconId)) {
+      continue;
+    }
+
+    seenIconIds.add(iconId);
+    selectedIconIds.push(iconId);
+
+    if (selectedIconIds.length >= 4) {
+      break;
+    }
+  }
+
+  return selectedIconIds;
 }
 
 interface LayoutEditorRecipeRowProps {

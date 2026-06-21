@@ -220,6 +220,16 @@ export function App() {
     );
   }
 
+  function updateLayoutIconIds(layoutId: string, iconIds: string[]) {
+    setLayouts((currentLayouts) =>
+      currentLayouts.map((layout) =>
+        layout.id === layoutId
+          ? { ...layout, iconIds: sanitizeLayoutIconIds(iconIds) }
+          : layout,
+      ),
+    );
+  }
+
   function focusLayout(layoutId: string) {
     setFocusedLayoutId(layoutId);
 
@@ -1144,6 +1154,7 @@ export function App() {
             onRecipeModulesChange={updateRecipeModules}
             onRecipeProductionSizeChange={updateRecipeProductionSize}
             onRemoveRecipeFromLayout={removeRecipeFromLayout}
+            onLayoutIconIdsChange={updateLayoutIconIds}
             onRenameLayout={renameLayout}
             onReorderRecipeInLayout={reorderRecipeInLayout}
             onSelectItem={selectItem}
@@ -1410,6 +1421,7 @@ function normalizeParsedLayoutState(state: ParsedLayoutState): ParsedLayoutState
 function sanitizeRecipeLayout(layout: RecipeLayout): RecipeLayout {
   return {
     ...layout,
+    iconIds: sanitizeLayoutIconIds(layout.iconIds),
     entries: layout.entries.map((entry) =>
       sanitizeRecipeLayoutEntryFactorySettings(explorerData, entry),
     ),
@@ -1428,6 +1440,7 @@ interface SerializedLayout {
   i?: unknown;
   m?: unknown;
   n?: unknown;
+  o?: unknown;
   p?: unknown;
   r?: unknown;
   t?: unknown;
@@ -1528,6 +1541,7 @@ function parseLayout(
     i: rawId,
     m: rawEdgeItems,
     n: rawName,
+    o: rawIconIds,
     p: rawGraphPositions,
     r: rawEdgeRoutes,
     t: rawTerminalSides,
@@ -1559,6 +1573,7 @@ function parseLayout(
     {
       id,
       name: typeof rawName === "string" ? rawName : "",
+      iconIds: sanitizeLayoutIconIds(parseOrderedStringList(rawIconIds)),
       entries,
       relays,
       graphPositions: parseGraphPositions(rawGraphPositions, nodeIds),
@@ -1957,6 +1972,7 @@ function serializeLayoutState(layouts: RecipeLayout[], focusedLayoutId: string):
     l: layouts.map((layout) => ({
       i: layout.id,
       n: layout.name,
+      o: layout.iconIds.length ? layout.iconIds : undefined,
       c: layout.collapsed ? 1 : 0,
       e: layout.entries.map(serializeLayoutEntry),
       y: serializeGraphRelays(layout),
@@ -2132,6 +2148,7 @@ function isDefaultLayoutState(
     layout.name === "" &&
     !layout.collapsed &&
     layout.entries.length === 0 &&
+    layout.iconIds.length === 0 &&
     layout.relays.length === 0 &&
     Object.keys(layout.graphPositions).length === 0 &&
     Object.keys(layout.edgePorts).length === 0 &&
@@ -2152,6 +2169,7 @@ function createEmptyLayout(id: string): RecipeLayout {
   return {
     id,
     name: "",
+    iconIds: [],
     entries: [],
     relays: [],
     graphPositions: {},
@@ -2298,6 +2316,7 @@ function cloneRecipeLayout(layout: RecipeLayout, layoutId = layout.id): RecipeLa
   return {
     ...layout,
     id: layoutId,
+    iconIds: [...layout.iconIds],
     entries: layout.entries.map((entry) => ({
       ...entry,
       ...(entry.modules
@@ -2621,6 +2640,38 @@ function parseStringList(value: unknown): string[] {
   return uniqueStrings(
     value.filter((itemKey): itemKey is string => typeof itemKey === "string"),
   );
+}
+
+function parseOrderedStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return uniqueOrderedStrings(
+    value.filter((itemKey): itemKey is string => typeof itemKey === "string"),
+  );
+}
+
+function sanitizeLayoutIconIds(iconIds: readonly string[] | undefined): string[] {
+  return uniqueOrderedStrings([...(iconIds ?? [])])
+    .filter((iconId) => explorerData.iconById.has(iconId))
+    .slice(0, 4);
+}
+
+function uniqueOrderedStrings(values: string[]): string[] {
+  const seenValues = new Set<string>();
+  const uniqueValues: string[] = [];
+
+  for (const value of values) {
+    if (seenValues.has(value)) {
+      continue;
+    }
+
+    seenValues.add(value);
+    uniqueValues.push(value);
+  }
+
+  return uniqueValues;
 }
 
 function uniqueStrings(values: string[]): string[] {

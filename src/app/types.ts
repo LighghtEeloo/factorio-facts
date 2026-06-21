@@ -61,6 +61,7 @@ export interface GraphTerminalSides {
 export interface RecipeLayout {
   id: string;
   name: string;
+  iconIds: string[];
   entries: RecipeLayoutEntry[];
   relays: GraphRelay[];
   graphPositions: Record<string, GraphNodePosition>;

@@ -922,6 +922,8 @@ button {
 }
 
 .layout-workspace__header {
+  position: relative;
+  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -941,6 +943,188 @@ button {
 
 .layout-workspace__title svg {
   color: #d7b65f;
+}
+
+.layout-composite-icon-control {
+  position: relative;
+  width: 42px;
+  height: 42px;
+}
+
+.layout-composite-icon-button {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.layout-composite-icon-button:hover .composite-recipe-icon,
+.layout-composite-icon-button:focus-visible .composite-recipe-icon,
+.layout-composite-icon-button[aria-expanded="true"] .composite-recipe-icon {
+  border-color: #d7b65f;
+  background: #1b1d17;
+}
+
+.layout-composite-icon-button:focus-visible {
+  outline: 2px solid #d7b65f;
+  outline-offset: 3px;
+}
+
+.layout-composite-icon-button:disabled {
+  cursor: default;
+  opacity: 0.58;
+}
+
+.layout-icon-editor {
+  position: absolute;
+  top: 50px;
+  left: 0;
+  z-index: 40;
+  display: grid;
+  gap: 10px;
+  width: min(360px, calc(100vw - 48px));
+  padding: 10px;
+  background: #202119;
+}
+
+.layout-icon-editor__header {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.layout-icon-editor__title {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.layout-icon-editor__title strong {
+  overflow: hidden;
+  color: #f0eee4;
+  font-size: 0.86rem;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layout-icon-editor__title span,
+.layout-icon-editor__section-label {
+  color: #a7a18d;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.layout-icon-editor__mini-button {
+  width: 28px;
+  height: 28px;
+}
+
+.layout-icon-editor__section {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.layout-icon-editor__selected-list,
+.layout-icon-editor__candidate-list {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.layout-icon-editor__candidate-list {
+  max-height: 230px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.layout-icon-editor__selected-row,
+.layout-icon-editor__candidate {
+  align-items: center;
+  min-width: 0;
+  min-height: 38px;
+  border: 1px solid #3f4235;
+  border-radius: 7px;
+  background: #151710;
+  color: #f0eee4;
+}
+
+.layout-icon-editor__selected-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) repeat(3, 28px);
+  gap: 5px;
+  padding: 5px;
+}
+
+.layout-icon-editor__candidate {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 20px;
+  gap: 7px;
+  padding: 5px 7px 5px 5px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.layout-icon-editor__candidate:hover,
+.layout-icon-editor__candidate:focus-visible {
+  border-color: #6d674b;
+  background: #25261f;
+}
+
+.layout-icon-editor__candidate:focus-visible {
+  outline: 2px solid #d7b65f;
+  outline-offset: 2px;
+}
+
+.layout-icon-editor__candidate--selected {
+  border-color: #a88731;
+  background: #22231b;
+  color: #ffe4a3;
+}
+
+.layout-icon-editor__candidate:disabled {
+  cursor: default;
+  opacity: 0.52;
+}
+
+.layout-icon-editor__candidate:disabled:hover {
+  border-color: #3f4235;
+  background: #151710;
+}
+
+.layout-icon-editor__item-label {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  line-height: 1.05;
+}
+
+.layout-icon-editor__item-label strong,
+.layout-icon-editor__item-label small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layout-icon-editor__item-label strong {
+  color: #f0eee4;
+  font-size: 0.78rem;
+}
+
+.layout-icon-editor__item-label small {
+  color: #8e8876;
+  font-size: 0.68rem;
+  font-weight: 600;
 }
 
 .layout-workspace__actions {
