@@ -10,6 +10,7 @@ import type {
   GraphRelay,
   GraphSide,
   GraphTerminalKind,
+  InstalledLayoutRecipe,
   LayoutBeaconSettings,
   LayoutModuleSettings,
   RecipeLayout,
@@ -17,6 +18,7 @@ import type {
 } from "./types";
 
 const layoutStateBlobPrefix = "v1.";
+const compositeRecipeIdPrefix = "composite:";
 const graphSides = ["top", "right", "bottom", "left"] as const satisfies readonly GraphSide[];
 const defaultSourceSide: GraphSide = "right";
 const defaultTargetSide: GraphSide = "left";
@@ -74,9 +76,11 @@ type CompactExternalItems = [
   itemIndexes: number[],
 ];
 type CompactRelay = [itemIndexes: number[]];
+type CompactInstalledRecipe = [recipeId: string, layout: unknown[]];
 
 export interface ParsedLayoutUrlState {
   focusedLayoutId: string;
+  installedRecipes: InstalledLayoutRecipe[];
   layouts: RecipeLayout[];
 }
 
@@ -89,13 +93,17 @@ export interface LayoutUrlCodecOptions {
 export function serializeCompactLayoutState(
   layouts: RecipeLayout[],
   focusedLayoutId: string,
+  installedRecipes: InstalledLayoutRecipe[] = [],
 ): string {
   const recipeIndexById = new Map<string, number>();
   const recipeIds: string[] = [];
   const itemIndexByKey = new Map<string, number>();
   const itemKeys: string[] = [];
 
-  for (const layout of layouts) {
+  for (const layout of [
+    ...layouts,
+    ...installedRecipes.map((installedRecipe) => installedRecipe.layout),
+  ]) {
     for (const entry of layout.entries) {
       getRecipeIndex(entry.recipeId, recipeIds, recipeIndexById);
     }
@@ -123,6 +131,19 @@ export function serializeCompactLayoutState(
 
   if (itemKeys.length) {
     compactState.g = itemKeys;
+  }
+
+  if (installedRecipes.length) {
+    compactState.i = installedRecipes.map((installedRecipe) => [
+      installedRecipe.id,
+      compactLayout(
+        installedRecipe.layout,
+        recipeIds,
+        recipeIndexById,
+        itemKeys,
+        itemIndexByKey,
+      ),
+    ] satisfies CompactInstalledRecipe);
   }
 
   if (focusedLayoutIndex > 0) {
@@ -465,17 +486,38 @@ function parseCompactState(
   value: Record<string, unknown>,
   options: LayoutUrlCodecOptions,
 ): ParsedLayoutUrlState {
-  const recipeIds = parseRecipeDictionary(value.r, options.isRecipeIdAllowed);
+  const installedRecipeIds = parseCompactInstalledRecipeIds(value.i);
+  const recipeIds = parseRecipeDictionary(
+    value.r,
+    (recipeId) => options.isRecipeIdAllowed(recipeId) || installedRecipeIds.has(recipeId),
+  );
   const itemKeys = parseStringDictionary(value.g);
   const seenLayoutIds = new Set<string>();
+  const installedRecipes = parseCompactInstalledRecipes(
+    value.i,
+    recipeIds,
+    itemKeys,
+    options,
+    seenLayoutIds,
+  );
   const layouts = Array.isArray(value.l)
     ? value.l.flatMap((rawLayout, index) =>
-        parseCompactLayout(rawLayout, index, recipeIds, itemKeys, options, seenLayoutIds),
+        parseCompactLayout(
+          rawLayout,
+          index === 0 ? options.defaultLayoutId : `layout-${index + 1}`,
+          recipeIds,
+          itemKeys,
+          options,
+          seenLayoutIds,
+        ),
       )
     : [];
 
   if (!layouts.length) {
-    return defaultCompactLayoutState(options.defaultLayoutId);
+    return {
+      ...defaultCompactLayoutState(options.defaultLayoutId),
+      installedRecipes,
+    };
   }
 
   const focusedLayoutIndex = parseNonNegativeInteger(value.f);
@@ -486,8 +528,83 @@ function parseCompactState(
 
   return {
     focusedLayoutId: focusedLayoutId ?? layouts[0]?.id ?? options.defaultLayoutId,
+    installedRecipes,
     layouts,
   };
+}
+
+function parseCompactInstalledRecipeIds(value: unknown): Set<string> {
+  if (!Array.isArray(value)) {
+    return new Set();
+  }
+
+  return new Set(
+    value.flatMap((rawInstalledRecipe) => {
+      if (!Array.isArray(rawInstalledRecipe)) {
+        return [];
+      }
+
+      const id = rawInstalledRecipe[0];
+
+      return typeof id === "string" && id.startsWith(compositeRecipeIdPrefix)
+        ? [id]
+        : [];
+    }),
+  );
+}
+
+function parseCompactInstalledRecipes(
+  value: unknown,
+  recipeIds: Array<string | null>,
+  itemKeys: Array<string | null>,
+  options: LayoutUrlCodecOptions,
+  seenLayoutIds: Set<string>,
+): InstalledLayoutRecipe[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seenInstalledRecipeIds = new Set<string>();
+
+  return value.flatMap((rawInstalledRecipe, index) => {
+    if (!Array.isArray(rawInstalledRecipe)) {
+      return [];
+    }
+
+    const rawId = rawInstalledRecipe[0];
+    const rawLayout = rawInstalledRecipe[1];
+
+    if (
+      typeof rawId !== "string" ||
+      !rawId.startsWith(compositeRecipeIdPrefix) ||
+      seenInstalledRecipeIds.has(rawId)
+    ) {
+      return [];
+    }
+
+    const layout = parseCompactLayout(
+      rawLayout,
+      `installed-${index + 1}`,
+      recipeIds,
+      itemKeys,
+      options,
+      seenLayoutIds,
+    )[0];
+
+    if (!layout) {
+      return [];
+    }
+
+    seenInstalledRecipeIds.add(rawId);
+
+    return [
+      {
+        id: rawId,
+        layout,
+        name: layout.name,
+      },
+    ];
+  });
 }
 
 function parseRecipeDictionary(
@@ -515,7 +632,7 @@ function parseStringDictionary(value: unknown): Array<string | null> {
 
 function parseCompactLayout(
   value: unknown,
-  index: number,
+  layoutIdBase: string,
   recipeIds: Array<string | null>,
   itemKeys: Array<string | null>,
   options: LayoutUrlCodecOptions,
@@ -525,10 +642,7 @@ function parseCompactLayout(
     return [];
   }
 
-  const layoutId = getUniqueId(
-    index === 0 ? options.defaultLayoutId : `layout-${index + 1}`,
-    seenLayoutIds,
-  );
+  const layoutId = getUniqueId(layoutIdBase, seenLayoutIds);
   const { entries, entryIdByIndex } = parseCompactEntries(
     value[2],
     layoutId,
@@ -895,6 +1009,7 @@ function parseGraphPoint(rawX: unknown, rawY: unknown): GraphEdgeRoute | null {
 function defaultCompactLayoutState(defaultLayoutId: string): ParsedLayoutUrlState {
   return {
     focusedLayoutId: defaultLayoutId,
+    installedRecipes: [],
     layouts: [
       {
         id: defaultLayoutId,

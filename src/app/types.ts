@@ -1,3 +1,8 @@
+import type {
+  IngredientPrototype,
+  ProductPrototype,
+} from "../factorio/prototypes";
+
 export type AppView = "recipes" | "layouts" | "graph";
 
 export const defaultProductionSize = 1;
@@ -65,6 +70,17 @@ export interface RecipeLayout {
   externalItems: Record<string, string[]>;
   terminalSides: Record<string, GraphSide>;
   collapsed: boolean;
+}
+
+export interface InstalledLayoutRecipe {
+  id: string;
+  layout: RecipeLayout;
+  name: string;
+}
+
+export interface LayoutCompositeBoundary {
+  ingredients: IngredientPrototype[];
+  results: ProductPrototype[];
 }
 
 export interface FilterState {

@@ -41,17 +41,20 @@ export function RecipeMetaPills({
   const textClassName = classNames?.text ?? "text-pill";
   const timeClassName = classNames?.time ?? `${textClassName} text-pill--time`;
   const producerIds = producerIdsOverride ?? metadata.producers;
+  const isComposite = metadata.source === "composite";
 
   return (
     <div className={rootClassName}>
       {leading}
-      <span
-        className={timeClassName}
-        data-tooltip={`Craft time: ${formatRecipeTime(energyRequired)}`}
-      >
-        <Timer size={14} aria-hidden="true" />
-        {formatRecipeTime(energyRequired)}
-      </span>
+      {isComposite ? null : (
+        <span
+          className={timeClassName}
+          data-tooltip={`Craft time: ${formatRecipeTime(energyRequired)}`}
+        >
+          <Timer size={14} aria-hidden="true" />
+          {formatRecipeTime(energyRequired)}
+        </span>
+      )}
       {producerIds.map((producerId) => (
         <RecipeMetaIconPill
           classNames={classNames}
@@ -62,7 +65,7 @@ export function RecipeMetaPills({
           type="producer"
         />
       ))}
-      {producerIds.length ? null : (
+      {producerIds.length || isComposite ? null : (
         <span className={textClassName} data-tooltip="Natural source">
           natural
         </span>

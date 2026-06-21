@@ -128,7 +128,7 @@ export interface FactorioLabData {
 }
 
 export interface FactorioLabRecipeMetadata {
-  source: "factoriolab";
+  source: "factoriolab" | "composite";
   id: FactorioLabId;
   name: string;
   category: FactorioLabId;

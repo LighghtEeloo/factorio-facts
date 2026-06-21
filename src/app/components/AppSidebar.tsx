@@ -1,13 +1,16 @@
 import {
+  Archive,
   BookOpen,
   Boxes,
   CircleDot,
   Cog,
   GripVertical,
+  ListPlus,
   Network,
   Package,
   Plus,
   Search,
+  Trash2,
   X,
 } from "lucide-react";
 import {
@@ -17,21 +20,33 @@ import {
   useState,
 } from "react";
 import type { FactorioLabCategory, FactorioLabItem } from "../../factoriolab/types";
+import type { RecipePrototype } from "../../factorio/prototypes";
 import {
   getIconIdForItem,
+  getRecipeMetadata,
   type RecipeExplorerData,
 } from "../data/factoriolab";
-import type { AppView, LayoutReorderPlacement, RecipeLayout } from "../types";
+import type {
+  AppView,
+  InstalledLayoutRecipe,
+  LayoutReorderPlacement,
+  RecipeLayout,
+} from "../types";
 import { IconSprite } from "./IconSprite";
+import { RecipeIcon } from "./RecipeIcon";
 
 interface AppSidebarProps {
   activeView: AppView;
   data: RecipeExplorerData;
   focusedLayoutId: string;
+  installedRecipes: InstalledLayoutRecipe[];
   layouts: RecipeLayout[];
   selectedItemId: string | null;
+  getInstalledRecipeReferenceCount(recipeId: string): number;
+  onAddInstalledRecipeToLayout(recipeId: string): void;
   onCreateLayout(): void;
   onFocusLayout(layoutId: string): void;
+  onInstallRecipeUninstall(recipeId: string): void;
   onOpenLayoutGraph(layoutId: string): void;
   onReorderLayout(
     sourceLayoutId: string,
@@ -46,10 +61,14 @@ export function AppSidebar({
   activeView,
   data,
   focusedLayoutId,
+  getInstalledRecipeReferenceCount,
+  installedRecipes,
   layouts,
+  onAddInstalledRecipeToLayout,
   selectedItemId,
   onCreateLayout,
   onFocusLayout,
+  onInstallRecipeUninstall,
   onOpenLayoutGraph,
   onReorderLayout,
   onSelectItem,
@@ -218,6 +237,83 @@ export function AppSidebar({
             </>
           )}
         </button>
+      </section>
+
+      <section className="sidebar-section sidebar-installed" aria-label="Installed">
+        <div className="sidebar-section__header">
+          <span className="sidebar-section__title">
+            <Archive size={18} aria-hidden="true" />
+            <span>Installed</span>
+          </span>
+        </div>
+
+        <div className="sidebar-installed-list">
+          {installedRecipes.length ? (
+            installedRecipes.map((installedRecipe) => {
+              const recipe = data.recipeById.get(installedRecipe.id);
+
+              if (!recipe) {
+                return null;
+              }
+
+              const metadata = getRecipeMetadata(recipe);
+              const contextItemId = getRecipeContextItemId(data, recipe);
+              const referenceCount = getInstalledRecipeReferenceCount(installedRecipe.id);
+
+              return (
+                <div className="sidebar-installed-row" key={installedRecipe.id}>
+                  <button
+                    aria-label={`Open ${metadata.name} recipe context`}
+                    className="sidebar-installed-row__main"
+                    disabled={!contextItemId}
+                    type="button"
+                    onClick={() => {
+                      if (contextItemId) {
+                        onSelectItem(contextItemId);
+                      }
+                    }}
+                  >
+                    <RecipeIcon data={data} recipe={recipe} size={26} />
+                    <span>
+                      <strong>{metadata.name}</strong>
+                      <small>
+                        {recipe.ingredients?.length ?? 0} in /{" "}
+                        {recipe.results?.length ?? 0} out
+                      </small>
+                    </span>
+                  </button>
+                  <button
+                    aria-label={`Add ${metadata.name} to focused layout`}
+                    className="layout-action-button"
+                    data-tooltip="Add to layout"
+                    type="button"
+                    onClick={() => onAddInstalledRecipeToLayout(installedRecipe.id)}
+                  >
+                    <ListPlus size={15} aria-hidden="true" />
+                  </button>
+                  <button
+                    aria-label={`Uninstall ${metadata.name}`}
+                    className="layout-action-button"
+                    data-tooltip={
+                      referenceCount
+                        ? `Used by ${referenceCount} layout ${
+                            referenceCount === 1 ? "entry" : "entries"
+                          }`
+                        : "Uninstall"
+                    }
+                    disabled={referenceCount > 0}
+                    type="button"
+                    onClick={() => onInstallRecipeUninstall(installedRecipe.id)}
+                  >
+                    <Trash2 size={15} aria-hidden="true" />
+                  </button>
+                </div>
+              );
+            })
+          ) : (
+            <span className="sidebar-installed-empty">No installed layouts</span>
+          )}
+        </div>
       </section>
 
       <section className="sidebar-section sidebar-layouts" aria-label="Layouts">
@@ -397,6 +493,19 @@ export function AppSidebar({
 interface ItemCategoryGroup {
   category: FactorioLabCategory;
   items: FactorioLabItem[];
+}
+
+function getRecipeContextItemId(
+  data: RecipeExplorerData,
+  recipe: RecipePrototype,
+): string | null {
+  const resultItem = recipe.results?.find((entry) => data.itemById.has(entry.name));
+
+  if (resultItem) {
+    return resultItem.name;
+  }
+
+  return recipe.ingredients?.find((entry) => data.itemById.has(entry.name))?.name ?? null;
 }
 
 function groupItemsByCategory(

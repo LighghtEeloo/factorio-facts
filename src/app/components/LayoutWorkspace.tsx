@@ -9,6 +9,7 @@ import {
   Network,
   PackageOpen,
   Plus,
+  Save,
   Timer,
   Trash2,
   X,
@@ -32,6 +33,11 @@ import {
   type RecipeExplorerData,
 } from "../data/factoriolab";
 import {
+  getCompositeRecipeIconIds,
+  inferLayoutCompositeBoundary,
+  isCompositeRecipe,
+} from "../composite-recipes";
+import {
   getBeaconModuleCapacity,
   getBeaconModuleOptions,
   getBeaconOptions,
@@ -48,13 +54,14 @@ import {
 } from "../layout-factory-settings";
 import type {
   LayoutBeaconSettings,
+  LayoutCompositeBoundary,
   LayoutModuleSettings,
   LayoutReorderPlacement,
   RecipeLayout,
   RecipeLayoutEntry,
 } from "../types";
 import { IconSprite } from "./IconSprite";
-import { RecipeIcon } from "./RecipeIcon";
+import { CompositeRecipeIcon, RecipeIcon } from "./RecipeIcon";
 import { RecipeMetaPills } from "./RecipeMetaPills";
 
 interface LayoutWorkspaceProps {
@@ -64,6 +71,7 @@ interface LayoutWorkspaceProps {
   onCreateLayout(): void;
   onDeleteLayout(layoutId: string): void;
   onImportLayout(layoutId: string, value: string): boolean;
+  onInstallLayout(layoutId: string): void;
   onOpenLayoutGraph(layoutId: string): void;
   onRecipeBeaconsChange(
     layoutId: string,
@@ -99,6 +107,7 @@ export function LayoutWorkspace({
   onCreateLayout,
   onDeleteLayout,
   onImportLayout,
+  onInstallLayout,
   onOpenLayoutGraph,
   onRecipeBeaconsChange,
   onRecipeMachineChange,
@@ -131,6 +140,9 @@ export function LayoutWorkspace({
     ? data.recipeById.get(selectedEntry.recipeId) ?? null
     : null;
   const title = focusedLayout?.name.trim() || "Untitled layout";
+  const compositeBoundary = focusedLayout
+    ? inferLayoutCompositeBoundary(focusedLayout, data.recipeById)
+    : { ingredients: [], results: [] };
 
   useEffect(() => {
     if (!focusedLayout?.entries.length) {
@@ -312,15 +324,26 @@ export function LayoutWorkspace({
               </button>
             </>
           ) : (
-            <button
-              aria-label="Open layout graph"
-              className="icon-button"
-              data-tooltip="Open graph"
-              type="button"
-              onClick={() => onOpenLayoutGraph(focusedLayout.id)}
-            >
-              <Network size={18} aria-hidden="true" />
-            </button>
+            <>
+              <button
+                aria-label="Install layout"
+                className="icon-button"
+                data-tooltip="Install layout"
+                type="button"
+                onClick={() => onInstallLayout(focusedLayout.id)}
+              >
+                <Save size={18} aria-hidden="true" />
+              </button>
+              <button
+                aria-label="Open layout graph"
+                className="icon-button"
+                data-tooltip="Open graph"
+                type="button"
+                onClick={() => onOpenLayoutGraph(focusedLayout.id)}
+              >
+                <Network size={18} aria-hidden="true" />
+              </button>
+            </>
           )}
         </div>
       </header>
@@ -331,6 +354,13 @@ export function LayoutWorkspace({
           style={layoutEditorStyle}
           aria-label={`${title} recipes`}
         >
+          {focusedLayout.entries.length ? (
+            <LayoutCompositeDetails
+              boundary={compositeBoundary}
+              data={data}
+              title={title}
+            />
+          ) : null}
           <div className="layout-editor__recipes">
             {focusedLayout.entries.length ? (
               focusedLayout.entries.map((entry, index) => {
@@ -480,6 +510,55 @@ export function LayoutWorkspace({
   );
 }
 
+interface LayoutCompositeDetailsProps {
+  boundary: LayoutCompositeBoundary;
+  data: RecipeExplorerData;
+  title: string;
+}
+
+function LayoutCompositeDetails({
+  boundary,
+  data,
+  title,
+}: LayoutCompositeDetailsProps) {
+  const icons = getCompositeRecipeIconIds(data, boundary.results).map((iconId) => ({
+    icon: data.iconById.get(iconId),
+    label: data.itemById.get(iconId)?.name ?? formatId(iconId),
+  }));
+
+  return (
+    <section className="layout-composite-details" aria-label={`${title} composite recipe`}>
+      <header className="layout-composite-details__header">
+        <CompositeRecipeIcon
+          atlas={data.atlas}
+          icons={icons}
+          label={`${title} icon`}
+          size={42}
+        />
+        <div>
+          <h2>Composite recipe</h2>
+          <span>
+            {boundary.ingredients.length} in / {boundary.results.length} out
+          </span>
+        </div>
+      </header>
+      <div className="layout-composite-details__equation">
+        <InspectorMaterialGroup
+          data={data}
+          entries={boundary.ingredients}
+          label="Inputs"
+        />
+        <ArrowRight size={18} aria-hidden="true" />
+        <InspectorMaterialGroup
+          data={data}
+          entries={boundary.results}
+          label="Outputs"
+        />
+      </div>
+    </section>
+  );
+}
+
 interface LayoutEditorRecipeRowProps {
   data: RecipeExplorerData;
   dragging: boolean;
@@ -555,6 +634,7 @@ function LayoutEditorRecipeRow({
   selected,
 }: LayoutEditorRecipeRowProps) {
   const metadata = getRecipeMetadata(recipe);
+  const isComposite = isCompositeRecipe(recipe);
   const machineOptions = getRecipeMachineOptions(data, metadata.producers);
   const selectedMachine =
     machineOptions.find((option) => option.id === entry.machineId) ??
@@ -610,60 +690,70 @@ function LayoutEditorRecipeRow({
           <small>{metadata.id}</small>
         </span>
         <span className="layout-editor-row__meta" aria-hidden="true">
-          <span>
-            <Timer size={13} aria-hidden="true" />
-            {formatTime(recipe.energy_required)}
-          </span>
+          {isComposite ? null : (
+            <span>
+              <Timer size={13} aria-hidden="true" />
+              {formatTime(recipe.energy_required)}
+            </span>
+          )}
         </span>
       </button>
-      <div
-        aria-label={`${metadata.name} producing machine`}
-        className="layout-editor-row__machine"
-        role="group"
-        data-tooltip={
-          selectedMachine ? `Machine: ${selectedMachine.name}` : "No machine choice"
-        }
-      >
-        {machineOptions.length ? (
-          machineOptions.map((option) => {
-            const isSelected = option.id === selectedMachine?.id;
+      {isComposite ? (
+        <div className="layout-editor-row__machine layout-editor-row__machine--blank" />
+      ) : (
+        <div
+          aria-label={`${metadata.name} producing machine`}
+          className="layout-editor-row__machine"
+          role="group"
+          data-tooltip={
+            selectedMachine ? `Machine: ${selectedMachine.name}` : "No machine choice"
+          }
+        >
+          {machineOptions.length ? (
+            machineOptions.map((option) => {
+              const isSelected = option.id === selectedMachine?.id;
 
-            return (
-              <button
-                aria-label={`Use ${option.name}`}
-                aria-pressed={isSelected}
-                className="layout-editor-row__machine-option"
-                data-tooltip={option.name}
-                key={option.id}
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
+              return (
+                <button
+                  aria-label={`Use ${option.name}`}
+                  aria-pressed={isSelected}
+                  className="layout-editor-row__machine-option"
+                  data-tooltip={option.name}
+                  key={option.id}
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
 
-                  if (!isSelected) {
-                    onMachineChange(option.id);
-                  }
-                }}
-                onPointerDown={(event) => event.stopPropagation()}
-              >
-                <IconSprite
-                  atlas={data.atlas}
-                  icon={option.icon}
-                  label={option.name}
-                  size={22}
-                />
-              </button>
-            );
-          })
-        ) : (
-          <span className="layout-editor-row__machine-none">natural</span>
-        )}
-      </div>
-      <FactorySettingsSummary
-        data={data}
-        entry={entry}
-        recipeName={metadata.name}
-        onSelect={onSelectFactorySettings}
-      />
+                    if (!isSelected) {
+                      onMachineChange(option.id);
+                    }
+                  }}
+                  onPointerDown={(event) => event.stopPropagation()}
+                >
+                  <IconSprite
+                    atlas={data.atlas}
+                    icon={option.icon}
+                    label={option.name}
+                    size={22}
+                  />
+                </button>
+              );
+            })
+          ) : (
+            <span className="layout-editor-row__machine-none">natural</span>
+          )}
+        </div>
+      )}
+      {isComposite ? (
+        <div className="layout-editor-row__factory layout-editor-row__factory--blank" />
+      ) : (
+        <FactorySettingsSummary
+          data={data}
+          entry={entry}
+          recipeName={metadata.name}
+          onSelect={onSelectFactorySettings}
+        />
+      )}
       <label className="layout-editor-row__size" data-tooltip="Production size">
         <span aria-hidden="true">×</span>
         <input
@@ -835,6 +925,60 @@ function LayoutRecipeInspector({
     ...metadata.flags,
     ...metadata.disallowedEffects.map((effect) => `no ${effect}`),
   ];
+  const isComposite = isCompositeRecipe(recipe);
+
+  if (isComposite) {
+    return (
+      <aside
+        ref={inspectorRef}
+        className="layout-inspector app-panel"
+        aria-label="Recipe inspector"
+        tabIndex={-1}
+      >
+        <header className="layout-inspector__header">
+          <RecipeIcon data={data} recipe={recipe} size={42} />
+          <div>
+            <h2>{metadata.name}</h2>
+            <span>{metadata.id}</span>
+          </div>
+        </header>
+
+        <div className="layout-inspector__stats">
+          <span className="layout-inspector__text-pill" title="Production size">
+            × {formatProductionSize(entry.productionSize)}
+          </span>
+        </div>
+
+        <div className="layout-inspector__equation">
+          <InspectorMaterialGroup
+            data={data}
+            entries={recipe.ingredients ?? []}
+            label="Inputs"
+          />
+          <ArrowRight size={18} aria-hidden="true" />
+          <InspectorMaterialGroup
+            data={data}
+            entries={recipe.results ?? []}
+            label="Outputs"
+          />
+        </div>
+
+        <button
+          className="layout-inspector__open primary-action-button"
+          disabled={!contextItemId}
+          type="button"
+          onClick={() => {
+            if (contextItemId) {
+              onOpenRecipeContext(contextItemId);
+            }
+          }}
+        >
+          <ExternalLink size={17} aria-hidden="true" />
+          Open in Recipes
+        </button>
+      </aside>
+    );
+  }
 
   return (
     <aside

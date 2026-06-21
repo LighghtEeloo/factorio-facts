@@ -11,6 +11,11 @@ import {
   getIconIdForItem,
   getRecipeMetadata,
 } from "./data/factoriolab";
+import {
+  compositeRecipeIdPrefix,
+  createRecipeExplorerDataWithInstalled,
+  isCompositeRecipeId,
+} from "./composite-recipes";
 import { defaultProductionSize } from "./types";
 import type {
   AppView,
@@ -21,6 +26,7 @@ import type {
   GraphRelay,
   GraphSide,
   GraphTerminalKind,
+  InstalledLayoutRecipe,
   LayoutBeaconSettings,
   LayoutModuleSettings,
   LayoutReorderPlacement,
@@ -65,6 +71,7 @@ const graphHistoryLimit = 80;
 
 let nextLayoutSequence = 2;
 let nextLayoutEntrySequence = 1;
+let nextInstalledRecipeSequence = 1;
 
 interface AppUrlState {
   activeView: AppView;
@@ -72,6 +79,7 @@ interface AppUrlState {
   filters: FilterState;
   focusedLayoutId: string;
   graphLayoutId: string | null;
+  installedRecipes: InstalledLayoutRecipe[];
   layouts: RecipeLayout[];
 }
 
@@ -97,6 +105,9 @@ export function App() {
   const [filters, setFilters] = useState<FilterState>(initialUrlState.filters);
   const [focusedLayoutId, setFocusedLayoutId] = useState(initialUrlState.focusedLayoutId);
   const [layouts, setLayouts] = useState<RecipeLayout[]>(initialUrlState.layouts);
+  const [installedRecipes, setInstalledRecipes] = useState<InstalledLayoutRecipe[]>(
+    initialUrlState.installedRecipes,
+  );
   const [graphLayoutId, setGraphLayoutId] = useState<string | null>(
     initialUrlState.graphLayoutId,
   );
@@ -104,8 +115,12 @@ export function App() {
     Record<string, GraphLayoutHistory | undefined>
   >({});
   const graphHistoryCaptureRef = useRef<Set<string>>(new Set());
+  const recipeData = useMemo(
+    () => createRecipeExplorerDataWithInstalled(explorerData, installedRecipes),
+    [installedRecipes],
+  );
   const selectedItem = selectedItemId
-    ? explorerData.itemById.get(selectedItemId) ?? null
+    ? recipeData.itemById.get(selectedItemId) ?? null
     : null;
   const focusedLayout = layouts.find((layout) => layout.id === focusedLayoutId) ?? layouts[0];
   const graphLayout =
@@ -120,25 +135,25 @@ export function App() {
   const madeBy = useMemo(
     () =>
       selectedItem
-        ? filterRecipes(explorerData.madeBy(selectedItem.id), filters, {
+        ? filterRecipes(recipeData.madeBy(selectedItem.id), filters, {
             direction: "made-by",
             selectedItemId: selectedItem.id,
           })
         : [],
-    [filters, selectedItem],
+    [filters, recipeData, selectedItem],
   );
   const usedIn = useMemo(
     () =>
       selectedItem
-        ? filterRecipes(explorerData.usedIn(selectedItem.id), filters, {
+        ? filterRecipes(recipeData.usedIn(selectedItem.id), filters, {
             direction: "used-in",
             selectedItemId: selectedItem.id,
           })
         : [],
-    [filters, selectedItem],
+    [filters, recipeData, selectedItem],
   );
   const selectedIcon = selectedItem
-    ? explorerData.iconById.get(getIconIdForItem(selectedItem))
+    ? recipeData.iconById.get(getIconIdForItem(selectedItem))
     : undefined;
 
   useEffect(() => {
@@ -148,9 +163,18 @@ export function App() {
       filters,
       focusedLayoutId,
       graphLayoutId,
+      installedRecipes,
       layouts,
     });
-  }, [activeView, filters, focusedLayoutId, graphLayoutId, layouts, selectedItemId]);
+  }, [
+    activeView,
+    filters,
+    focusedLayoutId,
+    graphLayoutId,
+    installedRecipes,
+    layouts,
+    selectedItemId,
+  ]);
 
   useEffect(() => {
     function handlePopState() {
@@ -161,6 +185,7 @@ export function App() {
       setFilters(nextState.filters);
       setFocusedLayoutId(nextState.focusedLayoutId);
       setLayouts(nextState.layouts);
+      setInstalledRecipes(nextState.installedRecipes);
       setGraphLayoutId(nextState.graphLayoutId);
       setGraphHistories({});
     }
@@ -205,7 +230,7 @@ export function App() {
   }
 
   function addRecipeToFocusedLayout(recipeId: string) {
-    if (!focusedLayout || !explorerData.recipeById.has(recipeId)) {
+    if (!focusedLayout || !recipeData.recipeById.has(recipeId)) {
       return;
     }
 
@@ -294,7 +319,7 @@ export function App() {
                 }
 
                 return isRecipeMachineIdAllowed(entry.recipeId, machineId)
-                  ? sanitizeRecipeLayoutEntryFactorySettings(explorerData, {
+                  ? sanitizeRecipeLayoutEntryFactorySettings(recipeData, {
                       ...entry,
                       machineId,
                     })
@@ -321,14 +346,14 @@ export function App() {
                   return entry;
                 }
 
-                const recipe = explorerData.recipeById.get(entry.recipeId);
+                const recipe = recipeData.recipeById.get(entry.recipeId);
                 const machineId = recipe
                   ? getRecipeSelectedMachineId(recipe, entry.machineId)
                   : null;
                 const moduleOptions = recipe
-                  ? getRecipeModuleOptions(explorerData, recipe, machineId)
+                  ? getRecipeModuleOptions(recipeData, recipe, machineId)
                   : [];
-                const moduleCapacity = getMachineModuleCapacity(explorerData, machineId);
+                const moduleCapacity = getMachineModuleCapacity(recipeData, machineId);
                 const nextModules = sanitizeModuleSettings(
                   modules,
                   moduleOptions,
@@ -336,7 +361,7 @@ export function App() {
                 );
                 const { modules: _modules, ...entryWithoutModules } = entry;
 
-                return sanitizeRecipeLayoutEntryFactorySettings(explorerData, {
+                return sanitizeRecipeLayoutEntryFactorySettings(recipeData, {
                   ...entryWithoutModules,
                   ...(nextModules.length ? { modules: nextModules } : {}),
                 });
@@ -362,10 +387,10 @@ export function App() {
                   return entry;
                 }
 
-                const nextBeacons = sanitizeBeaconSettings(explorerData, beacons);
+                const nextBeacons = sanitizeBeaconSettings(recipeData, beacons);
                 const { beacons: _beacons, ...entryWithoutBeacons } = entry;
 
-                return sanitizeRecipeLayoutEntryFactorySettings(explorerData, {
+                return sanitizeRecipeLayoutEntryFactorySettings(recipeData, {
                   ...entryWithoutBeacons,
                   ...(nextBeacons.length ? { beacons: nextBeacons } : {}),
                 });
@@ -481,10 +506,75 @@ export function App() {
     }
   }
 
+  function installLayout(layoutId: string) {
+    const layout = layouts.find((candidate) => candidate.id === layoutId);
+
+    if (!layout || !layout.entries.length) {
+      return;
+    }
+
+    const installedRecipe: InstalledLayoutRecipe = {
+      id: createInstalledRecipeId(installedRecipes),
+      layout: cloneRecipeLayout(layout),
+      name: layout.name,
+    };
+    const remainingLayouts = layouts.filter((candidate) => candidate.id !== layoutId);
+    const nextLayouts = remainingLayouts.length
+      ? remainingLayouts
+      : [createEmptyLayout(createLayoutId())];
+    const nextFocusedLayoutId = nextLayouts.some((candidate) => candidate.id === focusedLayoutId)
+      ? focusedLayoutId
+      : nextLayouts[0]?.id ?? defaultLayoutId;
+
+    clearGraphHistory(layoutId);
+    setInstalledRecipes((currentInstalledRecipes) => [
+      ...currentInstalledRecipes,
+      installedRecipe,
+    ]);
+    setLayouts(nextLayouts);
+    setFocusedLayoutId(nextFocusedLayoutId);
+
+    if (graphLayoutId === layoutId) {
+      setGraphLayoutId(nextFocusedLayoutId);
+      setActiveView("layouts");
+    }
+  }
+
+  function uninstallInstalledRecipe(recipeId: string) {
+    if (getInstalledRecipeReferenceCount(recipeId) > 0) {
+      return;
+    }
+
+    const installedRecipe = installedRecipes.find(
+      (candidate) => candidate.id === recipeId,
+    );
+
+    if (!installedRecipe) {
+      return;
+    }
+
+    const restoredLayout = cloneRecipeLayout(
+      installedRecipe.layout,
+      createRestoredLayoutId(installedRecipe.layout.id, layouts),
+    );
+
+    setInstalledRecipes((currentInstalledRecipes) =>
+      currentInstalledRecipes.filter((candidate) => candidate.id !== recipeId),
+    );
+    setLayouts((currentLayouts) => [...currentLayouts, restoredLayout]);
+    setFocusedLayoutId(restoredLayout.id);
+    setGraphLayoutId(null);
+    setActiveView("layouts");
+  }
+
   function getFocusedLayoutRecipeCount(recipeId: string): number {
     return (
       focusedLayout?.entries.filter((entry) => entry.recipeId === recipeId).length ?? 0
     );
+  }
+
+  function getInstalledRecipeReferenceCount(recipeId: string): number {
+    return countRecipeReferences(recipeId, layouts, installedRecipes);
   }
 
   function exportLayout(layoutId: string): string | null {
@@ -939,11 +1029,15 @@ export function App() {
     <main className={`app-shell app-shell--${activeView}`}>
       <AppSidebar
         activeView={activeView}
-        data={explorerData}
+        data={recipeData}
         focusedLayoutId={focusedLayout?.id ?? defaultLayoutId}
+        getInstalledRecipeReferenceCount={getInstalledRecipeReferenceCount}
+        installedRecipes={installedRecipes}
         layouts={layouts}
+        onAddInstalledRecipeToLayout={addRecipeToFocusedLayout}
         onCreateLayout={createLayout}
         onFocusLayout={focusLayout}
+        onInstallRecipeUninstall={uninstallInstalledRecipe}
         onOpenLayoutGraph={openLayoutGraph}
         onReorderLayout={reorderLayout}
         onSelectItem={selectItem}
@@ -959,7 +1053,7 @@ export function App() {
                 <header className="workspace-header app-panel">
                   <div className="selected-item">
                     <IconSprite
-                      atlas={explorerData.atlas}
+                      atlas={recipeData.atlas}
                       icon={selectedIcon}
                       label={selectedItem.name}
                       size={42}
@@ -986,7 +1080,7 @@ export function App() {
 
                 <div className="recipe-grid">
                   <RecipeColumn
-                    data={explorerData}
+                    data={recipeData}
                     getFocusedLayoutRecipeCount={getFocusedLayoutRecipeCount}
                     onAddRecipeToLayout={addRecipeToFocusedLayout}
                     onSelectItem={selectItem}
@@ -996,7 +1090,7 @@ export function App() {
                     title="Made by"
                   />
                   <RecipeColumn
-                    data={explorerData}
+                    data={recipeData}
                     getFocusedLayoutRecipeCount={getFocusedLayoutRecipeCount}
                     onAddRecipeToLayout={addRecipeToFocusedLayout}
                     onSelectItem={selectItem}
@@ -1032,12 +1126,13 @@ export function App() {
       {activeView === "layouts" ? (
         <div className="layout-view">
           <LayoutWorkspace
-            data={explorerData}
+            data={recipeData}
             focusedLayoutId={focusedLayout?.id ?? defaultLayoutId}
             layouts={layouts}
             onCreateLayout={createLayout}
             onDeleteLayout={deleteLayout}
             onImportLayout={importLayout}
+            onInstallLayout={installLayout}
             onOpenLayoutGraph={openLayoutGraph}
             onRecipeBeaconsChange={updateRecipeBeacons}
             onRecipeMachineChange={updateRecipeMachine}
@@ -1058,7 +1153,7 @@ export function App() {
             <LayoutGraphDialog
               canRedoGraph={Boolean(graphHistory?.redo.length)}
               canUndoGraph={Boolean(graphHistory?.undo.length)}
-              data={explorerData}
+              data={recipeData}
               layout={graphLayout}
               variant="workspace"
               onClose={() => setActiveView("layouts")}
@@ -1187,6 +1282,7 @@ function readAppStateFromUrl(): AppUrlState {
     },
     focusedLayoutId: layoutState.focusedLayoutId,
     graphLayoutId,
+    installedRecipes: layoutState.installedRecipes,
     layouts: layoutState.layouts,
   };
 }
@@ -1249,8 +1345,21 @@ function updateUrlFromAppState(state: AppUrlState) {
     defaultFilters.includeLocked,
   );
 
-  if (!isDefaultLayoutState(state.layouts, state.focusedLayoutId)) {
-    params.set("s", serializeCompactLayoutState(state.layouts, state.focusedLayoutId));
+  if (
+    !isDefaultLayoutState(
+      state.layouts,
+      state.focusedLayoutId,
+      state.installedRecipes,
+    )
+  ) {
+    params.set(
+      "s",
+      serializeCompactLayoutState(
+        state.layouts,
+        state.focusedLayoutId,
+        state.installedRecipes,
+      ),
+    );
   }
 
   const nextSearch = params.toString().replaceAll("%2C", ",");
@@ -1264,18 +1373,27 @@ function updateUrlFromAppState(state: AppUrlState) {
 
 interface ParsedLayoutState {
   focusedLayoutId: string;
+  installedRecipes: InstalledLayoutRecipe[];
   layouts: RecipeLayout[];
 }
 
 function normalizeParsedLayoutState(state: ParsedLayoutState): ParsedLayoutState {
   return {
     ...state,
-    layouts: state.layouts.map((layout) => ({
-      ...layout,
-      entries: layout.entries.map((entry) =>
-        sanitizeRecipeLayoutEntryFactorySettings(explorerData, entry),
-      ),
+    installedRecipes: state.installedRecipes.map((installedRecipe) => ({
+      ...installedRecipe,
+      layout: sanitizeRecipeLayout(installedRecipe.layout),
     })),
+    layouts: state.layouts.map(sanitizeRecipeLayout),
+  };
+}
+
+function sanitizeRecipeLayout(layout: RecipeLayout): RecipeLayout {
+  return {
+    ...layout,
+    entries: layout.entries.map((entry) =>
+      sanitizeRecipeLayoutEntryFactorySettings(explorerData, entry),
+    ),
   };
 }
 
@@ -1316,7 +1434,7 @@ function parseLayoutState(value: string | null): ParsedLayoutState {
   if (!value) {
     const layout = createEmptyLayout(defaultLayoutId);
 
-    return { focusedLayoutId: layout.id, layouts: [layout] };
+    return { focusedLayoutId: layout.id, installedRecipes: [], layouts: [layout] };
   }
 
   try {
@@ -1344,7 +1462,7 @@ function parseLayoutState(value: string | null): ParsedLayoutState {
         ? rawFocusedLayoutId
         : layouts[0]?.id ?? defaultLayoutId;
 
-    return { focusedLayoutId, layouts };
+    return { focusedLayoutId, installedRecipes: [], layouts };
   } catch {
     return defaultLayoutState();
   }
@@ -1983,10 +2101,12 @@ function getLayoutGraphNodeIds(layout: RecipeLayout): Set<string> {
 function isDefaultLayoutState(
   layouts: RecipeLayout[],
   focusedLayoutId: string,
+  installedRecipes: InstalledLayoutRecipe[],
 ): boolean {
   const layout = layouts[0];
 
   return (
+    installedRecipes.length === 0 &&
     layouts.length === 1 &&
     focusedLayoutId === defaultLayoutId &&
     layout?.id === defaultLayoutId &&
@@ -2006,7 +2126,7 @@ function isDefaultLayoutState(
 function defaultLayoutState(): ParsedLayoutState {
   const layout = createEmptyLayout(defaultLayoutId);
 
-  return { focusedLayoutId: layout.id, layouts: [layout] };
+  return { focusedLayoutId: layout.id, installedRecipes: [], layouts: [layout] };
 }
 
 function createEmptyLayout(id: string): RecipeLayout {
@@ -2116,6 +2236,74 @@ function createLayoutId(): string {
 
 function createLayoutEntryId(): string {
   return `entry-${Date.now().toString(36)}-${nextLayoutEntrySequence++}`;
+}
+
+function createInstalledRecipeId(
+  installedRecipes: readonly InstalledLayoutRecipe[],
+): string {
+  const existingRecipeIds = new Set(installedRecipes.map((recipe) => recipe.id));
+  let recipeId = `${compositeRecipeIdPrefix}${Date.now().toString(36)}-${nextInstalledRecipeSequence++}`;
+
+  while (existingRecipeIds.has(recipeId)) {
+    recipeId = `${compositeRecipeIdPrefix}${Date.now().toString(36)}-${nextInstalledRecipeSequence++}`;
+  }
+
+  return recipeId;
+}
+
+function createRestoredLayoutId(
+  preferredLayoutId: string,
+  layouts: readonly RecipeLayout[],
+): string {
+  return layouts.some((layout) => layout.id === preferredLayoutId)
+    ? createLayoutId()
+    : preferredLayoutId;
+}
+
+function countRecipeReferences(
+  recipeId: string,
+  layouts: readonly RecipeLayout[],
+  installedRecipes: readonly InstalledLayoutRecipe[],
+): number {
+  return [
+    ...layouts,
+    ...installedRecipes.map((installedRecipe) => installedRecipe.layout),
+  ].reduce(
+    (count, layout) =>
+      count + layout.entries.filter((entry) => entry.recipeId === recipeId).length,
+    0,
+  );
+}
+
+function cloneRecipeLayout(layout: RecipeLayout, layoutId = layout.id): RecipeLayout {
+  return {
+    ...layout,
+    id: layoutId,
+    entries: layout.entries.map((entry) => ({
+      ...entry,
+      ...(entry.modules
+        ? { modules: entry.modules.map((module) => ({ ...module })) }
+        : {}),
+      ...(entry.beacons
+        ? {
+            beacons: entry.beacons.map((beacon) => ({
+              ...beacon,
+              modules: beacon.modules.map((module) => ({ ...module })),
+            })),
+          }
+        : {}),
+    })),
+    relays: layout.relays.map((relay) => ({
+      ...relay,
+      itemKeys: [...relay.itemKeys],
+    })),
+    graphPositions: cloneGraphPositions(layout.graphPositions),
+    edgePorts: cloneGraphEdgePorts(layout.edgePorts),
+    edgeRoutes: cloneGraphEdgeRoutes(layout.edgeRoutes),
+    edgeItems: cloneStringListRecord(layout.edgeItems),
+    externalItems: cloneStringListRecord(layout.externalItems),
+    terminalSides: { ...layout.terminalSides },
+  };
 }
 
 function createGraphLayoutSnapshot(layout: RecipeLayout): GraphLayoutSnapshot {
@@ -2431,6 +2619,10 @@ function isDefaultProductionSize(value: number): boolean {
 }
 
 function isRecipeMachineIdAllowed(recipeId: string, machineId: string): boolean {
+  if (isCompositeRecipeId(recipeId)) {
+    return false;
+  }
+
   const recipe = explorerData.recipeById.get(recipeId);
 
   return recipe ? getRecipeMetadata(recipe).producers.includes(machineId) : false;
