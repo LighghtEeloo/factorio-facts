@@ -28,13 +28,13 @@ Keep ingredient/result amounts and probabilities for labels and future work, but
 
 ## App Behavior
 
-The app is a mode-based Vite/React workbench with a persistent left navigation rail:
+The app is a mode-based Vite/React workbench with a persistent left sidebar. Sidebar section headers switch the main lens, and the rows under each section manage the current focus:
 
-- Recipes: selected item context plus `Made by` and `Used in` recipe columns, with filters for surface, category, and recipe flags.
-- Layouts: fullscreen layout recipe editing, layout focus/reordering, layout import/delete for empty layouts, and production-size editing.
-- Graph: fullscreen React Flow layout graph editing for the selected layout.
+- Recipes: the header opens the recipe explorer; the section shows only the focused item/fluid and opens the item picker.
+- Layouts: the header opens fullscreen layout recipe editing; global layout rows focus, reorder, and open graph views for layouts.
+- Graph: fullscreen React Flow layout graph editing for the selected layout, entered from a layout row or the focused layout editor.
 
-Layouts are ordered lists of recipe instances. Duplicate recipes are allowed. Each recipe instance has a positive production size number that is saved but not yet used for ratio solving. The focused layout receives new recipe instances, the layout editor reorders layouts and recipe rows, and populated layouts can open the fullscreen React Flow graph view. Empty layouts can import pasted factorio-facts layout JSON strings, while graph views can export the open layout as a copyable JSON string. Graphs contain recipe nodes plus circular relay nodes that identity-route selected item/fluid sets; both are first-class selectable/connectable graph nodes. The graph header toolbar lets users create compatible edges, create conservative relays from terminals or selected edges, smart-merge focused relays, and stage node terminals, relay contents, and edge materials before applying them. The graph action row has export, per-layout undo/redo, guarded reset, and a close/back control. Graph node positions, relay material sets, edge endpoint sides, terminal sides, Bezier bend points, edge item overrides, and optional external terminal choices are persisted in the URL. Layout-heavy URL state uses the compact `s=v1.<blob>` codec; old `layouts=` links remain readable.
+Layouts are ordered lists of recipe instances. Duplicate recipes are allowed. Each recipe instance has a positive production size number that is saved but not yet used for ratio solving. The focused layout receives new recipe instances, the global sidebar and layout editor can reorder layouts, and the layout editor reorders recipe rows. Populated layouts can open the fullscreen React Flow graph view. Empty layouts can import pasted factorio-facts layout JSON strings, while graph views can export the open layout as a copyable JSON string. Graphs contain recipe nodes plus circular relay nodes that identity-route selected item/fluid sets; both are first-class selectable/connectable graph nodes. The graph header toolbar lets users create compatible edges, create conservative relays from terminals or selected edges, smart-merge focused relays, and stage node terminals, relay contents, and edge materials before applying them. The graph action row has export, per-layout undo/redo, guarded reset, and a close/back control. Graph node positions, relay material sets, edge endpoint sides, terminal sides, Bezier bend points, edge item overrides, and optional external terminal choices are persisted in the URL. Layout-heavy URL state uses the compact `s=v1.<blob>` codec; old `layouts=` links remain readable.
 
 ## Source Map
 

@@ -3,9 +3,8 @@ import {
   Boxes,
   CircleDot,
   Cog,
-  Map as MapIcon,
+  GripVertical,
   Network,
-  Package,
   Plus,
   Search,
   X,
@@ -15,14 +14,13 @@ import {
   useMemo,
   useRef,
   useState,
-  type ReactNode,
 } from "react";
 import type { FactorioLabCategory, FactorioLabItem } from "../../factoriolab/types";
 import {
   getIconIdForItem,
   type RecipeExplorerData,
 } from "../data/factoriolab";
-import type { AppView, RecipeLayout } from "../types";
+import type { AppView, LayoutReorderPlacement, RecipeLayout } from "../types";
 import { IconSprite } from "./IconSprite";
 
 interface AppSidebarProps {
@@ -34,6 +32,11 @@ interface AppSidebarProps {
   onCreateLayout(): void;
   onFocusLayout(layoutId: string): void;
   onOpenLayoutGraph(layoutId: string): void;
+  onReorderLayout(
+    sourceLayoutId: string,
+    targetLayoutId: string,
+    placement: LayoutReorderPlacement,
+  ): void;
   onSelectItem(itemId: string): void;
   onViewChange(view: AppView): void;
 }
@@ -47,17 +50,22 @@ export function AppSidebar({
   onCreateLayout,
   onFocusLayout,
   onOpenLayoutGraph,
+  onReorderLayout,
   onSelectItem,
   onViewChange,
 }: AppSidebarProps) {
   const [isSelectorOpen, setIsSelectorOpen] = useState(selectedItemId === null);
   const [selectorQuery, setSelectorQuery] = useState("");
+  const [draggedLayoutId, setDraggedLayoutId] = useState<string | null>(null);
+  const [layoutDropTarget, setLayoutDropTarget] = useState<{
+    layoutId: string;
+    placement: LayoutReorderPlacement;
+  } | null>(null);
   const selectorSearchRef = useRef<HTMLInputElement | null>(null);
   const selectedItem = selectedItemId ? data.itemById.get(selectedItemId) ?? null : null;
   const selectedIcon = selectedItem
     ? data.iconById.get(getIconIdForItem(selectedItem))
     : undefined;
-  const focusedLayout = layouts.find((layout) => layout.id === focusedLayoutId) ?? layouts[0];
   const selectorGroups = useMemo(
     () => groupItemsByCategory(data, searchItems(data.items, selectorQuery)),
     [data, selectorQuery],
@@ -93,6 +101,53 @@ export function AppSidebar({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isSelectorOpen]);
 
+  useEffect(() => {
+    if (!draggedLayoutId) {
+      return;
+    }
+
+    const activeLayoutId = draggedLayoutId;
+
+    function handlePointerMove(event: PointerEvent) {
+      const row = document
+        .elementFromPoint(event.clientX, event.clientY)
+        ?.closest<HTMLElement>("[data-sidebar-layout-row]");
+      const targetLayoutId = row?.dataset.sidebarLayoutRow;
+
+      if (!row || !targetLayoutId || targetLayoutId === activeLayoutId) {
+        setLayoutDropTarget(null);
+        return;
+      }
+
+      const rect = row.getBoundingClientRect();
+      const placement: LayoutReorderPlacement =
+        event.clientY < rect.top + rect.height / 2 ? "before" : "after";
+
+      setLayoutDropTarget({ layoutId: targetLayoutId, placement });
+    }
+
+    function handlePointerUp() {
+      if (layoutDropTarget) {
+        onReorderLayout(
+          activeLayoutId,
+          layoutDropTarget.layoutId,
+          layoutDropTarget.placement,
+        );
+      }
+
+      setDraggedLayoutId(null);
+      setLayoutDropTarget(null);
+    }
+
+    document.addEventListener("pointermove", handlePointerMove);
+    document.addEventListener("pointerup", handlePointerUp);
+
+    return () => {
+      document.removeEventListener("pointermove", handlePointerMove);
+      document.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [draggedLayoutId, layoutDropTarget, onReorderLayout]);
+
   function selectFromPicker(itemId: string) {
     onSelectItem(itemId);
     setIsSelectorOpen(false);
@@ -108,43 +163,16 @@ export function AppSidebar({
         </span>
       </div>
 
-      <nav className="app-nav" aria-label="Workbench views">
-        <ViewNavButton
-          active={activeView === "recipes"}
-          icon={<BookOpen size={18} aria-hidden="true" />}
-          label="Recipes"
-          onClick={() => onViewChange("recipes")}
-        />
-        <ViewNavButton
-          active={activeView === "layouts"}
-          icon={<Boxes size={18} aria-hidden="true" />}
-          label="Layouts"
-          onClick={() => onViewChange("layouts")}
-        />
-        <ViewNavButton
-          active={activeView === "graph"}
-          disabled={!focusedLayout}
-          icon={<Network size={18} aria-hidden="true" />}
-          label="Graph"
-          onClick={() => {
-            if (focusedLayout) {
-              onOpenLayoutGraph(focusedLayout.id);
-            }
-          }}
-        />
-      </nav>
-
-      <section className="sidebar-section" aria-label="Selected item">
+      <section className="sidebar-section sidebar-recipes" aria-label="Recipes">
         <div className="sidebar-section__header">
-          <span>Item</span>
           <button
-            aria-label="Open item selector"
-            className="icon-button item-selector-button"
-            data-tooltip="Open item selector"
+            aria-current={activeView === "recipes" ? "page" : undefined}
+            className="sidebar-section__title-button"
             type="button"
-            onClick={() => setIsSelectorOpen(true)}
+            onClick={() => onViewChange("recipes")}
           >
-            <Package size={18} aria-hidden="true" />
+            <BookOpen size={18} aria-hidden="true" />
+            <span>Recipes</span>
           </button>
         </div>
         <button
@@ -179,7 +207,17 @@ export function AppSidebar({
 
       <section className="sidebar-section sidebar-layouts" aria-label="Layouts">
         <div className="sidebar-section__header">
-          <span>Layouts</span>
+          <button
+            aria-current={
+              activeView === "layouts" || activeView === "graph" ? "page" : undefined
+            }
+            className="sidebar-section__title-button"
+            type="button"
+            onClick={() => onViewChange("layouts")}
+          >
+            <Boxes size={18} aria-hidden="true" />
+            <span>Layouts</span>
+          </button>
           <button
             aria-label="Create layout"
             className="icon-button"
@@ -196,18 +234,35 @@ export function AppSidebar({
             <div
               className={`sidebar-layout-row ${
                 layout.id === focusedLayoutId ? "sidebar-layout-row--focused" : ""
+              } ${draggedLayoutId === layout.id ? "sidebar-layout-row--dragging" : ""} ${
+                layoutDropTarget?.layoutId === layout.id
+                  ? `sidebar-layout-row--drop-${layoutDropTarget.placement}`
+                  : ""
               }`}
+              data-sidebar-layout-row={layout.id}
               key={layout.id}
             >
+              <button
+                aria-label={`Reorder ${layout.name.trim() || "Untitled layout"}`}
+                className="sidebar-layout-row__drag"
+                data-tooltip="Drag to reorder"
+                type="button"
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                  onFocusLayout(layout.id);
+                  setDraggedLayoutId(layout.id);
+                  setLayoutDropTarget(null);
+                }}
+              >
+                <GripVertical size={14} aria-hidden="true" />
+              </button>
               <button
                 aria-label={`Focus ${layout.name.trim() || "Untitled layout"}`}
                 aria-pressed={layout.id === focusedLayoutId}
                 className="sidebar-layout-row__main"
                 type="button"
-                onClick={() => {
-                  onFocusLayout(layout.id);
-                  onViewChange("layouts");
-                }}
+                onClick={() => onFocusLayout(layout.id)}
               >
                 <CircleDot size={14} aria-hidden="true" />
                 <span>{layout.name.trim() || "Untitled layout"}</span>
@@ -226,20 +281,6 @@ export function AppSidebar({
           ))}
         </div>
       </section>
-
-      {focusedLayout ? (
-        <section className="sidebar-section sidebar-focus" aria-label="Focused layout">
-          <span className="sidebar-section__eyebrow">
-            <MapIcon size={14} aria-hidden="true" />
-            Focus
-          </span>
-          <strong>{focusedLayout.name.trim() || "Untitled layout"}</strong>
-          <small>
-            {focusedLayout.entries.length}{" "}
-            {focusedLayout.entries.length === 1 ? "recipe" : "recipes"}
-          </small>
-        </section>
-      ) : null}
 
       {isSelectorOpen ? (
         <div
@@ -333,35 +374,6 @@ export function AppSidebar({
         </div>
       ) : null}
     </aside>
-  );
-}
-
-interface ViewNavButtonProps {
-  active: boolean;
-  disabled?: boolean;
-  icon: ReactNode;
-  label: string;
-  onClick(): void;
-}
-
-function ViewNavButton({
-  active,
-  disabled = false,
-  icon,
-  label,
-  onClick,
-}: ViewNavButtonProps) {
-  return (
-    <button
-      aria-current={active ? "page" : undefined}
-      className="app-nav__button"
-      disabled={disabled}
-      type="button"
-      onClick={onClick}
-    >
-      {icon}
-      <span>{label}</span>
-    </button>
   );
 }
 

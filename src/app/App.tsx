@@ -191,6 +191,10 @@ export function App() {
 
   function focusLayout(layoutId: string) {
     setFocusedLayoutId(layoutId);
+
+    if (activeView === "graph") {
+      setGraphLayoutId(layoutId);
+    }
   }
 
   function openLayoutGraph(layoutId: string) {
@@ -846,6 +850,7 @@ export function App() {
         onCreateLayout={createLayout}
         onFocusLayout={focusLayout}
         onOpenLayoutGraph={openLayoutGraph}
+        onReorderLayout={reorderLayout}
         onSelectItem={selectItem}
         onViewChange={setActiveView}
         selectedItemId={selectedItem?.id ?? null}
@@ -862,14 +867,16 @@ export function App() {
                       atlas={explorerData.atlas}
                       icon={selectedIcon}
                       label={selectedItem.name}
-                      size={48}
+                      size={42}
                     />
                     <div>
                       <h1>{selectedItem.name}</h1>
                       <span>{selectedItem.id}</span>
                     </div>
                   </div>
+                </header>
 
+                <div className="recipe-workspace-toolbar">
                   <div className="workspace-stats">
                     <span>
                       <ArrowDownToLine size={16} aria-hidden="true" />
@@ -879,9 +886,9 @@ export function App() {
                       <ArrowUpFromLine size={16} aria-hidden="true" />
                       {usedIn.length} used in
                     </span>
-                    <ViewModeToggle value={viewMode} onChange={setViewMode} />
                   </div>
-                </header>
+                  <ViewModeToggle value={viewMode} onChange={setViewMode} />
+                </div>
 
                 <div className="recipe-grid">
                   <RecipeColumn

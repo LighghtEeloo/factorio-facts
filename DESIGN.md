@@ -81,11 +81,11 @@ Keep ingredient/result amounts and probabilities for labels and future work, but
 
 ## Product Shape
 
-The first screen is the working tool, not a landing page. The app uses a mode-based Vite/React workbench with a persistent left navigation rail and fullscreen task views:
+The first screen is the working tool, not a landing page. The app uses a mode-based Vite/React workbench with a persistent left sidebar and fullscreen task views. Sidebar section headers switch the main lens, while section rows manage focus:
 
-- Recipes: selected item context plus `Made by` and `Used in` recipe columns. The column headings and header counters use different direction icons so producers and consumers are visually distinct. Filters for surface, FactorioLab category, and recipe flags live beside this recipe explorer.
-- Layouts: dedicated layout recipe editing for the focused layout, plus layout focus and layout ordering.
-- Graph: dedicated React Flow graph editing for the selected layout.
+- Recipes: the header opens the recipe explorer. The section shows only the focused item/fluid and opens the item picker. The recipe explorer itself shows the selected item context plus `Made by` and `Used in` recipe columns. The column headings and header counters use different direction icons so producers and consumers are visually distinct. Filters for surface, FactorioLab category, and recipe flags live beside this recipe explorer.
+- Layouts: the header opens dedicated layout recipe editing for the focused layout. Global layout rows focus and reorder layouts.
+- Graph: dedicated React Flow graph editing for the selected layout, entered from a layout row or the focused layout editor.
 
 Clicking any item chip selects that item and refreshes both recipe columns. This gives expandable upstream/downstream navigation without expanding a dense node cloud in place.
 
@@ -97,9 +97,9 @@ The item selector remains a fullscreen picker over the workbench. Layout recipe 
 
 Layouts are lightweight recipe collections for planning a factory subsection. There is always one focused layout; if the URL does not provide layout state, the app creates an empty unnamed layout automatically.
 
-Each layout is an ordered list of recipe instances, not a set of recipe ids. The same recipe can appear multiple times to represent multiple copies of the same factory step. Each recipe instance has a positive production size number. That number is saved with the layout and shown in the layout editor, but it is not yet used for ratio solving. Recipe card add buttons always append another instance to the focused layout. Layout rows can be reordered from the layout editor rail, and layout recipe row numbers act as drag handles for reordering recipes within a layout. When the recipe already appears in the focused layout, the button keeps working but shows a duplicate-count hint.
+Each layout is an ordered list of recipe instances, not a set of recipe ids. The same recipe can appear multiple times to represent multiple copies of the same factory step. Each recipe instance has a positive production size number. That number is saved with the layout and shown in the layout editor, but it is not yet used for ratio solving. Recipe card add buttons always append another instance to the focused layout. Layout rows can be reordered from the global sidebar or layout editor rail, and layout recipe row numbers act as drag handles for reordering recipes within a layout. When the recipe already appears in the focused layout, the button keeps working but shows a duplicate-count hint.
 
-The layout view lets users create, focus, rename, reorder, and graph layouts. Empty layouts show import and delete actions. The import action fills that empty layout from a pasted factorio-facts layout JSON string.
+The global layout rows let users focus, reorder, and graph layouts from anywhere in the workbench. The layout view adds focused-layout editing: create, rename, import into an empty layout, delete an empty layout, and edit recipe instances. The import action fills that empty layout from a pasted factorio-facts layout JSON string.
 
 The layout graph action row includes export. Export opens a readable factorio-facts layout JSON snapshot string for the open layout, with a copy action for moving it elsewhere. The snapshot includes recipe instances, production sizes, relays, graph geometry, edge material choices, terminal choices, and layout metadata needed to reconstruct the layout through the empty-layout string import action. It is a layout interchange format, not a Factorio prototype export.
 
