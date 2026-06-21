@@ -143,6 +143,13 @@ export function LayoutWorkspace({
   const compositeBoundary = focusedLayout
     ? inferLayoutCompositeBoundary(focusedLayout, data.recipeById)
     : { ingredients: [], results: [] };
+  const compositeIconEntries = getCompositeRecipeIconIds(
+    data,
+    compositeBoundary.results,
+  ).map((iconId) => ({
+    icon: data.iconById.get(iconId),
+    label: data.itemById.get(iconId)?.name ?? formatId(iconId),
+  }));
 
   useEffect(() => {
     if (!focusedLayout?.entries.length) {
@@ -284,21 +291,35 @@ export function LayoutWorkspace({
     <section className="layout-workspace">
       <header className="layout-workspace__header app-panel">
         <div className="layout-workspace__title">
-          <Boxes size={28} aria-hidden="true" />
+          {focusedLayout.entries.length ? (
+            <CompositeRecipeIcon
+              atlas={data.atlas}
+              icons={compositeIconEntries}
+              label={`${title} icon`}
+              size={42}
+            />
+          ) : (
+            <Boxes size={42} aria-hidden="true" />
+          )}
           <label className="layout-title-field">
-            <span className="layout-title-field__meta">
-              <span>Layout</span>
-              <span className="layout-workspace__count">
-                {focusedLayout.entries.length}{" "}
-                {focusedLayout.entries.length === 1 ? "recipe" : "recipes"}
-              </span>
-            </span>
             <input
               aria-label="Layout name"
               placeholder="Untitled layout"
               value={focusedLayout.name}
               onChange={(event) => onRenameLayout(focusedLayout.id, event.target.value)}
             />
+            <span className="layout-title-field__meta">
+              {focusedLayout.entries.length ? (
+                <span>
+                  {compositeBoundary.ingredients.length} in /{" "}
+                  {compositeBoundary.results.length} out
+                </span>
+              ) : null}
+              <span className="layout-workspace__count">
+                {focusedLayout.entries.length}{" "}
+                {focusedLayout.entries.length === 1 ? "recipe" : "recipes"}
+              </span>
+            </span>
           </label>
         </div>
         <div className="layout-workspace__actions">
@@ -521,27 +542,8 @@ function LayoutCompositeDetails({
   data,
   title,
 }: LayoutCompositeDetailsProps) {
-  const icons = getCompositeRecipeIconIds(data, boundary.results).map((iconId) => ({
-    icon: data.iconById.get(iconId),
-    label: data.itemById.get(iconId)?.name ?? formatId(iconId),
-  }));
-
   return (
     <section className="layout-composite-details" aria-label={`${title} composite recipe`}>
-      <header className="layout-composite-details__header">
-        <CompositeRecipeIcon
-          atlas={data.atlas}
-          icons={icons}
-          label={`${title} icon`}
-          size={42}
-        />
-        <div>
-          <h2>Composite recipe</h2>
-          <span>
-            {boundary.ingredients.length} in / {boundary.results.length} out
-          </span>
-        </div>
-      </header>
       <div className="layout-composite-details__equation">
         <InspectorMaterialGroup
           data={data}

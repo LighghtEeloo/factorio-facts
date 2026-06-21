@@ -933,9 +933,9 @@ button {
 
 .layout-workspace__title {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
+  grid-template-columns: 42px minmax(0, 1fr);
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
 }
 
@@ -960,7 +960,7 @@ button {
 
 .layout-title-field {
   display: grid;
-  gap: 3px;
+  gap: 2px;
   min-width: 0;
 }
 
@@ -970,9 +970,9 @@ button {
   gap: 7px;
   min-width: 0;
   color: #a7a18d;
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: none;
 }
 
 .layout-title-field__meta span {
@@ -985,8 +985,8 @@ button {
   outline: 0;
   background: transparent;
   color: #f0eee4;
-  font-size: 1.24rem;
-  font-weight: 760;
+  font-size: 1.18rem;
+  font-weight: 700;
 }
 
 .layout-title-field input::placeholder {
@@ -998,8 +998,8 @@ button {
 }
 
 .layout-workspace__count {
-  color: #d7b65f;
-  font-size: 0.68rem;
+  color: #a7a18d;
+  font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
   text-transform: none;
   white-space: nowrap;
@@ -1027,26 +1027,6 @@ button {
   border-radius: 8px;
   background: #151710;
   padding: 10px;
-}
-
-.layout-composite-details__header {
-  display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.layout-composite-details__header h2 {
-  margin: 0;
-  color: #f0eee4;
-  font-size: 0.92rem;
-  letter-spacing: 0;
-}
-
-.layout-composite-details__header span {
-  color: #9f9a86;
-  font-size: 0.7rem;
 }
 
 .layout-composite-details__equation {
