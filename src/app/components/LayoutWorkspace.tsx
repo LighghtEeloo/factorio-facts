@@ -374,6 +374,7 @@ export function LayoutWorkspace({
                       setSelectedEntryId(entry.id);
                       setPendingInspectorFocusEntryId(entry.id);
                     }}
+                    onOpenRecipeContext={onSelectItem}
                   />
                 );
               })
@@ -493,6 +494,7 @@ interface LayoutEditorRecipeRowProps {
   onRemove(): void;
   onSelect(): void;
   onSelectFactorySettings(): void;
+  onOpenRecipeContext(itemId: string): void;
 }
 
 interface LayoutMachineOption {
@@ -546,6 +548,7 @@ function LayoutEditorRecipeRow({
   onDragStart,
   onProductionSizeChange,
   onRemove,
+  onOpenRecipeContext,
   onSelect,
   onSelectFactorySettings,
   recipe,
@@ -593,6 +596,13 @@ function LayoutEditorRecipeRow({
         data-tooltip={`${metadata.name} (${metadata.id})`}
         type="button"
         onClick={onSelect}
+        onDoubleClick={() => {
+          const contextItemId = getRecipeContextItemId(data, recipe);
+
+          if (contextItemId) {
+            onOpenRecipeContext(contextItemId);
+          }
+        }}
       >
         <RecipeIcon data={data} recipe={recipe} size={34} />
         <span className="layout-editor-row__identity">
