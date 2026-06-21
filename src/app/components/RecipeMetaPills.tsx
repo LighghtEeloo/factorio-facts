@@ -24,6 +24,7 @@ interface RecipeMetaPillsProps {
   includeAllSurfaces?: boolean;
   leading?: ReactNode;
   metadata: FactorioLabRecipeMetadata;
+  producerIds?: string[];
 }
 
 export function RecipeMetaPills({
@@ -34,10 +35,12 @@ export function RecipeMetaPills({
   includeAllSurfaces = false,
   leading,
   metadata,
+  producerIds: producerIdsOverride,
 }: RecipeMetaPillsProps) {
   const rootClassName = classNames?.root ?? "recipe-card__meta";
   const textClassName = classNames?.text ?? "text-pill";
   const timeClassName = classNames?.time ?? `${textClassName} text-pill--time`;
+  const producerIds = producerIdsOverride ?? metadata.producers;
 
   return (
     <div className={rootClassName}>
@@ -49,7 +52,7 @@ export function RecipeMetaPills({
         <Timer size={14} aria-hidden="true" />
         {formatRecipeTime(energyRequired)}
       </span>
-      {metadata.producers.map((producerId) => (
+      {producerIds.map((producerId) => (
         <RecipeMetaIconPill
           classNames={classNames}
           data={data}
@@ -59,7 +62,7 @@ export function RecipeMetaPills({
           type="producer"
         />
       ))}
-      {metadata.producers.length ? null : (
+      {producerIds.length ? null : (
         <span className={textClassName} data-tooltip="Natural source">
           natural
         </span>

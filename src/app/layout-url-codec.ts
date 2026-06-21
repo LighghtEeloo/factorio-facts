@@ -23,7 +23,10 @@ const defaultOutputSide: GraphSide = "right";
 
 type GraphSideCode = 0 | 1 | 2 | 3;
 type GraphTerminalKindCode = 0 | 1;
-type CompactEntry = number | [recipeIndex: number, productionSize: number];
+type CompactEntry =
+  | number
+  | [recipeIndex: number, productionSize: number]
+  | [recipeIndex: number, productionSize: number, machineId: string];
 type CompactPosition = [entryIndex: number, x: number, y: number];
 type CompactEdgePorts = [
   sourceIndex: number,
@@ -62,6 +65,7 @@ export interface ParsedLayoutUrlState {
 export interface LayoutUrlCodecOptions {
   defaultLayoutId: string;
   isRecipeIdAllowed(recipeId: string): boolean;
+  isRecipeMachineIdAllowed(recipeId: string, machineId: string): boolean;
 }
 
 export function serializeCompactLayoutState(
@@ -192,8 +196,12 @@ function compactLayoutEntry(
   const recipeIndex = getRecipeIndex(entry.recipeId, recipeIds, recipeIndexById);
   const productionSize = normalizeProductionSize(entry.productionSize);
 
-  return productionSize === defaultProductionSize
-    ? recipeIndex
+  if (!entry.machineId && productionSize === defaultProductionSize) {
+    return recipeIndex;
+  }
+
+  return entry.machineId
+    ? [recipeIndex, productionSize, entry.machineId]
     : [recipeIndex, productionSize];
 }
 
@@ -448,7 +456,12 @@ function parseCompactLayout(
     index === 0 ? options.defaultLayoutId : `layout-${index + 1}`,
     seenLayoutIds,
   );
-  const { entries, entryIdByIndex } = parseCompactEntries(value[2], layoutId, recipeIds);
+  const { entries, entryIdByIndex } = parseCompactEntries(
+    value[2],
+    layoutId,
+    recipeIds,
+    options,
+  );
   const { relays, relayIdByIndex } = parseCompactRelays(
     value[9],
     layoutId,
@@ -478,6 +491,7 @@ function parseCompactEntries(
   value: unknown,
   layoutId: string,
   recipeIds: Array<string | null>,
+  options: LayoutUrlCodecOptions,
 ): { entries: RecipeLayoutEntry[]; entryIdByIndex: Map<number, string> } {
   const entries: RecipeLayoutEntry[] = [];
   const entryIdByIndex = new Map<number, string>();
@@ -489,6 +503,7 @@ function parseCompactEntries(
   value.forEach((rawEntry, entryIndex) => {
     const rawRecipeIndex = Array.isArray(rawEntry) ? rawEntry[0] : rawEntry;
     const rawProductionSize = Array.isArray(rawEntry) ? rawEntry[1] : undefined;
+    const rawMachineId = Array.isArray(rawEntry) ? rawEntry[2] : undefined;
     const recipeIndex = parseNonNegativeInteger(rawRecipeIndex);
     const recipeId = recipeIndex === null ? null : recipeIds[recipeIndex] ?? null;
 
@@ -497,9 +512,15 @@ function parseCompactEntries(
     }
 
     const entryId = `${layoutId}-entry-${entryIndex + 1}`;
+    const machineId =
+      typeof rawMachineId === "string" &&
+      options.isRecipeMachineIdAllowed(recipeId, rawMachineId)
+        ? rawMachineId
+        : null;
 
     entries.push({
       id: entryId,
+      ...(machineId ? { machineId } : {}),
       productionSize: parseProductionSize(rawProductionSize),
       recipeId,
     });

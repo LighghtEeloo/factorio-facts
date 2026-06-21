@@ -16,6 +16,7 @@ import {
   useEffect,
   useState,
 } from "react";
+import type { FactorioLabIcon } from "../../factoriolab/types";
 import type {
   IngredientPrototype,
   ProductPrototype,
@@ -43,6 +44,7 @@ interface LayoutWorkspaceProps {
   onDeleteLayout(layoutId: string): void;
   onImportLayout(layoutId: string, value: string): boolean;
   onOpenLayoutGraph(layoutId: string): void;
+  onRecipeMachineChange(layoutId: string, entryId: string, machineId: string): void;
   onRecipeProductionSizeChange(
     layoutId: string,
     entryId: string,
@@ -67,6 +69,7 @@ export function LayoutWorkspace({
   onDeleteLayout,
   onImportLayout,
   onOpenLayoutGraph,
+  onRecipeMachineChange,
   onRecipeProductionSizeChange,
   onRemoveRecipeFromLayout,
   onRenameLayout,
@@ -296,6 +299,9 @@ export function LayoutWorkspace({
                         productionSize,
                       )
                     }
+                    onMachineChange={(machineId) =>
+                      onRecipeMachineChange(focusedLayout.id, entry.id, machineId)
+                    }
                     onRemove={() => onRemoveRecipeFromLayout(focusedLayout.id, entry.id)}
                     onSelect={() => setSelectedEntryId(entry.id)}
                   />
@@ -401,9 +407,16 @@ interface LayoutEditorRecipeRowProps {
   recipe: RecipePrototype;
   selected: boolean;
   onDragStart(): void;
+  onMachineChange(machineId: string): void;
   onProductionSizeChange(productionSize: number): void;
   onRemove(): void;
   onSelect(): void;
+}
+
+interface LayoutMachineOption {
+  icon: FactorioLabIcon | undefined;
+  id: string;
+  name: string;
 }
 
 function LayoutEditorRecipeRow({
@@ -412,6 +425,7 @@ function LayoutEditorRecipeRow({
   dropPlacement,
   entry,
   index,
+  onMachineChange,
   onDragStart,
   onProductionSizeChange,
   onRemove,
@@ -420,6 +434,11 @@ function LayoutEditorRecipeRow({
   selected,
 }: LayoutEditorRecipeRowProps) {
   const metadata = getRecipeMetadata(recipe);
+  const machineOptions = getRecipeMachineOptions(data, metadata.producers);
+  const selectedMachine =
+    machineOptions.find((option) => option.id === entry.machineId) ??
+    machineOptions[0] ??
+    null;
   const [productionSizeDraft, setProductionSizeDraft] = useState(
     formatProductionSize(entry.productionSize),
   );
@@ -469,8 +488,43 @@ function LayoutEditorRecipeRow({
           </span>
         </span>
       </button>
+      <label
+        className="layout-editor-row__machine"
+        data-tooltip={
+          selectedMachine ? `Machine: ${selectedMachine.name}` : "No machine choice"
+        }
+      >
+        <span className="layout-editor-row__machine-icon" aria-hidden="true">
+          {selectedMachine ? (
+            <IconSprite
+              atlas={data.atlas}
+              icon={selectedMachine.icon}
+              label={selectedMachine.name}
+              size={22}
+            />
+          ) : null}
+        </span>
+        <select
+          aria-label={`${metadata.name} producing machine`}
+          disabled={!machineOptions.length}
+          value={selectedMachine?.id ?? ""}
+          onChange={(event) => onMachineChange(event.target.value)}
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          {machineOptions.length ? (
+            machineOptions.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.name}
+              </option>
+            ))
+          ) : (
+            <option value="">natural</option>
+          )}
+        </select>
+      </label>
       <label className="layout-editor-row__size" data-tooltip="Production size">
-        <span>Size</span>
+        <span aria-hidden="true">×</span>
         <input
           aria-label={`${metadata.name} production size`}
           inputMode="decimal"
@@ -510,6 +564,23 @@ function LayoutEditorRecipeRow({
   );
 }
 
+function getRecipeMachineOptions(
+  data: RecipeExplorerData,
+  producerIds: string[],
+): LayoutMachineOption[] {
+  return producerIds.map((producerId) => {
+    const item = data.itemById.get(producerId);
+    const name = item?.name ?? formatId(producerId);
+    const iconId = item ? getIconIdForItem(item) : producerId;
+
+    return {
+      icon: data.iconById.get(iconId),
+      id: producerId,
+      name,
+    };
+  });
+}
+
 interface LayoutRecipeInspectorProps {
   data: RecipeExplorerData;
   entry: RecipeLayoutEntry | null;
@@ -539,6 +610,7 @@ function LayoutRecipeInspector({
 
   const metadata = getRecipeMetadata(recipe);
   const contextItemId = getRecipeContextItemId(data, recipe);
+  const selectedMachineId = getSelectedMachineId(entry, metadata.producers);
   const tags = [
     ...metadata.flags,
     ...metadata.disallowedEffects.map((effect) => `no ${effect}`),
@@ -569,10 +641,11 @@ function LayoutRecipeInspector({
         includeAllSurfaces
         leading={
           <span className="layout-inspector__text-pill" title="Production size">
-            size {formatProductionSize(entry.productionSize)}
+            × {formatProductionSize(entry.productionSize)}
           </span>
         }
         metadata={metadata}
+        producerIds={selectedMachineId ? [selectedMachineId] : []}
       />
 
       <div className="layout-inspector__equation">
@@ -690,6 +763,15 @@ function getRecipeContextItemId(
   }
 
   return recipe.ingredients?.find((entry) => data.itemById.has(entry.name))?.name ?? null;
+}
+
+function getSelectedMachineId(
+  entry: RecipeLayoutEntry,
+  producerIds: string[],
+): string | null {
+  return producerIds.includes(entry.machineId ?? "")
+    ? (entry.machineId ?? null)
+    : (producerIds[0] ?? null);
 }
 
 function formatMaterialAmount(entry: IngredientPrototype | ProductPrototype): string {

@@ -273,6 +273,27 @@ export function App() {
     );
   }
 
+  function updateRecipeMachine(layoutId: string, entryId: string, machineId: string) {
+    setLayouts((currentLayouts) =>
+      currentLayouts.map((layout) =>
+        layout.id === layoutId
+          ? {
+              ...layout,
+              entries: layout.entries.map((entry) => {
+                if (entry.id !== entryId) {
+                  return entry;
+                }
+
+                return isRecipeMachineIdAllowed(entry.recipeId, machineId)
+                  ? { ...entry, machineId }
+                  : entry;
+              }),
+            }
+          : layout,
+      ),
+    );
+  }
+
   function reorderRecipeInLayout(
     layoutId: string,
     sourceEntryId: string,
@@ -936,6 +957,7 @@ export function App() {
             onDeleteLayout={deleteLayout}
             onImportLayout={importLayout}
             onOpenLayoutGraph={openLayoutGraph}
+            onRecipeMachineChange={updateRecipeMachine}
             onRecipeProductionSizeChange={updateRecipeProductionSize}
             onRemoveRecipeFromLayout={removeRecipeFromLayout}
             onRenameLayout={renameLayout}
@@ -1034,6 +1056,7 @@ function readAppStateFromUrl(): AppUrlState {
     parseCompactLayoutState(params.get("s"), {
       defaultLayoutId,
       isRecipeIdAllowed: (recipeId) => explorerData.recipeById.has(recipeId),
+      isRecipeMachineIdAllowed,
     }) ?? parseLayoutState(params.get("layouts"));
   const activeView = parseAppView(params.get("mode"));
   const graphLayoutId = parseGraphLayoutId(params.get("graph"), layoutState.layouts);
@@ -1180,6 +1203,7 @@ interface SerializedLayout {
 
 interface SerializedLayoutEntry {
   i?: unknown;
+  m?: unknown;
   r?: unknown;
   s?: unknown;
 }
@@ -1535,6 +1559,7 @@ function parseLayoutEntry(
   seenEntryIds: Set<string>,
 ): RecipeLayoutEntry[] {
   let rawId: unknown;
+  let rawMachineId: unknown;
   let rawProductionSize: unknown;
   let rawRecipeId: unknown;
 
@@ -1542,10 +1567,12 @@ function parseLayoutEntry(
     rawId = rawEntry[0];
     rawRecipeId = rawEntry[1];
     rawProductionSize = rawEntry[2];
+    rawMachineId = rawEntry[3];
   } else if (isRecord(rawEntry)) {
     const entry = rawEntry as SerializedLayoutEntry;
 
     rawId = entry.i;
+    rawMachineId = entry.m;
     rawRecipeId = entry.r;
     rawProductionSize = entry.s;
   }
@@ -1553,6 +1580,8 @@ function parseLayoutEntry(
   if (typeof rawRecipeId !== "string" || !explorerData.recipeById.has(rawRecipeId)) {
     return [];
   }
+
+  const machineId = parseRecipeMachineId(rawMachineId, rawRecipeId);
 
   return [
     {
@@ -1562,8 +1591,15 @@ function parseLayoutEntry(
       ),
       productionSize: parseProductionSize(rawProductionSize),
       recipeId: rawRecipeId,
+      ...(machineId ? { machineId } : {}),
     },
   ];
+}
+
+function parseRecipeMachineId(value: unknown, recipeId: string): string | null {
+  return typeof value === "string" && isRecipeMachineIdAllowed(recipeId, value)
+    ? value
+    : null;
 }
 
 function parseProductionSize(value: unknown): number {
@@ -1614,15 +1650,7 @@ function serializeLayoutState(layouts: RecipeLayout[], focusedLayoutId: string):
       i: layout.id,
       n: layout.name,
       c: layout.collapsed ? 1 : 0,
-      e: layout.entries.map((entry) =>
-        isDefaultProductionSize(entry.productionSize)
-          ? [entry.id, entry.recipeId]
-          : [
-              entry.id,
-              entry.recipeId,
-              normalizeProductionSize(entry.productionSize),
-            ],
-      ),
+      e: layout.entries.map(serializeLayoutEntry),
       y: serializeGraphRelays(layout),
       h: serializeGraphEdgePorts(layout),
       m: serializeGraphEdgeItems(layout),
@@ -1834,6 +1862,20 @@ function createLayoutEntry(recipeId: string): RecipeLayoutEntry {
   };
 }
 
+function serializeLayoutEntry(entry: RecipeLayoutEntry): unknown[] {
+  const productionSize = normalizeProductionSize(entry.productionSize);
+
+  if (!entry.machineId && isDefaultProductionSize(productionSize)) {
+    return [entry.id, entry.recipeId];
+  }
+
+  if (!entry.machineId) {
+    return [entry.id, entry.recipeId, productionSize];
+  }
+
+  return [entry.id, entry.recipeId, productionSize, entry.machineId];
+}
+
 function createLayoutId(): string {
   return `layout-${Date.now().toString(36)}-${nextLayoutSequence++}`;
 }
@@ -1865,15 +1907,26 @@ function applyGraphLayoutSnapshot(
   const currentProductionSizeByEntryId = new Map(
     layout.entries.map((entry) => [entry.id, entry.productionSize] as const),
   );
+  const currentMachineIdByEntryId = new Map(
+    layout.entries.map((entry) => [entry.id, entry.machineId] as const),
+  );
 
   return {
     ...layout,
-    entries: snapshot.entries.map((entry) => ({
-      ...entry,
-      productionSize:
-        currentProductionSizeByEntryId.get(entry.id) ??
-        normalizeProductionSize(entry.productionSize),
-    })),
+    entries: snapshot.entries.map((entry) => {
+      const { machineId: snapshotMachineId, ...entryWithoutMachine } = entry;
+      const machineId = currentMachineIdByEntryId.has(entry.id)
+        ? currentMachineIdByEntryId.get(entry.id)
+        : snapshotMachineId;
+
+      return {
+        ...entryWithoutMachine,
+        ...(machineId ? { machineId } : {}),
+        productionSize:
+          currentProductionSizeByEntryId.get(entry.id) ??
+          normalizeProductionSize(entry.productionSize),
+      };
+    }),
     relays: snapshot.relays.map((relay) => ({
       ...relay,
       itemKeys: [...relay.itemKeys],
@@ -2163,6 +2216,12 @@ function normalizeProductionSize(value: number): number {
 
 function isDefaultProductionSize(value: number): boolean {
   return normalizeProductionSize(value) === defaultProductionSize;
+}
+
+function isRecipeMachineIdAllowed(recipeId: string, machineId: string): boolean {
+  const recipe = explorerData.recipeById.get(recipeId);
+
+  return recipe ? getRecipeMetadata(recipe).producers.includes(machineId) : false;
 }
 
 function parseItemId(value: string | null): string | null {

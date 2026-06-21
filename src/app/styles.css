@@ -954,7 +954,8 @@ button {
 
 .layout-editor-row {
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) 112px 32px;
+  grid-template-areas: "drag main machine size remove";
+  grid-template-columns: 40px minmax(0, 1fr) minmax(150px, 178px) 90px 32px;
   align-items: center;
   gap: 7px;
   min-width: 0;
@@ -996,6 +997,7 @@ button {
 }
 
 .layout-editor-row__drag {
+  grid-area: drag;
   grid-template-columns: 12px minmax(0, 1fr);
   gap: 1px;
   justify-self: center;
@@ -1018,6 +1020,7 @@ button {
 }
 
 .layout-editor-row__main {
+  grid-area: main;
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr) auto;
   align-items: center;
@@ -1086,7 +1089,53 @@ button {
   white-space: nowrap;
 }
 
+.layout-editor-row__machine {
+  grid-area: machine;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 38px;
+  border: 1px solid #3f4235;
+  border-radius: 7px;
+  background: #151710;
+  color: #c9c4b3;
+  padding: 0 8px;
+}
+
+.layout-editor-row__machine:focus-within {
+  border-color: #6d674b;
+  background: #1b1d17;
+}
+
+.layout-editor-row__machine-icon {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+}
+
+.layout-editor-row__machine select {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #f0eee4;
+  font-size: 0.76rem;
+  overflow: hidden;
+  padding: 0 16px 0 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layout-editor-row__machine select:disabled {
+  color: #85806c;
+}
+
 .layout-editor-row__size {
+  grid-area: size;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
@@ -1106,9 +1155,10 @@ button {
 }
 
 .layout-editor-row__size span {
-  font-size: 0.68rem;
+  color: #d7b65f;
+  font-size: 1rem;
   font-weight: 700;
-  text-transform: uppercase;
+  line-height: 1;
 }
 
 .layout-editor-row__size input {
@@ -1128,6 +1178,7 @@ button {
 }
 
 .layout-editor-row__remove {
+  grid-area: remove;
   color: #c9c4b3;
   cursor: pointer;
 }
@@ -2974,7 +3025,10 @@ button {
   }
 
   .layout-editor-row {
-    grid-template-columns: 36px minmax(0, 1fr) 92px 32px;
+    grid-template-areas:
+      "drag main main remove"
+      ". machine size .";
+    grid-template-columns: 36px minmax(0, 1fr) 84px 32px;
     gap: 6px;
   }
 
@@ -2987,8 +3041,12 @@ button {
   }
 
   .layout-editor-row__size {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 2px;
+    gap: 5px;
+    padding: 0 6px;
+  }
+
+  .layout-editor-row__machine {
+    padding: 0 6px;
   }
 
   .layout-graph-dialog__header {

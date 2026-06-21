@@ -4,6 +4,7 @@ export const defaultProductionSize = 1;
 
 export interface RecipeLayoutEntry {
   id: string;
+  machineId?: string;
   productionSize: number;
   recipeId: string;
 }
