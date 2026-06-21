@@ -1010,20 +1010,17 @@ function LayoutEditorRecipeRow({
       } ${dropPlacement ? `layout-editor-row--drop-${dropPlacement}` : ""}`}
       data-layout-editor-entry={entry.id}
     >
-      <button
-        aria-label={`Reorder ${metadata.name}`}
-        className="layout-editor-row__drag"
+      <span
+        className="layout-editor-row__index"
         data-tooltip="Drag to reorder"
-        type="button"
         onPointerDown={(event) => {
           event.preventDefault();
           event.currentTarget.setPointerCapture(event.pointerId);
           onDragStart();
         }}
       >
-        <GripVertical size={14} aria-hidden="true" />
         <span>{index + 1}</span>
-      </button>
+      </span>
       <button
         aria-label={`Inspect ${metadata.name}`}
         aria-pressed={selected}

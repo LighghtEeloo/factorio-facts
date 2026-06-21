@@ -3,9 +3,7 @@ import {
   BookMarked,
   BookmarkMinus,
   Boxes,
-  CircleDot,
   Cog,
-  GripVertical,
   ListPlus,
   Network,
   Package,
@@ -19,8 +17,16 @@ import {
   useRef,
   useState,
 } from "react";
-import type { FactorioLabCategory, FactorioLabItem } from "../../factoriolab/types";
+import type {
+  FactorioLabCategory,
+  FactorioLabIcon,
+  FactorioLabItem,
+} from "../../factoriolab/types";
 import type { RecipePrototype } from "../../factorio/prototypes";
+import {
+  getCompositeRecipeIconIds,
+  inferLayoutCompositeBoundary,
+} from "../composite-recipes";
 import {
   getIconIdForItem,
   getRecipeMetadata,
@@ -33,7 +39,7 @@ import type {
   RecipeLayout,
 } from "../types";
 import { IconSprite } from "./IconSprite";
-import { RecipeIcon } from "./RecipeIcon";
+import { CompositeRecipeIcon, RecipeIcon } from "./RecipeIcon";
 
 interface AppSidebarProps {
   activeView: AppView;
@@ -340,58 +346,68 @@ export function AppSidebar({
         </div>
 
         <div className="sidebar-layout-list">
-          {layouts.map((layout) => (
-            <div
-              className={`sidebar-layout-row ${
-                layout.id === focusedLayoutId ? "sidebar-layout-row--focused" : ""
-              } ${draggedLayoutId === layout.id ? "sidebar-layout-row--dragging" : ""} ${
-                layoutDropTarget?.layoutId === layout.id
-                  ? `sidebar-layout-row--drop-${layoutDropTarget.placement}`
-                  : ""
-              }`}
-              data-sidebar-layout-row={layout.id}
-              key={layout.id}
-            >
-              <button
-                aria-label={`Reorder ${layout.name.trim() || "Untitled layout"}`}
-                className="sidebar-layout-row__drag"
-                data-tooltip="Drag to reorder"
-                type="button"
-                onPointerDown={(event) => {
-                  event.preventDefault();
-                  event.currentTarget.setPointerCapture(event.pointerId);
-                  onFocusLayout(layout.id);
-                  setDraggedLayoutId(layout.id);
-                  setLayoutDropTarget(null);
-                }}
+          {layouts.map((layout) => {
+            const layoutTitle = layout.name.trim() || "Untitled layout";
+            const iconEntries = getLayoutCompositeIconEntries(data, layout);
+
+            return (
+              <div
+                className={`sidebar-layout-row ${
+                  layout.id === focusedLayoutId ? "sidebar-layout-row--focused" : ""
+                } ${
+                  draggedLayoutId === layout.id ? "sidebar-layout-row--dragging" : ""
+                } ${
+                  layoutDropTarget?.layoutId === layout.id
+                    ? `sidebar-layout-row--drop-${layoutDropTarget.placement}`
+                    : ""
+                }`}
+                data-sidebar-layout-row={layout.id}
+                key={layout.id}
               >
-                <GripVertical size={14} aria-hidden="true" />
-              </button>
-              <button
-                aria-label={`Focus ${layout.name.trim() || "Untitled layout"}`}
-                aria-pressed={layout.id === focusedLayoutId}
-                className="sidebar-layout-row__main"
-                type="button"
-                onClick={() => {
-                  onFocusLayout(layout.id);
-                  onViewChange("layouts");
-                }}
-              >
-                <CircleDot size={14} aria-hidden="true" />
-                <span>{layout.name.trim() || "Untitled layout"}</span>
-                <small>{layout.entries.length}</small>
-              </button>
-              <button
-                aria-label={`Open ${layout.name.trim() || "Untitled layout"} graph`}
-                className="layout-action-button"
-                data-tooltip="Open graph"
-                type="button"
-                onClick={() => onOpenLayoutGraph(layout.id)}
-              >
-                <Network size={15} aria-hidden="true" />
-              </button>
-            </div>
-          ))}
+                <button
+                  aria-label={`Focus ${layoutTitle}`}
+                  aria-pressed={layout.id === focusedLayoutId}
+                  className="sidebar-layout-row__main"
+                  type="button"
+                  onClick={() => {
+                    onFocusLayout(layout.id);
+                    onViewChange("layouts");
+                  }}
+                >
+                  <span
+                    className="sidebar-layout-row__icon"
+                    data-tooltip="Drag to reorder"
+                    onPointerDown={(event) => {
+                      event.preventDefault();
+                      event.currentTarget.setPointerCapture(event.pointerId);
+                      onFocusLayout(layout.id);
+                      setDraggedLayoutId(layout.id);
+                      setLayoutDropTarget(null);
+                    }}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <CompositeRecipeIcon
+                      atlas={data.atlas}
+                      icons={iconEntries}
+                      label={`${layoutTitle} icon`}
+                      size={28}
+                    />
+                  </span>
+                  <span className="sidebar-layout-row__title">{layoutTitle}</span>
+                  <small>{layout.entries.length}</small>
+                </button>
+                <button
+                  aria-label={`Open ${layoutTitle} graph`}
+                  className="layout-action-button"
+                  data-tooltip="Open graph"
+                  type="button"
+                  onClick={() => onOpenLayoutGraph(layout.id)}
+                >
+                  <Network size={15} aria-hidden="true" />
+                </button>
+              </div>
+            );
+          })}
         </div>
       </section>
 
@@ -495,6 +511,24 @@ interface ItemCategoryGroup {
   items: FactorioLabItem[];
 }
 
+function getLayoutCompositeIconEntries(
+  data: RecipeExplorerData,
+  layout: RecipeLayout,
+): Array<{ icon: FactorioLabIcon | undefined; label: string }> {
+  const boundary = inferLayoutCompositeBoundary(layout, data.recipeById);
+  const iconIds = getCompositeRecipeIconIds(
+    data,
+    boundary.results,
+    layout.iconIds,
+    layout.hiddenIconIds,
+  );
+
+  return iconIds.map((iconId) => ({
+    icon: data.iconById.get(iconId),
+    label: data.itemById.get(iconId)?.name ?? formatId(iconId),
+  }));
+}
+
 function getRecipeContextItemId(
   data: RecipeExplorerData,
   recipe: RecipePrototype,
@@ -574,4 +608,8 @@ function scoreItem(item: FactorioLabItem, query: string): number {
 
 function normalize(value: string): string {
   return value.trim().toLowerCase().replaceAll("_", "-");
+}
+
+function formatId(id: string): string {
+  return id.replaceAll("-", " ");
 }
