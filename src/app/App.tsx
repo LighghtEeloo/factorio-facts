@@ -69,7 +69,6 @@ interface GraphLayoutSnapshot {
   edgeItems: Record<string, string[]>;
   edgePorts: Record<string, GraphEdgePorts>;
   edgeRoutes: Record<string, GraphEdgeRoute>;
-  entries: RecipeLayoutEntry[];
   externalItems: Record<string, string[]>;
   graphPositions: Record<string, GraphNodePosition>;
   relays: GraphRelay[];
@@ -1886,7 +1885,6 @@ function createLayoutEntryId(): string {
 
 function createGraphLayoutSnapshot(layout: RecipeLayout): GraphLayoutSnapshot {
   return {
-    entries: layout.entries.map((entry) => ({ ...entry })),
     relays: layout.relays.map((relay) => ({
       ...relay,
       itemKeys: [...relay.itemKeys],
@@ -1904,29 +1902,8 @@ function applyGraphLayoutSnapshot(
   layout: RecipeLayout,
   snapshot: GraphLayoutSnapshot,
 ): RecipeLayout {
-  const currentProductionSizeByEntryId = new Map(
-    layout.entries.map((entry) => [entry.id, entry.productionSize] as const),
-  );
-  const currentMachineIdByEntryId = new Map(
-    layout.entries.map((entry) => [entry.id, entry.machineId] as const),
-  );
-
   return {
     ...layout,
-    entries: snapshot.entries.map((entry) => {
-      const { machineId: snapshotMachineId, ...entryWithoutMachine } = entry;
-      const machineId = currentMachineIdByEntryId.has(entry.id)
-        ? currentMachineIdByEntryId.get(entry.id)
-        : snapshotMachineId;
-
-      return {
-        ...entryWithoutMachine,
-        ...(machineId ? { machineId } : {}),
-        productionSize:
-          currentProductionSizeByEntryId.get(entry.id) ??
-          normalizeProductionSize(entry.productionSize),
-      };
-    }),
     relays: snapshot.relays.map((relay) => ({
       ...relay,
       itemKeys: [...relay.itemKeys],
