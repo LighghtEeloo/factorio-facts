@@ -3,9 +3,7 @@ import {
   ArrowDownToLine,
   ArrowUpFromLine,
   Database,
-  ListTree,
   Package,
-  Rows3,
 } from "lucide-react";
 import type { RecipePrototype } from "../factorio/prototypes";
 import {
@@ -26,7 +24,6 @@ import type {
   LayoutReorderPlacement,
   RecipeLayout,
   RecipeLayoutEntry,
-  ViewMode,
 } from "./types";
 import { AppSidebar } from "./components/AppSidebar";
 import { FilterPanel } from "./components/FilterPanel";
@@ -52,7 +49,6 @@ const defaultFilters: FilterState = {
   includeLocked: true,
 };
 
-const defaultViewMode: ViewMode = "concise";
 const defaultAppView: AppView = "recipes";
 const defaultLayoutId = "layout-1";
 const graphHistoryLimit = 80;
@@ -67,7 +63,6 @@ interface AppUrlState {
   focusedLayoutId: string;
   graphLayoutId: string | null;
   layouts: RecipeLayout[];
-  viewMode: ViewMode;
 }
 
 interface GraphLayoutSnapshot {
@@ -99,7 +94,6 @@ export function App() {
   const [graphHistories, setGraphHistories] = useState<
     Record<string, GraphLayoutHistory | undefined>
   >({});
-  const [viewMode, setViewMode] = useState<ViewMode>(initialUrlState.viewMode);
   const graphHistoryCaptureRef = useRef<Set<string>>(new Set());
   const selectedItem = selectedItemId
     ? explorerData.itemById.get(selectedItemId) ?? null
@@ -146,9 +140,8 @@ export function App() {
       focusedLayoutId,
       graphLayoutId,
       layouts,
-      viewMode,
     });
-  }, [activeView, filters, focusedLayoutId, graphLayoutId, layouts, selectedItemId, viewMode]);
+  }, [activeView, filters, focusedLayoutId, graphLayoutId, layouts, selectedItemId]);
 
   useEffect(() => {
     function handlePopState() {
@@ -161,7 +154,6 @@ export function App() {
       setLayouts(nextState.layouts);
       setGraphLayoutId(nextState.graphLayoutId);
       setGraphHistories({});
-      setViewMode(nextState.viewMode);
     }
 
     window.addEventListener("popstate", handlePopState);
@@ -887,7 +879,6 @@ export function App() {
                       {usedIn.length} used in
                     </span>
                   </div>
-                  <ViewModeToggle value={viewMode} onChange={setViewMode} />
                 </div>
 
                 <div className="recipe-grid">
@@ -898,7 +889,6 @@ export function App() {
                     onSelectItem={selectItem}
                     recipes={madeBy}
                     selectedItemId={selectedItem.id}
-                    viewMode={viewMode}
                     variant="made-by"
                     title="Made by"
                   />
@@ -909,7 +899,6 @@ export function App() {
                     onSelectItem={selectItem}
                     recipes={usedIn}
                     selectedItemId={selectedItem.id}
-                    viewMode={viewMode}
                     variant="used-in"
                     title="Used in"
                   />
@@ -1038,42 +1027,9 @@ function DataFootnote() {
   );
 }
 
-interface ViewModeToggleProps {
-  value: ViewMode;
-  onChange(value: ViewMode): void;
-}
-
-function ViewModeToggle({ value, onChange }: ViewModeToggleProps) {
-  return (
-    <div className="view-toggle" role="group" aria-label="Recipe detail level">
-      <button
-        aria-pressed={value === "concise"}
-        className={value === "concise" ? "view-toggle__button--active" : ""}
-        type="button"
-        title="Concise icon pills"
-        onClick={() => onChange("concise")}
-      >
-        <Rows3 size={15} aria-hidden="true" />
-        Concise
-      </button>
-      <button
-        aria-pressed={value === "detailed"}
-        className={value === "detailed" ? "view-toggle__button--active" : ""}
-        type="button"
-        title="Detailed recipe cards"
-        onClick={() => onChange("detailed")}
-      >
-        <ListTree size={15} aria-hidden="true" />
-        Detailed
-      </button>
-    </div>
-  );
-}
-
 function readAppStateFromUrl(): AppUrlState {
   const params = new URLSearchParams(window.location.search);
   const selectedItemId = parseItemId(params.get("item"));
-  const viewMode = parseViewMode(params.get("view"));
   const layoutState =
     parseCompactLayoutState(params.get("s"), {
       defaultLayoutId,
@@ -1124,7 +1080,6 @@ function readAppStateFromUrl(): AppUrlState {
     focusedLayoutId: layoutState.focusedLayoutId,
     graphLayoutId,
     layouts: layoutState.layouts,
-    viewMode,
   };
 }
 
@@ -1133,10 +1088,6 @@ function updateUrlFromAppState(state: AppUrlState) {
 
   if (state.selectedItemId) {
     params.set("item", state.selectedItemId);
-  }
-
-  if (state.viewMode !== defaultViewMode) {
-    params.set("view", state.viewMode);
   }
 
   if (state.activeView !== defaultAppView) {
@@ -2216,10 +2167,6 @@ function isDefaultProductionSize(value: number): boolean {
 
 function parseItemId(value: string | null): string | null {
   return value && explorerData.itemById.has(value) ? value : null;
-}
-
-function parseViewMode(value: string | null): ViewMode {
-  return value === "detailed" || value === "concise" ? value : defaultViewMode;
 }
 
 function parseAppView(value: string | null): AppView {

@@ -3,10 +3,8 @@ import {
   Boxes,
   Check,
   ExternalLink,
-  Factory,
   GripVertical,
   Import,
-  MapPin,
   Network,
   PackageOpen,
   Plus,
@@ -35,6 +33,7 @@ import type {
 } from "../types";
 import { IconSprite } from "./IconSprite";
 import { RecipeIcon } from "./RecipeIcon";
+import { RecipeMetaPills } from "./RecipeMetaPills";
 
 interface LayoutWorkspaceProps {
   data: RecipeExplorerData;
@@ -541,12 +540,6 @@ function LayoutRecipeInspector({
 
   const metadata = getRecipeMetadata(recipe);
   const contextItemId = getRecipeContextItemId(data, recipe);
-  const producerText = metadata.producers.length
-    ? metadata.producers.map(formatId).join(", ")
-    : "natural";
-  const locationText = metadata.locations.length
-    ? metadata.locations.map(formatId).join(", ")
-    : "all surfaces";
   const tags = [
     ...metadata.flags,
     ...metadata.disallowedEffects.map((effect) => `no ${effect}`),
@@ -562,21 +555,26 @@ function LayoutRecipeInspector({
         </div>
       </header>
 
-      <div className="layout-inspector__stats">
-        <span title="Production size">size {formatProductionSize(entry.productionSize)}</span>
-        <span title="Craft time">
-          <Timer size={14} aria-hidden="true" />
-          {formatTime(recipe.energy_required)}
-        </span>
-        <span title="Producer">
-          <Factory size={14} aria-hidden="true" />
-          {producerText}
-        </span>
-        <span title="Surface">
-          <MapPin size={14} aria-hidden="true" />
-          {locationText}
-        </span>
-      </div>
+      <RecipeMetaPills
+        classNames={{
+          icon: "layout-inspector__icon-pill",
+          producer: "layout-inspector__icon-pill--producer",
+          root: "layout-inspector__stats",
+          surface: "layout-inspector__icon-pill--surface",
+          text: "layout-inspector__text-pill",
+          time: "layout-inspector__text-pill",
+        }}
+        data={data}
+        energyRequired={recipe.energy_required}
+        iconSize={24}
+        includeAllSurfaces
+        leading={
+          <span className="layout-inspector__text-pill" title="Production size">
+            size {formatProductionSize(entry.productionSize)}
+          </span>
+        }
+        metadata={metadata}
+      />
 
       <div className="layout-inspector__equation">
         <InspectorMaterialGroup

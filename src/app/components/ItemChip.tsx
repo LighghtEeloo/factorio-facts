@@ -7,7 +7,6 @@ interface ItemChipProps {
   data: RecipeExplorerData;
   item: FactorioLabItem;
   isSelected?: boolean;
-  variant?: "detailed" | "concise";
   onSelect(itemId: string): void;
 }
 
@@ -16,41 +15,37 @@ export function ItemChip({
   data,
   item,
   isSelected = false,
-  variant = "detailed",
   onSelect,
 }: ItemChipProps) {
   const icon = data.iconById.get(getIconIdForItem(item));
-  const isConcise = variant === "concise";
   const amountText = amount === undefined ? undefined : formatAmount(amount);
-  const isIconOnly = isConcise && amountText === undefined;
+  const isIconOnly = amountText === undefined;
   const title = amountText === undefined ? item.name : `${amountText}x ${item.name}`;
 
   return (
     <button
       aria-label={`${title} (${item.id})`}
-      className={`item-chip item-chip--${variant} ${isIconOnly ? "item-chip--icon-only" : ""} ${isSelected ? "item-chip--selected" : ""}`}
-      data-tooltip={isConcise ? `${title} (${item.id})` : undefined}
+      className={`item-chip ${isIconOnly ? "item-chip--icon-only" : ""} ${isSelected ? "item-chip--selected" : ""}`}
+      data-tooltip={`${title} (${item.id})`}
       type="button"
       onClick={() => onSelect(item.id)}
-      title={isConcise ? undefined : `${title} (${item.id})`}
     >
       <IconSprite
         atlas={data.atlas}
         icon={icon}
         label={item.name}
-        size={isConcise ? 22 : 24}
+        size={22}
       />
-      {amountText !== undefined && isConcise ? (
+      {amountText !== undefined ? (
         <span className="item-chip__times" aria-hidden="true">
           &times;
         </span>
       ) : null}
       {amountText !== undefined ? (
         <span className="item-chip__amount">
-          {isConcise ? amountText : `${amountText}x`}
+          {amountText}
         </span>
       ) : null}
-      {isConcise ? null : <span className="item-chip__name">{item.name}</span>}
     </button>
   );
 }

@@ -1,5 +1,3 @@
-export type ViewMode = "detailed" | "concise";
-
 export type AppView = "recipes" | "layouts" | "graph";
 
 export const defaultProductionSize = 1;

@@ -103,7 +103,7 @@ The global layout rows let users focus, reorder, and graph layouts from anywhere
 
 The layout graph action row includes export. Export opens a readable factorio-facts layout JSON snapshot string for the open layout, with a copy action for moving it elsewhere. The snapshot includes recipe instances, production sizes, relays, graph geometry, edge material choices, terminal choices, and layout metadata needed to reconstruct the layout through the empty-layout string import action. It is a layout interchange format, not a Factorio prototype export.
 
-Layout state is serialized into the URL once it differs from the default empty layout. Simple app state such as the selected item, active view mode, recipe density mode, and filters remains readable as ordinary query params. Layout-heavy state is written as a compact `s=v1.<blob>` query param: recipe ids and material keys are dictionary-encoded, recipe entries come first in the graph node index space, non-default production sizes are stored beside their recipe entries, relay nodes follow them, side choices use small numeric codes, and the compact JSON is compressed with `lz-string`'s URL-safe codec. Old `layouts=` JSON links are still accepted and migrate to the compact `s=` format on the next URL update.
+Layout state is serialized into the URL once it differs from the default empty layout. Simple app state such as the selected item, active view mode, and filters remains readable as ordinary query params. Layout-heavy state is written as a compact `s=v1.<blob>` query param: recipe ids and material keys are dictionary-encoded, recipe entries come first in the graph node index space, non-default production sizes are stored beside their recipe entries, relay nodes follow them, side choices use small numeric codes, and the compact JSON is compressed with `lz-string`'s URL-safe codec. Old `layouts=` JSON links are still accepted and migrate to the compact `s=` format on the next URL update.
 
 ## Composite Recipes
 
@@ -170,23 +170,11 @@ Clicking a terminal set focuses it and shows the same four side targets used by 
 
 ## Recipe Cards
 
-The viewer has two global density modes:
-
-- Detailed: full recipe cards for deliberate inspection.
-- Concise: the default compact recipe card mode for scanning, using icon-only item, producer/building, time, and surface pills with hover/focus tooltips. Amounts are shown as icon, times marker, then number.
-
 Recipe inputs and outputs are presented as a compact equation row (`inputs -> outputs`) instead of a two-column mini graph. This keeps common one-input, one-output recipes dense while still allowing multi-item recipes to wrap naturally.
 
-Each detailed recipe card shows:
+Recipe cards use one compact presentation for scanning: recipe icon and name, add-to-layout control, craft time, icon-only producer/building and surface pills with hover/focus tooltips, and ingredient/result chips. Amounts are shown as icon, times marker, then number.
 
-- Recipe icon and name.
-- Prototype id.
-- Craft time.
-- Producers.
-- Surface/location metadata.
-- Inputs and outputs with amounts.
-- Recipe flags such as `locked`, `mining`, `recycling`, and `technology`.
-- Add-to-layout control for appending the recipe to the focused layout.
+The layout inspector follows the same metadata vocabulary. Production size and craft time remain text pills because their values need to be read directly, while producers and surfaces should use recognizable icon pills with tooltips rather than long text pills.
 
 No ratio solving is attempted. Amounts are preserved for labels and future calculations.
 
