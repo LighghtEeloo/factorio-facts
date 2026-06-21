@@ -356,14 +356,12 @@ export function LayoutGraphDialog({
         changeEdgeRoute,
         resetEdgeRoute,
         focusTerminal,
-        createRelayFromTerminal,
         selectConnectableNode,
         selectedTerminalId,
       ),
     [
       data,
       changeEdgeRoute,
-      createRelayFromTerminal,
       resetEdgeRoute,
       focusEdge,
       focusTerminal,
@@ -761,6 +759,7 @@ export function LayoutGraphDialog({
             onCancelPendingConnection={() => setPendingConnection(null)}
             onConfirmPendingConnection={confirmPendingConnection}
             onApplyEdgeItems={changeEdgeItems}
+            onCreateRelayFromTerminal={createRelayFromTerminal}
             onCreateRelayFromEdges={createRelayFromSelectedEdges}
             onApplyNodeChanges={applyNodeToolbarChanges}
             onDeleteRelay={deleteRelay}
@@ -1062,6 +1061,7 @@ interface GraphHeaderToolbarProps {
   onApplyEdgeItems(edgeId: string, itemKeys: string[]): void;
   onCancelPendingConnection(): void;
   onConfirmPendingConnection(): void;
+  onCreateRelayFromTerminal(terminal: SelectedGraphTerminal): void;
   onCreateRelayFromEdges(): void;
   onDeleteRelay(relayId: string): void;
   onResetEdgeItems(edgeId: string): void;
@@ -1084,6 +1084,7 @@ function GraphHeaderToolbar({
   onApplyEdgeItems,
   onCancelPendingConnection,
   onConfirmPendingConnection,
+  onCreateRelayFromTerminal,
   onCreateRelayFromEdges,
   onDeleteRelay,
   onResetEdgeItems,
@@ -1140,6 +1141,7 @@ function GraphHeaderToolbar({
       <GraphTerminalToolbar
         data={data}
         terminal={terminal}
+        onCreateRelayFromTerminal={onCreateRelayFromTerminal}
       />
     );
   }
@@ -1457,10 +1459,12 @@ function GraphNodeToolbar({
 interface GraphTerminalToolbarProps {
   data: RecipeExplorerData;
   terminal: SelectedGraphTerminal;
+  onCreateRelayFromTerminal(terminal: SelectedGraphTerminal): void;
 }
 
 function GraphTerminalToolbar({
   data,
+  onCreateRelayFromTerminal,
   terminal,
 }: GraphTerminalToolbarProps) {
   const label = terminal.kind === "input" ? "External input" : "External output";
@@ -1479,6 +1483,15 @@ function GraphTerminalToolbar({
         label="Items"
         tooltipPrefix={label}
       />
+      <button
+        aria-label={`Create relay from ${label.toLowerCase()}`}
+        className="icon-button layout-graph-toolbar__button"
+        data-tooltip="Create relay"
+        type="button"
+        onClick={() => onCreateRelayFromTerminal(terminal)}
+      >
+        <CirclePlus size={16} aria-hidden="true" />
+      </button>
     </div>
   );
 }
@@ -1907,7 +1920,6 @@ interface BaseGraphNodeData extends SelectableConnectableGraphNodeData {
   externalOutputs: ProductPrototype[];
   kind: "recipe" | "relay";
   onFocusTerminal(terminalId: string): void;
-  onCreateRelayFromTerminal(terminal: SelectedGraphTerminal): void;
   onSelectItem(itemId: string): void;
   nodePosition: GraphNodePosition;
   selectedTerminalId: string | null;
@@ -1991,11 +2003,6 @@ function RecipeNode({ data, id }: NodeProps<RecipeFlowNode>) {
         entries={data.externalInputs}
         isFocused={data.selectedTerminalId === getGraphTerminalId(id, "input")}
         kind="input"
-        nodeId={id}
-        nodeKind={data.kind}
-        nodeName={data.label}
-        nodePosition={data.nodePosition}
-        onCreateRelayFromTerminal={data.onCreateRelayFromTerminal}
         onFocusTerminal={data.onFocusTerminal}
         side={data.terminalSides.inputSide}
         terminalId={getGraphTerminalId(id, "input")}
@@ -2014,11 +2021,6 @@ function RecipeNode({ data, id }: NodeProps<RecipeFlowNode>) {
         entries={data.externalOutputs}
         isFocused={data.selectedTerminalId === getGraphTerminalId(id, "output")}
         kind="output"
-        nodeId={id}
-        nodeKind={data.kind}
-        nodeName={data.label}
-        nodePosition={data.nodePosition}
-        onCreateRelayFromTerminal={data.onCreateRelayFromTerminal}
         onFocusTerminal={data.onFocusTerminal}
         side={data.terminalSides.outputSide}
         terminalId={getGraphTerminalId(id, "output")}
@@ -2049,11 +2051,6 @@ function RelayNode({ data, id }: NodeProps<RelayFlowNode>) {
         entries={data.externalInputs}
         isFocused={data.selectedTerminalId === getGraphTerminalId(id, "input")}
         kind="input"
-        nodeId={id}
-        nodeKind={data.kind}
-        nodeName={data.label}
-        nodePosition={data.nodePosition}
-        onCreateRelayFromTerminal={data.onCreateRelayFromTerminal}
         onFocusTerminal={data.onFocusTerminal}
         side={data.terminalSides.inputSide}
         terminalId={getGraphTerminalId(id, "input")}
@@ -2084,11 +2081,6 @@ function RelayNode({ data, id }: NodeProps<RelayFlowNode>) {
         entries={data.externalOutputs}
         isFocused={data.selectedTerminalId === getGraphTerminalId(id, "output")}
         kind="output"
-        nodeId={id}
-        nodeKind={data.kind}
-        nodeName={data.label}
-        nodePosition={data.nodePosition}
-        onCreateRelayFromTerminal={data.onCreateRelayFromTerminal}
         onFocusTerminal={data.onFocusTerminal}
         side={data.terminalSides.outputSide}
         terminalId={getGraphTerminalId(id, "output")}
@@ -2533,11 +2525,6 @@ interface GraphBoundaryTerminalsProps {
   entries: Array<IngredientPrototype | ProductPrototype>;
   isFocused: boolean;
   kind: "input" | "output";
-  nodeId: string;
-  nodeKind: "recipe" | "relay";
-  nodeName: string;
-  nodePosition: GraphNodePosition;
-  onCreateRelayFromTerminal(terminal: SelectedGraphTerminal): void;
   onFocusTerminal(terminalId: string): void;
   side: GraphSide;
   terminalId: string;
@@ -2548,11 +2535,6 @@ function GraphBoundaryTerminals({
   entries,
   isFocused,
   kind,
-  nodeId,
-  nodeKind,
-  nodeName,
-  nodePosition,
-  onCreateRelayFromTerminal,
   onFocusTerminal,
   side,
   terminalId,
@@ -2565,17 +2547,6 @@ function GraphBoundaryTerminals({
   const labelKind = kind === "input" ? "External input" : "External output";
   const visibleEntries = entries.slice(0, 3);
   const overflowEntries = entries.slice(3);
-  const terminal: SelectedGraphTerminal = {
-    entries,
-    id: terminalId,
-    kind,
-    nodeId,
-    nodeKind,
-    nodeName,
-    nodePosition,
-    side,
-  };
-
   return (
     <div
       aria-label={`${labelKind}s`}
@@ -2639,21 +2610,6 @@ function GraphBoundaryTerminals({
           />
         </span>
       ))}
-      <button
-        aria-label={`Create relay from ${labelKind.toLowerCase()}`}
-        className="layout-graph-boundary__relay-button nodrag nopan"
-        data-tooltip="Create relay"
-        type="button"
-        onClick={(event) => {
-          event.stopPropagation();
-          onCreateRelayFromTerminal(terminal);
-        }}
-        onKeyDown={(event) => event.stopPropagation()}
-        onMouseDown={(event) => event.stopPropagation()}
-        onPointerDown={(event) => event.stopPropagation()}
-      >
-        <CirclePlus size={13} aria-hidden="true" />
-      </button>
     </div>
   );
 }
@@ -2716,7 +2672,6 @@ function buildLayoutGraph(
   onEdgeRouteChange: (edgeId: string, route: GraphEdgeRoute) => void,
   onEdgeRouteReset: (edgeId: string) => void,
   onFocusTerminal: (terminalId: string) => void,
-  onCreateRelayFromTerminal: (terminal: SelectedGraphTerminal) => void,
   onSelectNode: GraphNodeSelectHandler,
   selectedTerminalId: string | null,
 ): LayoutGraphModel {
@@ -2749,7 +2704,6 @@ function buildLayoutGraph(
         node,
         layout,
         onFocusTerminal,
-        onCreateRelayFromTerminal,
         onSelectNode,
         onSelectItem,
         selectedTerminalId,
@@ -2854,7 +2808,6 @@ function buildFlowNode(
   node: GraphNodeModel,
   layout: RecipeLayout,
   onFocusTerminal: (terminalId: string) => void,
-  onCreateRelayFromTerminal: (terminal: SelectedGraphTerminal) => void,
   onSelectNode: GraphNodeSelectHandler,
   onSelectItem: (itemId: string) => void,
   selectedTerminalId: string | null,
@@ -2871,7 +2824,6 @@ function buildFlowNode(
     kind: node.kind,
     label: node.label,
     nodePosition: node.position,
-    onCreateRelayFromTerminal,
     onFocusTerminal,
     onSelectItem,
     onSelectNode,

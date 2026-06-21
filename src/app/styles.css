@@ -3154,30 +3154,6 @@ button {
   outline: 0;
 }
 
-.layout-graph-boundary__relay-button {
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border: 1px solid #5f5b4b;
-  border-radius: 999px;
-  background: rgba(21, 23, 16, 0.92);
-  color: var(--terminal-color);
-  cursor: pointer;
-  padding: 0;
-  opacity: 0.82;
-  pointer-events: all;
-}
-
-.layout-graph-boundary__relay-button:hover,
-.layout-graph-boundary__relay-button:focus-visible {
-  border-color: var(--terminal-color);
-  background: #302a1b;
-  color: #f0eee4;
-  outline: 0;
-  opacity: 1;
-}
-
 .tooltip-layer {
   position: fixed;
   z-index: 1000;
