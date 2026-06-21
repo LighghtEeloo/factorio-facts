@@ -2105,7 +2105,7 @@ function serializeLayoutBeaconSettings(
 }
 
 function normalizeFactorySettingCount(value: number): number | null {
-  return Number.isFinite(value) && value > 0
+  return Number.isFinite(value) && value >= 0
     ? Math.round(value * 1_000_000) / 1_000_000
     : null;
 }

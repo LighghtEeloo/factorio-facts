@@ -635,7 +635,7 @@ function parseCompactModuleSettings(value: unknown): LayoutModuleSettings[] {
     const count = rawSetting[1];
 
     return typeof id === "string" && typeof count === "number"
-      ? [{ id, count: parseProductionSize(count) }]
+      ? [{ id, count: parseFactorySettingCount(count) }]
       : [];
   });
 }
@@ -657,7 +657,7 @@ function parseCompactBeaconSettings(value: unknown): LayoutBeaconSettings[] {
       ? [
           {
             id,
-            count: parseProductionSize(count),
+            count: parseFactorySettingCount(count),
             modules: parseCompactModuleSettings(rawSetting[2]),
           },
         ]
@@ -980,9 +980,15 @@ function normalizeProductionSize(value: number): number {
 }
 
 function normalizeFactorySettingCount(value: number): number | null {
-  return Number.isFinite(value) && value > 0
+  return Number.isFinite(value) && value >= 0
     ? Math.round(value * 1_000_000) / 1_000_000
     : null;
+}
+
+function parseFactorySettingCount(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? Math.round(value * 1_000_000) / 1_000_000
+    : 0;
 }
 
 function uniqueStrings(values: string[]): string[] {

@@ -1396,24 +1396,14 @@ button {
 
 .factory-settings-row {
   display: grid;
-  grid-template-columns: 30px minmax(58px, 72px) minmax(0, 1fr) 30px;
+  grid-template-columns: 34px minmax(58px, 1fr) 30px;
   align-items: center;
   gap: 5px;
   min-width: 0;
+  position: relative;
 }
 
-.factory-settings-row__icon {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 34px;
-  border: 1px solid #3f4235;
-  border-radius: 6px;
-  background: #151710;
-}
-
-.factory-settings-row input,
-.factory-settings-row select {
+.factory-settings-row input {
   min-width: 0;
   height: 34px;
   border: 1px solid #3f4235;
@@ -1422,21 +1412,85 @@ button {
   background: #151710;
   color: #f0eee4;
   font-size: 0.75rem;
-}
-
-.factory-settings-row input {
   padding: 0 8px;
   font-variant-numeric: tabular-nums;
 }
 
-.factory-settings-row select {
-  padding: 0 8px;
-}
-
-.factory-settings-row input:focus,
-.factory-settings-row select:focus {
+.factory-settings-row input:focus {
   border-color: #6d674b;
   background: #1b1d17;
+}
+
+.factory-icon-dropdown {
+  position: relative;
+  width: 34px;
+  height: 34px;
+}
+
+.factory-icon-dropdown__button,
+.factory-icon-dropdown__option {
+  display: grid;
+  place-items: center;
+  border: 1px solid #3f4235;
+  border-radius: 6px;
+  background: #151710;
+  color: #c9c4b3;
+  cursor: pointer;
+  padding: 0;
+}
+
+.factory-icon-dropdown__button {
+  position: relative;
+  width: 34px;
+  height: 34px;
+}
+
+.factory-icon-dropdown__button:hover,
+.factory-icon-dropdown__button:focus-visible,
+.factory-icon-dropdown__button[aria-expanded="true"],
+.factory-icon-dropdown__option:hover,
+.factory-icon-dropdown__option:focus-visible {
+  border-color: #57523d;
+  background: #25261f;
+}
+
+.factory-icon-dropdown__button:focus-visible,
+.factory-icon-dropdown__option:focus-visible {
+  outline: 0;
+}
+
+.factory-icon-dropdown__chevron {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  color: #d7b65f;
+  pointer-events: none;
+}
+
+.factory-icon-dropdown__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: repeat(4, 30px);
+  gap: 4px;
+  max-width: 142px;
+  border: 1px solid #4b4b3d;
+  border-radius: 7px;
+  background: #1b1d17;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.34);
+  padding: 5px;
+}
+
+.factory-icon-dropdown__option {
+  width: 30px;
+  height: 30px;
+}
+
+.factory-icon-dropdown__option[aria-checked="true"] {
+  border-color: #d7b65f;
+  background: #2b281b;
 }
 
 .factory-settings-row__remove,

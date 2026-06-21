@@ -2,6 +2,7 @@ import {
   ArrowRight,
   Boxes,
   Check,
+  ChevronDown,
   ExternalLink,
   GripVertical,
   Import,
@@ -1047,37 +1048,24 @@ function FactoryModuleSettingRow({
   options,
   setting,
 }: FactoryModuleSettingRowProps) {
-  const item = data.itemById.get(setting.id);
-  const icon = data.iconById.get(item ? getIconIdForItem(item) : setting.id);
-  const label = item?.name ?? formatId(setting.id);
+  const selectedOption = getSelectedFactoryOption(data, options, setting.id);
 
   return (
     <div className="factory-settings-row">
-      <span className="factory-settings-row__icon" aria-hidden="true">
-        <IconSprite atlas={data.atlas} icon={icon} label={label} size={24} />
-      </span>
-      <input
-        aria-label={`${label} count`}
-        inputMode="decimal"
-        min="0"
-        step="1"
-        type="number"
-        value={formatProductionSize(setting.count)}
-        onChange={(event) => onCountChange(Number(event.target.value))}
-      />
-      <select
-        aria-label="Module"
+      <FactoryIconDropdown
+        ariaLabel="Module"
+        data={data}
+        options={options}
         value={setting.id}
-        onChange={(event) => onIdChange(event.target.value)}
-      >
-        {options.map((option) => (
-          <option key={option.id} value={option.id}>
-            {option.name}
-          </option>
-        ))}
-      </select>
+        onChange={onIdChange}
+      />
+      <FactoryCountInput
+        ariaLabel={`${selectedOption.name} count`}
+        value={setting.count}
+        onChange={onCountChange}
+      />
       <button
-        aria-label={`Remove ${label}`}
+        aria-label={`Remove ${selectedOption.name}`}
         className="factory-settings-row__remove"
         data-tooltip="Remove"
         type="button"
@@ -1086,6 +1074,156 @@ function FactoryModuleSettingRow({
         <X size={14} aria-hidden="true" />
       </button>
     </div>
+  );
+}
+
+interface FactoryIconDropdownProps {
+  ariaLabel: string;
+  data: RecipeExplorerData;
+  options: LayoutFactoryItemOption[];
+  value: string;
+  onChange(id: string): void;
+}
+
+function FactoryIconDropdown({
+  ariaLabel,
+  data,
+  onChange,
+  options,
+  value,
+}: FactoryIconDropdownProps) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const selectedOption = getSelectedFactoryOption(data, options, value);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target;
+
+      if (target instanceof Node && rootRef.current?.contains(target)) {
+        return;
+      }
+
+      setOpen(false);
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div className="factory-icon-dropdown" ref={rootRef}>
+      <button
+        aria-expanded={open}
+        aria-label={ariaLabel}
+        className="factory-icon-dropdown__button"
+        data-tooltip={selectedOption.name}
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+      >
+        <IconSprite
+          atlas={data.atlas}
+          icon={selectedOption.icon}
+          label={selectedOption.name}
+          size={24}
+        />
+        <ChevronDown
+          className="factory-icon-dropdown__chevron"
+          size={10}
+          aria-hidden="true"
+        />
+      </button>
+      {open ? (
+        <div className="factory-icon-dropdown__menu" role="menu" aria-label={ariaLabel}>
+          {options.map((option) => {
+            const selected = option.id === value;
+
+            return (
+              <button
+                aria-checked={selected}
+                aria-label={option.name}
+                className="factory-icon-dropdown__option"
+                data-tooltip={option.name}
+                key={option.id}
+                role="menuitemradio"
+                type="button"
+                onClick={() => {
+                  if (!selected) {
+                    onChange(option.id);
+                  }
+
+                  setOpen(false);
+                }}
+              >
+                <IconSprite
+                  atlas={data.atlas}
+                  icon={option.icon}
+                  label={option.name}
+                  size={24}
+                />
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+interface FactoryCountInputProps {
+  ariaLabel: string;
+  value: number;
+  onChange(value: number): void;
+}
+
+function FactoryCountInput({ ariaLabel, onChange, value }: FactoryCountInputProps) {
+  const [draft, setDraft] = useState(formatFactoryCountInput(value));
+
+  useEffect(() => {
+    setDraft(formatFactoryCountInput(value));
+  }, [value]);
+
+  return (
+    <input
+      aria-label={ariaLabel}
+      inputMode="decimal"
+      min="0"
+      step="1"
+      type="number"
+      value={draft}
+      onBlur={() => {
+        if (!draft.trim() || parseFactoryCountInput(draft) !== null) {
+          return;
+        }
+
+        setDraft(formatFactoryCountInput(value));
+      }}
+      onChange={(event) => {
+        const nextDraft = event.target.value;
+        const nextValue = parseFactoryCountInput(nextDraft);
+
+        setDraft(nextDraft);
+
+        if (nextValue !== null) {
+          onChange(nextValue);
+        }
+      }}
+    />
   );
 }
 
@@ -1119,36 +1257,17 @@ function BeaconSettingsRows({ data, onChange, value }: BeaconSettingsRowsProps) 
         value.map((beacon, index) => {
           const moduleOptions = getBeaconModuleOptions(data, beacon.id);
           const moduleCapacity = getBeaconModuleCapacity(data, beacon.id);
-          const item = data.itemById.get(beacon.id);
-          const icon = data.iconById.get(item ? getIconIdForItem(item) : beacon.id);
-          const label = item?.name ?? formatId(beacon.id);
+          const selectedOption = getSelectedFactoryOption(data, beaconOptions, beacon.id);
 
           return (
             <div className="beacon-settings-card" key={`${beacon.id}:${index}`}>
               <div className="factory-settings-row">
-                <span className="factory-settings-row__icon" aria-hidden="true">
-                  <IconSprite atlas={data.atlas} icon={icon} label={label} size={24} />
-                </span>
-                <input
-                  aria-label={`${label} count`}
-                  inputMode="decimal"
-                  min="0"
-                  step="1"
-                  type="number"
-                  value={formatProductionSize(beacon.count)}
-                  onChange={(event) =>
-                    commit(value.map((item, itemIndex) =>
-                      itemIndex === index
-                        ? { ...item, count: Number(event.target.value) }
-                        : item,
-                    ))
-                  }
-                />
-                <select
-                  aria-label="Beacon"
+                <FactoryIconDropdown
+                  ariaLabel="Beacon"
+                  data={data}
+                  options={beaconOptions}
                   value={beacon.id}
-                  onChange={(event) => {
-                    const nextBeaconId = event.target.value;
+                  onChange={(nextBeaconId) => {
                     const nextModules = sanitizeModuleSettings(
                       beacon.modules,
                       getBeaconModuleOptions(data, nextBeaconId),
@@ -1161,15 +1280,18 @@ function BeaconSettingsRows({ data, onChange, value }: BeaconSettingsRowsProps) 
                         : item,
                     ));
                   }}
-                >
-                  {beaconOptions.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.name}
-                    </option>
-                  ))}
-                </select>
+                />
+                <FactoryCountInput
+                  ariaLabel={`${selectedOption.name} count`}
+                  value={beacon.count}
+                  onChange={(count) =>
+                    commit(value.map((item, itemIndex) =>
+                      itemIndex === index ? { ...item, count } : item,
+                    ))
+                  }
+                />
                 <button
-                  aria-label={`Remove ${label}`}
+                  aria-label={`Remove ${selectedOption.name}`}
                   className="factory-settings-row__remove"
                   data-tooltip="Remove"
                   type="button"
@@ -1280,6 +1402,41 @@ function parseProductionSizeInput(value: string): number | null {
   return Number.isFinite(productionSize) && productionSize > 0
     ? productionSize
     : null;
+}
+
+function formatFactoryCountInput(value: number): string {
+  return Number.isFinite(value) ? String(value) : "";
+}
+
+function parseFactoryCountInput(value: string): number | null {
+  if (!value.trim()) {
+    return null;
+  }
+
+  const count = Number(value);
+
+  return Number.isFinite(count) && count >= 0 ? count : null;
+}
+
+function getSelectedFactoryOption(
+  data: RecipeExplorerData,
+  options: readonly LayoutFactoryItemOption[],
+  id: string,
+): LayoutFactoryItemOption {
+  const option = options.find((item) => item.id === id);
+
+  if (option) {
+    return option;
+  }
+
+  const item = data.itemById.get(id);
+  const iconId = item ? getIconIdForItem(item) : id;
+
+  return {
+    icon: data.iconById.get(iconId),
+    id,
+    name: item?.name ?? formatId(id),
+  };
 }
 
 function getRecipeContextItemId(

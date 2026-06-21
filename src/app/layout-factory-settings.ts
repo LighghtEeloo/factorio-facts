@@ -198,7 +198,7 @@ export function sanitizeModuleSettings(
   let remaining = capacity === true ? Number.POSITIVE_INFINITY : capacity;
 
   for (const setting of value) {
-    if (!optionIds.has(setting.id) || remaining <= 0) {
+    if (!optionIds.has(setting.id)) {
       continue;
     }
 
@@ -208,11 +208,19 @@ export function sanitizeModuleSettings(
       continue;
     }
 
-    const boundedCount = Math.min(count, remaining);
-
-    if (boundedCount <= 0) {
+    if (count === 0) {
+      if (!byId.has(setting.id)) {
+        order.push(setting.id);
+        byId.set(setting.id, 0);
+      }
       continue;
     }
+
+    if (remaining <= 0) {
+      continue;
+    }
+
+    const boundedCount = Math.min(count, remaining);
 
     if (!byId.has(setting.id)) {
       order.push(setting.id);
@@ -225,7 +233,7 @@ export function sanitizeModuleSettings(
   return order.flatMap((id) => {
     const count = byId.get(id);
 
-    return count && count > 0 ? [{ id, count }] : [];
+    return count !== undefined ? [{ id, count }] : [];
   });
 }
 
@@ -263,7 +271,7 @@ export function sanitizeBeaconSettings(
 }
 
 export function normalizeFactoryCount(value: number): number | null {
-  return Number.isFinite(value) && value > 0
+  return Number.isFinite(value) && value >= 0
     ? Math.round(value * 1_000_000) / 1_000_000
     : null;
 }
