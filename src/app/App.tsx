@@ -945,13 +945,11 @@ export function App() {
             layouts={layouts}
             onCreateLayout={createLayout}
             onDeleteLayout={deleteLayout}
-            onFocusLayout={focusLayout}
             onImportLayout={importLayout}
             onOpenLayoutGraph={openLayoutGraph}
             onRecipeProductionSizeChange={updateRecipeProductionSize}
             onRemoveRecipeFromLayout={removeRecipeFromLayout}
             onRenameLayout={renameLayout}
-            onReorderLayout={reorderLayout}
             onReorderRecipeInLayout={reorderRecipeInLayout}
             onSelectItem={selectItem}
           />

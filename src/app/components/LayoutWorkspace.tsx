@@ -1,12 +1,16 @@
 import {
+  ArrowRight,
   Boxes,
   Check,
-  CircleDot,
+  ExternalLink,
+  Factory,
   GripVertical,
   Import,
+  MapPin,
   Network,
   PackageOpen,
   Plus,
+  Timer,
   Trash2,
   X,
 } from "lucide-react";
@@ -14,8 +18,13 @@ import {
   useEffect,
   useState,
 } from "react";
-import type { RecipePrototype } from "../../factorio/prototypes";
+import type {
+  IngredientPrototype,
+  ProductPrototype,
+  RecipePrototype,
+} from "../../factorio/prototypes";
 import {
+  getIconIdForItem,
   getRecipeMetadata,
   type RecipeExplorerData,
 } from "../data/factoriolab";
@@ -24,6 +33,7 @@ import type {
   RecipeLayout,
   RecipeLayoutEntry,
 } from "../types";
+import { IconSprite } from "./IconSprite";
 import { RecipeIcon } from "./RecipeIcon";
 
 interface LayoutWorkspaceProps {
@@ -32,7 +42,6 @@ interface LayoutWorkspaceProps {
   layouts: RecipeLayout[];
   onCreateLayout(): void;
   onDeleteLayout(layoutId: string): void;
-  onFocusLayout(layoutId: string): void;
   onImportLayout(layoutId: string, value: string): boolean;
   onOpenLayoutGraph(layoutId: string): void;
   onRecipeProductionSizeChange(
@@ -42,11 +51,6 @@ interface LayoutWorkspaceProps {
   ): void;
   onRemoveRecipeFromLayout(layoutId: string, entryId: string): void;
   onRenameLayout(layoutId: string, name: string): void;
-  onReorderLayout(
-    sourceLayoutId: string,
-    targetLayoutId: string,
-    placement: LayoutReorderPlacement,
-  ): void;
   onReorderRecipeInLayout(
     layoutId: string,
     sourceEntryId: string,
@@ -62,79 +66,44 @@ export function LayoutWorkspace({
   layouts,
   onCreateLayout,
   onDeleteLayout,
-  onFocusLayout,
   onImportLayout,
   onOpenLayoutGraph,
   onRecipeProductionSizeChange,
   onRemoveRecipeFromLayout,
   onRenameLayout,
-  onReorderLayout,
   onReorderRecipeInLayout,
   onSelectItem,
 }: LayoutWorkspaceProps) {
-  const [draggedLayoutId, setDraggedLayoutId] = useState<string | null>(null);
-  const [layoutDropTarget, setLayoutDropTarget] = useState<{
-    layoutId: string;
-    placement: LayoutReorderPlacement;
-  } | null>(null);
   const [draggedEntryId, setDraggedEntryId] = useState<string | null>(null);
   const [entryDropTarget, setEntryDropTarget] = useState<{
     entryId: string;
     placement: LayoutReorderPlacement;
   } | null>(null);
+  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [importDraft, setImportDraft] = useState("");
   const [importError, setImportError] = useState<string | null>(null);
   const focusedLayout =
     layouts.find((layout) => layout.id === focusedLayoutId) ?? layouts[0] ?? null;
+  const selectedEntry =
+    focusedLayout?.entries.find((entry) => entry.id === selectedEntryId) ??
+    focusedLayout?.entries[0] ??
+    null;
+  const selectedRecipe = selectedEntry
+    ? data.recipeById.get(selectedEntry.recipeId) ?? null
+    : null;
   const title = focusedLayout?.name.trim() || "Untitled layout";
 
   useEffect(() => {
-    if (!draggedLayoutId) {
+    if (!focusedLayout?.entries.length) {
+      setSelectedEntryId(null);
       return;
     }
 
-    const activeLayoutId = draggedLayoutId;
-
-    function handlePointerMove(event: PointerEvent) {
-      const row = document
-        .elementFromPoint(event.clientX, event.clientY)
-        ?.closest<HTMLElement>("[data-layout-editor-row]");
-      const targetLayoutId = row?.dataset.layoutEditorRow;
-
-      if (!row || !targetLayoutId || targetLayoutId === activeLayoutId) {
-        setLayoutDropTarget(null);
-        return;
-      }
-
-      const rect = row.getBoundingClientRect();
-      const placement: LayoutReorderPlacement =
-        event.clientY < rect.top + rect.height / 2 ? "before" : "after";
-
-      setLayoutDropTarget({ layoutId: targetLayoutId, placement });
+    if (!focusedLayout.entries.some((entry) => entry.id === selectedEntryId)) {
+      setSelectedEntryId(focusedLayout.entries[0]?.id ?? null);
     }
-
-    function handlePointerUp() {
-      if (layoutDropTarget) {
-        onReorderLayout(
-          activeLayoutId,
-          layoutDropTarget.layoutId,
-          layoutDropTarget.placement,
-        );
-      }
-
-      setDraggedLayoutId(null);
-      setLayoutDropTarget(null);
-    }
-
-    document.addEventListener("pointermove", handlePointerMove);
-    document.addEventListener("pointerup", handlePointerUp);
-
-    return () => {
-      document.removeEventListener("pointermove", handlePointerMove);
-      document.removeEventListener("pointerup", handlePointerUp);
-    };
-  }, [draggedLayoutId, layoutDropTarget, onReorderLayout]);
+  }, [focusedLayout?.entries, focusedLayout?.id, selectedEntryId]);
 
   useEffect(() => {
     if (!draggedEntryId || !focusedLayout) {
@@ -240,24 +209,21 @@ export function LayoutWorkspace({
       <header className="layout-workspace__header app-panel">
         <div className="layout-workspace__title">
           <Boxes size={28} aria-hidden="true" />
-          <div>
-            <h1>{title}</h1>
-            <span>
-              {focusedLayout.entries.length}{" "}
-              {focusedLayout.entries.length === 1 ? "recipe" : "recipes"}
-            </span>
-          </div>
+          <label className="layout-title-field">
+            <span>Layout</span>
+            <input
+              aria-label="Layout name"
+              placeholder="Untitled layout"
+              value={focusedLayout.name}
+              onChange={(event) => onRenameLayout(focusedLayout.id, event.target.value)}
+            />
+          </label>
+          <span className="layout-workspace__count">
+            {focusedLayout.entries.length}{" "}
+            {focusedLayout.entries.length === 1 ? "recipe" : "recipes"}
+          </span>
         </div>
         <div className="layout-workspace__actions">
-          <button
-            aria-label="Create layout"
-            className="icon-button"
-            data-tooltip="Create layout"
-            type="button"
-            onClick={onCreateLayout}
-          >
-            <Plus size={18} aria-hidden="true" />
-          </button>
           {!focusedLayout.entries.length ? (
             <>
               <button
@@ -294,82 +260,7 @@ export function LayoutWorkspace({
       </header>
 
       <div className="layout-workspace__body">
-        <aside className="layout-workspace__rail app-panel" aria-label="Layout list">
-          <div className="layout-workspace__rail-header">
-            <span>Layouts</span>
-            <button
-              aria-label="Create layout"
-              className="layout-action-button"
-              data-tooltip="Create layout"
-              type="button"
-              onClick={onCreateLayout}
-            >
-              <Plus size={15} aria-hidden="true" />
-            </button>
-          </div>
-          <div className="layout-workspace__rail-list">
-            {layouts.map((layout) => (
-              <div
-                className={`layout-workspace__rail-row ${
-                  layout.id === focusedLayout.id
-                    ? "layout-workspace__rail-row--focused"
-                    : ""
-                } ${
-                  draggedLayoutId === layout.id
-                    ? "layout-workspace__rail-row--dragging"
-                    : ""
-                } ${
-                  layoutDropTarget?.layoutId === layout.id
-                    ? `layout-workspace__rail-row--drop-${layoutDropTarget.placement}`
-                    : ""
-                }`}
-                data-layout-editor-row={layout.id}
-                key={layout.id}
-              >
-                <button
-                  aria-label={`Reorder ${layout.name.trim() || "Untitled layout"}`}
-                  className="layout-workspace__drag-button"
-                  data-tooltip="Drag to reorder"
-                  type="button"
-                  onPointerDown={(event) => {
-                    event.preventDefault();
-                    event.currentTarget.setPointerCapture(event.pointerId);
-                    onFocusLayout(layout.id);
-                    setDraggedLayoutId(layout.id);
-                    setLayoutDropTarget(null);
-                  }}
-                >
-                  <GripVertical size={15} aria-hidden="true" />
-                </button>
-                <button
-                  aria-label={`Focus ${layout.name.trim() || "Untitled layout"}`}
-                  aria-pressed={layout.id === focusedLayout.id}
-                  className="layout-workspace__rail-main"
-                  type="button"
-                  onClick={() => onFocusLayout(layout.id)}
-                >
-                  <CircleDot size={14} aria-hidden="true" />
-                  <span>{layout.name.trim() || "Untitled layout"}</span>
-                  <small>{layout.entries.length}</small>
-                </button>
-              </div>
-            ))}
-          </div>
-        </aside>
-
-        <section className="layout-editor app-panel" aria-label="Focused layout editor">
-          <div className="layout-editor__name-row">
-            <label>
-              <span>Layout name</span>
-              <input
-                aria-label="Layout name"
-                placeholder="Untitled layout"
-                value={focusedLayout.name}
-                onChange={(event) => onRenameLayout(focusedLayout.id, event.target.value)}
-              />
-            </label>
-          </div>
-
+        <section className="layout-editor app-panel" aria-label={`${title} recipes`}>
           <div className="layout-editor__recipes">
             {focusedLayout.entries.length ? (
               focusedLayout.entries.map((entry, index) => {
@@ -392,6 +283,7 @@ export function LayoutWorkspace({
                     index={index}
                     key={entry.id}
                     recipe={recipe}
+                    selected={selectedEntry?.id === entry.id}
                     onDragStart={() => {
                       setDraggedEntryId(entry.id);
                       setEntryDropTarget(null);
@@ -404,7 +296,7 @@ export function LayoutWorkspace({
                       )
                     }
                     onRemove={() => onRemoveRecipeFromLayout(focusedLayout.id, entry.id)}
-                    onSelectItem={onSelectItem}
+                    onSelect={() => setSelectedEntryId(entry.id)}
                   />
                 );
               })
@@ -427,6 +319,13 @@ export function LayoutWorkspace({
             )}
           </div>
         </section>
+
+        <LayoutRecipeInspector
+          data={data}
+          entry={selectedEntry}
+          recipe={selectedRecipe}
+          onOpenRecipeContext={onSelectItem}
+        />
       </div>
 
       {isImportDialogOpen ? (
@@ -499,10 +398,11 @@ interface LayoutEditorRecipeRowProps {
   entry: RecipeLayoutEntry;
   index: number;
   recipe: RecipePrototype;
+  selected: boolean;
   onDragStart(): void;
   onProductionSizeChange(productionSize: number): void;
   onRemove(): void;
-  onSelectItem(itemId: string): void;
+  onSelect(): void;
 }
 
 function LayoutEditorRecipeRow({
@@ -514,11 +414,11 @@ function LayoutEditorRecipeRow({
   onDragStart,
   onProductionSizeChange,
   onRemove,
-  onSelectItem,
+  onSelect,
   recipe,
+  selected,
 }: LayoutEditorRecipeRowProps) {
   const metadata = getRecipeMetadata(recipe);
-  const contextItemId = getRecipeContextItemId(data, recipe);
   const [productionSizeDraft, setProductionSizeDraft] = useState(
     formatProductionSize(entry.productionSize),
   );
@@ -529,9 +429,9 @@ function LayoutEditorRecipeRow({
 
   return (
     <div
-      className={`layout-editor-row ${dragging ? "layout-editor-row--dragging" : ""} ${
-        dropPlacement ? `layout-editor-row--drop-${dropPlacement}` : ""
-      }`}
+      className={`layout-editor-row ${selected ? "layout-editor-row--selected" : ""} ${
+        dragging ? "layout-editor-row--dragging" : ""
+      } ${dropPlacement ? `layout-editor-row--drop-${dropPlacement}` : ""}`}
       data-layout-editor-entry={entry.id}
     >
       <button
@@ -545,22 +445,28 @@ function LayoutEditorRecipeRow({
           onDragStart();
         }}
       >
+        <GripVertical size={14} aria-hidden="true" />
         <span>{index + 1}</span>
       </button>
       <button
-        className="layout-editor-row__recipe"
+        aria-label={`Inspect ${metadata.name}`}
+        aria-pressed={selected}
+        className="layout-editor-row__main"
         data-tooltip={`${metadata.name} (${metadata.id})`}
         type="button"
-        onClick={() => {
-          if (contextItemId) {
-            onSelectItem(contextItemId);
-          }
-        }}
+        onClick={onSelect}
       >
-        <RecipeIcon data={data} recipe={recipe} size={32} />
-        <span>
+        <RecipeIcon data={data} recipe={recipe} size={34} />
+        <span className="layout-editor-row__identity">
           <strong>{metadata.name}</strong>
           <small>{metadata.id}</small>
+        </span>
+        <span className="layout-editor-row__meta" aria-hidden="true">
+          <span>
+            <Timer size={13} aria-hidden="true" />
+            {formatTime(recipe.energy_required)}
+          </span>
+          <span>{formatId(metadata.category)}</span>
         </span>
       </button>
       <label className="layout-editor-row__size" data-tooltip="Production size">
@@ -604,6 +510,164 @@ function LayoutEditorRecipeRow({
   );
 }
 
+interface LayoutRecipeInspectorProps {
+  data: RecipeExplorerData;
+  entry: RecipeLayoutEntry | null;
+  recipe: RecipePrototype | null;
+  onOpenRecipeContext(itemId: string): void;
+}
+
+function LayoutRecipeInspector({
+  data,
+  entry,
+  onOpenRecipeContext,
+  recipe,
+}: LayoutRecipeInspectorProps) {
+  if (!entry || !recipe) {
+    return (
+      <aside className="layout-inspector app-panel" aria-label="Recipe inspector">
+        <div className="layout-inspector__empty">
+          <PackageOpen size={34} aria-hidden="true" />
+          <div>
+            <h2>No recipe selected</h2>
+            <span>Select a recipe instance</span>
+          </div>
+        </div>
+      </aside>
+    );
+  }
+
+  const metadata = getRecipeMetadata(recipe);
+  const contextItemId = getRecipeContextItemId(data, recipe);
+  const producerText = metadata.producers.length
+    ? metadata.producers.map(formatId).join(", ")
+    : "natural";
+  const locationText = metadata.locations.length
+    ? metadata.locations.map(formatId).join(", ")
+    : "all surfaces";
+  const tags = [
+    ...metadata.flags,
+    ...metadata.disallowedEffects.map((effect) => `no ${effect}`),
+  ];
+
+  return (
+    <aside className="layout-inspector app-panel" aria-label="Recipe inspector">
+      <header className="layout-inspector__header">
+        <RecipeIcon data={data} recipe={recipe} size={42} />
+        <div>
+          <h2>{metadata.name}</h2>
+          <span>{metadata.id}</span>
+        </div>
+      </header>
+
+      <div className="layout-inspector__stats">
+        <span title="Production size">size {formatProductionSize(entry.productionSize)}</span>
+        <span title="Craft time">
+          <Timer size={14} aria-hidden="true" />
+          {formatTime(recipe.energy_required)}
+        </span>
+        <span title="Producer">
+          <Factory size={14} aria-hidden="true" />
+          {producerText}
+        </span>
+        <span title="Surface">
+          <MapPin size={14} aria-hidden="true" />
+          {locationText}
+        </span>
+      </div>
+
+      <div className="layout-inspector__equation">
+        <InspectorMaterialGroup
+          data={data}
+          entries={recipe.ingredients ?? []}
+          label="Ingredients"
+        />
+        <ArrowRight size={18} aria-hidden="true" />
+        <InspectorMaterialGroup
+          data={data}
+          entries={recipe.results ?? []}
+          label="Results"
+        />
+      </div>
+
+      {tags.length ? (
+        <div className="layout-inspector__tags">
+          {tags.map((tag) => (
+            <span key={tag}>{tag}</span>
+          ))}
+        </div>
+      ) : null}
+
+      <button
+        className="layout-inspector__open primary-action-button"
+        disabled={!contextItemId}
+        type="button"
+        onClick={() => {
+          if (contextItemId) {
+            onOpenRecipeContext(contextItemId);
+          }
+        }}
+      >
+        <ExternalLink size={17} aria-hidden="true" />
+        Open in Recipes
+      </button>
+    </aside>
+  );
+}
+
+interface InspectorMaterialGroupProps {
+  data: RecipeExplorerData;
+  entries: readonly (IngredientPrototype | ProductPrototype)[];
+  label: string;
+}
+
+function InspectorMaterialGroup({
+  data,
+  entries,
+  label,
+}: InspectorMaterialGroupProps) {
+  return (
+    <section className="layout-inspector__section">
+      <h3>{label}</h3>
+      {entries.length ? (
+        <ul className="layout-inspector__materials">
+          {entries.map((entry, index) => (
+            <InspectorMaterial
+              data={data}
+              entry={entry}
+              key={`${materialKey(entry)}:${index}`}
+            />
+          ))}
+        </ul>
+      ) : (
+        <span className="layout-inspector__none">none</span>
+      )}
+    </section>
+  );
+}
+
+interface InspectorMaterialProps {
+  data: RecipeExplorerData;
+  entry: IngredientPrototype | ProductPrototype;
+}
+
+function InspectorMaterial({ data, entry }: InspectorMaterialProps) {
+  const item = data.itemById.get(entry.name);
+  const icon = data.iconById.get(item ? getIconIdForItem(item) : entry.name);
+  const label = item?.name ?? formatId(entry.name);
+
+  return (
+    <li className="layout-inspector__material">
+      <IconSprite atlas={data.atlas} icon={icon} label={label} size={24} />
+      <span>
+        <strong>{label}</strong>
+        <small>{entry.name}</small>
+      </span>
+      <em>{formatMaterialAmount(entry)}</em>
+    </li>
+  );
+}
+
 function formatProductionSize(value: number): string {
   return Number.isFinite(value) ? String(value) : "1";
 }
@@ -627,4 +691,52 @@ function getRecipeContextItemId(
   }
 
   return recipe.ingredients?.find((entry) => data.itemById.has(entry.name))?.name ?? null;
+}
+
+function formatMaterialAmount(entry: IngredientPrototype | ProductPrototype): string {
+  const amount = "amount" in entry ? entry.amount : undefined;
+  const amountMin = "amount_min" in entry ? entry.amount_min : undefined;
+  const amountMax = "amount_max" in entry ? entry.amount_max : undefined;
+  const amountText =
+    amount !== undefined
+      ? formatNumber(amount)
+      : amountMin !== undefined && amountMax !== undefined
+        ? `${formatNumber(amountMin)}-${formatNumber(amountMax)}`
+        : "var";
+  const probability =
+    "probability" in entry && typeof entry.probability === "number" && entry.probability < 1
+      ? `, ${formatNumber(entry.probability * 100)}%`
+      : "";
+  const temperature =
+    entry.type === "fluid" &&
+    "temperature" in entry &&
+    typeof entry.temperature === "number"
+      ? `, ${formatNumber(entry.temperature)}C`
+      : "";
+
+  return `${amountText}${probability}${temperature}`;
+}
+
+function materialKey(entry: IngredientPrototype | ProductPrototype): string {
+  return `${entry.type}:${entry.name}:${formatMaterialAmount(entry)}`;
+}
+
+function formatTime(value: number | undefined): string {
+  if (value === undefined) {
+    return "time n/a";
+  }
+
+  return `${formatNumber(value)}s`;
+}
+
+function formatNumber(value: number): string {
+  if (Number.isInteger(value)) {
+    return `${value}`;
+  }
+
+  return `${Number(value.toFixed(3))}`;
+}
+
+function formatId(id: string): string {
+  return id.replaceAll("-", " ");
 }
