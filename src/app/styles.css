@@ -70,7 +70,10 @@ button {
 }
 
 .app-sidebar {
-  grid-template-rows: auto auto minmax(0, 1fr);
+  --sidebar-layout-list-max-height: calc(100vh - 244px);
+
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  align-content: start;
   gap: 12px;
 }
 
@@ -99,6 +102,7 @@ button {
 
 .sidebar-section {
   display: grid;
+  align-content: start;
   gap: 7px;
   min-width: 0;
 }
@@ -195,6 +199,7 @@ button {
   display: grid;
   align-content: start;
   gap: 5px;
+  max-height: var(--sidebar-layout-list-max-height);
   min-height: 0;
   overflow: auto;
   padding-right: 2px;
@@ -2835,6 +2840,10 @@ button {
 
   .sidebar {
     max-height: 360px;
+  }
+
+  .app-sidebar {
+    --sidebar-layout-list-max-height: 130px;
   }
 
   .layout-view,
