@@ -271,19 +271,6 @@ export function LayoutGraphDialog({
         pendingConnection.targetId,
       )
     : null;
-  const graphFitSignature = useMemo(
-    () =>
-      [
-        graph.nodes.map((node) => node.id).join("|"),
-        graph.edges
-          .map(
-            (edge) =>
-              `${edge.id}:${edge.data?.items.map((item) => getEntityKey(item)).join(",")}`,
-          )
-          .join("|"),
-      ].join("::"),
-    [graph.edges, graph.nodes],
-  );
   const graphNodes = useMemo(
     () =>
       nodes.map((node): GraphFlowNode => {
@@ -873,8 +860,6 @@ export function LayoutGraphDialog({
               }}
               edges={edges}
               edgeTypes={edgeTypes}
-              fitView
-              fitViewOptions={{ padding: 0.18 }}
               minZoom={0.25}
               nodes={graphNodes}
               nodeTypes={nodeTypes}
@@ -888,7 +873,6 @@ export function LayoutGraphDialog({
               onPaneClick={clearGraphFocus}
               proOptions={{ hideAttribution: true }}
             >
-              <GraphAutoFit signature={graphFitSignature} />
               <Background color="#4b4735" gap={34} />
               <Controls showInteractive={false} />
               <MiniMap
@@ -958,24 +942,6 @@ export function LayoutGraphDialog({
       ) : null}
     </div>
   );
-}
-
-interface GraphAutoFitProps {
-  signature: string;
-}
-
-function GraphAutoFit({ signature }: GraphAutoFitProps) {
-  const reactFlow = useReactFlow<GraphFlowNode, ItemFlowEdgeType>();
-
-  useEffect(() => {
-    const frameId = window.requestAnimationFrame(() => {
-      void reactFlow.fitView({ padding: 0.18 });
-    });
-
-    return () => window.cancelAnimationFrame(frameId);
-  }, [reactFlow, signature]);
-
-  return null;
 }
 
 interface PendingGraphConnection {
