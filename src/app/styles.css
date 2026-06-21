@@ -115,35 +115,23 @@ button {
   text-transform: uppercase;
 }
 
-.sidebar-section__title-button {
+.sidebar-section__title {
   display: inline-grid;
   grid-template-columns: 20px minmax(0, auto);
   align-items: center;
   gap: 9px;
   min-width: 0;
   min-height: 34px;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  background: transparent;
   color: #c9c4b3;
-  cursor: pointer;
-  padding: 0 7px;
-  text-align: left;
+  padding: 0 1px;
   text-transform: none;
 }
 
-.sidebar-section__title-button:hover,
-.sidebar-section__title-button[aria-current="page"] {
-  border-color: #57523d;
-  background: #25261f;
+.sidebar-section__title--active {
   color: #f0eee4;
 }
 
-.sidebar-section__title-button[aria-current="page"] {
-  box-shadow: inset 3px 0 0 #d7b65f;
-}
-
-.sidebar-section__title-button span {
+.sidebar-section__title span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

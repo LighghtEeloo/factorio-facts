@@ -5,6 +5,7 @@ import {
   Cog,
   GripVertical,
   Network,
+  Package,
   Plus,
   Search,
   X,
@@ -165,20 +166,34 @@ export function AppSidebar({
 
       <section className="sidebar-section sidebar-recipes" aria-label="Recipes">
         <div className="sidebar-section__header">
-          <button
-            aria-current={activeView === "recipes" ? "page" : undefined}
-            className="sidebar-section__title-button"
-            type="button"
-            onClick={() => onViewChange("recipes")}
+          <span
+            className={`sidebar-section__title ${
+              activeView === "recipes" ? "sidebar-section__title--active" : ""
+            }`}
           >
             <BookOpen size={18} aria-hidden="true" />
             <span>Recipes</span>
+          </span>
+          <button
+            aria-label="Open item selector"
+            className="icon-button item-selector-button"
+            data-tooltip="Open item selector"
+            type="button"
+            onClick={() => setIsSelectorOpen(true)}
+          >
+            <Package size={18} aria-hidden="true" />
           </button>
         </div>
         <button
           className="sidebar-context-button"
           type="button"
-          onClick={() => setIsSelectorOpen(true)}
+          onClick={() => {
+            if (selectedItem) {
+              onViewChange("recipes");
+            } else {
+              setIsSelectorOpen(true);
+            }
+          }}
         >
           {selectedItem ? (
             <>
@@ -207,17 +222,16 @@ export function AppSidebar({
 
       <section className="sidebar-section sidebar-layouts" aria-label="Layouts">
         <div className="sidebar-section__header">
-          <button
-            aria-current={
-              activeView === "layouts" || activeView === "graph" ? "page" : undefined
-            }
-            className="sidebar-section__title-button"
-            type="button"
-            onClick={() => onViewChange("layouts")}
+          <span
+            className={`sidebar-section__title ${
+              activeView === "layouts" || activeView === "graph"
+                ? "sidebar-section__title--active"
+                : ""
+            }`}
           >
             <Boxes size={18} aria-hidden="true" />
             <span>Layouts</span>
-          </button>
+          </span>
           <button
             aria-label="Create layout"
             className="icon-button"
@@ -262,7 +276,10 @@ export function AppSidebar({
                 aria-pressed={layout.id === focusedLayoutId}
                 className="sidebar-layout-row__main"
                 type="button"
-                onClick={() => onFocusLayout(layout.id)}
+                onClick={() => {
+                  onFocusLayout(layout.id);
+                  onViewChange("layouts");
+                }}
               >
                 <CircleDot size={14} aria-hidden="true" />
                 <span>{layout.name.trim() || "Untitled layout"}</span>

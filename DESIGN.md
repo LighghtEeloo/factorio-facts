@@ -81,10 +81,10 @@ Keep ingredient/result amounts and probabilities for labels and future work, but
 
 ## Product Shape
 
-The first screen is the working tool, not a landing page. The app uses a mode-based Vite/React workbench with a persistent left sidebar and fullscreen task views. Sidebar section headers switch the main lens, while section rows manage focus:
+The first screen is the working tool, not a landing page. The app uses a mode-based Vite/React workbench with a persistent left sidebar and fullscreen task views. Sidebar section headers are labels, while section controls manage focus and the main lens:
 
-- Recipes: the header opens the recipe explorer. The section shows only the focused item/fluid and opens the item picker. The recipe explorer itself shows the selected item context plus `Made by` and `Used in` recipe columns. The column headings and header counters use different direction icons so producers and consumers are visually distinct. Filters for surface, FactorioLab category, and recipe flags live beside this recipe explorer.
-- Layouts: the header opens dedicated layout recipe editing for the focused layout. Global layout rows focus and reorder layouts.
+- Recipes: the section shows only the focused item/fluid. Clicking that focused item opens the recipe explorer, while the picker button opens item selection. The recipe explorer itself shows the selected item context plus `Made by` and `Used in` recipe columns. The column headings and header counters use different direction icons so producers and consumers are visually distinct. Filters for surface, FactorioLab category, and recipe flags live beside this recipe explorer.
+- Layouts: global layout rows focus and reorder layouts, and clicking a layout row opens dedicated layout recipe editing for that layout.
 - Graph: dedicated React Flow graph editing for the selected layout, entered from a layout row or the focused layout editor.
 
 Clicking any item chip selects that item and refreshes both recipe columns. This gives expandable upstream/downstream navigation without expanding a dense node cloud in place.
