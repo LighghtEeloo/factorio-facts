@@ -166,6 +166,9 @@ export function LayoutGraphDialog({
   const [connectingFromNodeId, setConnectingFromNodeId] = useState<string | null>(null);
   const [pendingConnection, setPendingConnection] =
     useState<PendingGraphConnection | null>(null);
+  const [smartLinkPreviewNodeId, setSmartLinkPreviewNodeId] = useState<string | null>(
+    null,
+  );
   const [isResetConfirming, setIsResetConfirming] = useState(false);
   const [exportText, setExportText] = useState<string | null>(null);
   const [isExportCopied, setIsExportCopied] = useState(false);
@@ -380,13 +383,32 @@ export function LayoutGraphDialog({
   graphNodesRef.current = graph.nodes;
   connectionCandidatesRef.current = graph.connectionCandidates;
   const [nodes, setNodes] = useState<GraphFlowNode[]>(graph.nodes);
-  const edges = useMemo(
+  const smartLinkPreview = useMemo(
     () =>
-      graph.edges.map((edge) => ({
+      buildSmartLinkPreview(
+        data,
+        graph.nodes,
+        layout.edgePorts,
+        layout.edgeRoutes,
+        smartLinkPreviewNodeId,
+      ),
+    [
+      data,
+      graph.nodes,
+      layout.edgePorts,
+      layout.edgeRoutes,
+      smartLinkPreviewNodeId,
+    ],
+  );
+  const edges = useMemo(
+    () => [
+      ...graph.edges.map((edge) => ({
         ...edge,
         selected: selectedEdgeIds.includes(edge.id),
       })),
-    [graph.edges, selectedEdgeIds],
+      ...smartLinkPreview.edges,
+    ],
+    [graph.edges, selectedEdgeIds, smartLinkPreview.edges],
   );
   const selectedEdges = edges.filter((edge) => selectedEdgeIds.includes(edge.id));
   const selectedEdge = selectedEdges.length === 1 ? selectedEdges[0] ?? null : null;
@@ -426,6 +448,12 @@ export function LayoutGraphDialog({
           isConnectableTarget,
           isConnecting: connectingFromNodeId === node.id,
           isSelected: node.id === selectedNodeId,
+          smartLinkInputItemKeys: [
+            ...(smartLinkPreview.inputItemKeysByNodeId.get(node.id) ?? []),
+          ],
+          smartLinkOutputItemKeys: [
+            ...(smartLinkPreview.outputItemKeysByNodeId.get(node.id) ?? []),
+          ],
         };
 
         return applyGraphNodeState(node, nodeState);
@@ -439,6 +467,8 @@ export function LayoutGraphDialog({
       selectedEdge,
       selectedNodeId,
       selectedTerminal,
+      smartLinkPreview.inputItemKeysByNodeId,
+      smartLinkPreview.outputItemKeysByNodeId,
     ],
   );
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -477,6 +507,16 @@ export function LayoutGraphDialog({
       setSelectedTerminalId(null);
     }
   }, [graph.nodes, selectedTerminalId]);
+
+  useEffect(() => {
+    if (
+      smartLinkPreviewNodeId &&
+      (smartLinkPreviewNodeId !== selectedNodeId ||
+        !graph.nodes.some((node) => node.id === smartLinkPreviewNodeId))
+    ) {
+      setSmartLinkPreviewNodeId(null);
+    }
+  }, [graph.nodes, selectedNodeId, smartLinkPreviewNodeId]);
 
   useEffect(() => {
     if (
@@ -766,6 +806,7 @@ export function LayoutGraphDialog({
             onDeleteRelay={deleteRelay}
             onResetEdgeItems={resetEdgeItems}
             onSmartLinkNode={smartLinkNode}
+            onSmartLinkPreviewNodeChange={setSmartLinkPreviewNodeId}
             onToggleConnectMode={toggleConnectMode}
             onTogglePendingConnectionItem={togglePendingConnectionItem}
           />
@@ -1067,6 +1108,7 @@ interface GraphHeaderToolbarProps {
   onDeleteRelay(relayId: string): void;
   onResetEdgeItems(edgeId: string): void;
   onSmartLinkNode(node: GraphFlowNode): void;
+  onSmartLinkPreviewNodeChange(nodeId: string | null): void;
   onToggleConnectMode(nodeId: string): void;
   onTogglePendingConnectionItem(itemKey: string): void;
 }
@@ -1090,6 +1132,7 @@ function GraphHeaderToolbar({
   onDeleteRelay,
   onResetEdgeItems,
   onSmartLinkNode,
+  onSmartLinkPreviewNodeChange,
   onToggleConnectMode,
   onTogglePendingConnectionItem,
 }: GraphHeaderToolbarProps) {
@@ -1179,6 +1222,7 @@ function GraphHeaderToolbar({
         onApplyNodeChanges={onApplyNodeChanges}
         onDeleteRelay={onDeleteRelay}
         onSmartLinkNode={onSmartLinkNode}
+        onSmartLinkPreviewNodeChange={onSmartLinkPreviewNodeChange}
         onToggleConnectMode={onToggleConnectMode}
       />
     );
@@ -1207,6 +1251,7 @@ interface GraphNodeToolbarProps {
   onApplyNodeChanges(node: GraphFlowNode, changes: GraphNodeToolbarChanges): void;
   onDeleteRelay(relayId: string): void;
   onSmartLinkNode(node: GraphFlowNode): void;
+  onSmartLinkPreviewNodeChange(nodeId: string | null): void;
   onToggleConnectMode(nodeId: string): void;
 }
 
@@ -1218,6 +1263,7 @@ function GraphNodeToolbar({
   onApplyNodeChanges,
   onDeleteRelay,
   onSmartLinkNode,
+  onSmartLinkPreviewNodeChange,
   onToggleConnectMode,
 }: GraphNodeToolbarProps) {
   const label = node.data.label;
@@ -1427,7 +1473,14 @@ function GraphNodeToolbar({
         className="icon-button layout-graph-toolbar__button"
         data-tooltip="Smart link"
         type="button"
-        onClick={() => onSmartLinkNode(node)}
+        onBlur={() => onSmartLinkPreviewNodeChange(null)}
+        onClick={() => {
+          onSmartLinkPreviewNodeChange(null);
+          onSmartLinkNode(node);
+        }}
+        onFocus={() => onSmartLinkPreviewNodeChange(node.id)}
+        onMouseEnter={() => onSmartLinkPreviewNodeChange(node.id)}
+        onMouseLeave={() => onSmartLinkPreviewNodeChange(null)}
       >
         <Sparkles size={16} aria-hidden="true" />
       </button>
@@ -1909,6 +1962,8 @@ interface SelectableConnectableGraphNodeData extends Record<string, unknown> {
   isSelected: boolean;
   label: string;
   onSelectNode: GraphNodeSelectHandler;
+  smartLinkInputItemKeys: string[];
+  smartLinkOutputItemKeys: string[];
 }
 
 interface BaseGraphNodeData extends SelectableConnectableGraphNodeData {
@@ -1949,6 +2004,8 @@ interface GraphNodeInteractionState {
   isConnectableTarget: boolean;
   isConnecting: boolean;
   isSelected: boolean;
+  smartLinkInputItemKeys: string[];
+  smartLinkOutputItemKeys: string[];
 }
 
 interface SelectedGraphTerminal {
@@ -2003,6 +2060,7 @@ function RecipeNode({ data, id }: NodeProps<RecipeFlowNode>) {
         isFocused={data.selectedTerminalId === getGraphTerminalId(id, "input")}
         kind="input"
         onFocusTerminal={data.onFocusTerminal}
+        previewItemKeys={data.smartLinkInputItemKeys}
         side={data.terminalSides.inputSide}
         terminalId={getGraphTerminalId(id, "input")}
       />
@@ -2021,6 +2079,7 @@ function RecipeNode({ data, id }: NodeProps<RecipeFlowNode>) {
         isFocused={data.selectedTerminalId === getGraphTerminalId(id, "output")}
         kind="output"
         onFocusTerminal={data.onFocusTerminal}
+        previewItemKeys={data.smartLinkOutputItemKeys}
         side={data.terminalSides.outputSide}
         terminalId={getGraphTerminalId(id, "output")}
       />
@@ -2051,6 +2110,7 @@ function RelayNode({ data, id }: NodeProps<RelayFlowNode>) {
         isFocused={data.selectedTerminalId === getGraphTerminalId(id, "input")}
         kind="input"
         onFocusTerminal={data.onFocusTerminal}
+        previewItemKeys={data.smartLinkInputItemKeys}
         side={data.terminalSides.inputSide}
         terminalId={getGraphTerminalId(id, "input")}
       />
@@ -2081,6 +2141,7 @@ function RelayNode({ data, id }: NodeProps<RelayFlowNode>) {
         isFocused={data.selectedTerminalId === getGraphTerminalId(id, "output")}
         kind="output"
         onFocusTerminal={data.onFocusTerminal}
+        previewItemKeys={data.smartLinkOutputItemKeys}
         side={data.terminalSides.outputSide}
         terminalId={getGraphTerminalId(id, "output")}
       />
@@ -2093,6 +2154,9 @@ function getGraphNodeStateClassName(data: BaseGraphNodeData): string {
     data.isSelected ? "layout-graph-node--selected" : "",
     data.isConnecting ? "layout-graph-node--connecting" : "",
     data.isConnectableTarget ? "layout-graph-node--connectable" : "",
+    data.smartLinkInputItemKeys.length || data.smartLinkOutputItemKeys.length
+      ? "layout-graph-node--smart-preview"
+      : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -2165,6 +2229,7 @@ interface ItemFlowEdgeData extends Record<string, unknown> {
   availableItems: ProductPrototype[];
   data: RecipeExplorerData;
   hasItemOverride: boolean;
+  isPreview?: boolean;
   items: ProductPrototype[];
   onFocusEdge(edgeId: string, additive?: boolean): void;
   onRouteChange(edgeId: string, route: GraphEdgeRoute): void;
@@ -2313,6 +2378,7 @@ function ItemFlowEdge({
     : bezierPath;
   const labelX = route?.x ?? bezierLabelX;
   const labelY = route?.y ?? bezierLabelY;
+  const isPreview = Boolean(edgeData?.isPreview);
 
   useEffect(() => {
     if (!isRouteDragging || !edgeData) {
@@ -2395,7 +2461,7 @@ function ItemFlowEdge({
   }
 
   function startRouteDrag(event: ReactPointerEvent<HTMLButtonElement>) {
-    if (!edgeData) {
+    if (!edgeData || edgeData.isPreview) {
       return;
     }
 
@@ -2410,12 +2476,35 @@ function ItemFlowEdge({
   return (
     <>
       <BaseEdge
-        className={`layout-graph-edge ${selected ? "layout-graph-edge--selected" : ""}`}
+        className={`layout-graph-edge ${
+          selected ? "layout-graph-edge--selected" : ""
+        } ${isPreview ? "layout-graph-edge--smart-preview" : ""}`}
         id={id}
         path={path}
         {...(markerEnd ? { markerEnd } : {})}
       />
-      {edgeData ? (
+      {edgeData?.isPreview ? (
+        <EdgeLabelRenderer>
+          <div
+            aria-hidden="true"
+            className="layout-graph-edge-label layout-graph-edge-label--smart-preview nodrag nopan"
+            style={{
+              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+            }}
+          >
+            {edgeData.items.slice(0, 3).map((entry) => (
+              <GraphItemToken
+                data={edgeData.data}
+                entry={entry}
+                key={`${id}-${entry.type}:${entry.name}`}
+              />
+            ))}
+            {edgeData.items.length > 3 ? (
+              <span className="layout-graph-more">+{edgeData.items.length - 3}</span>
+            ) : null}
+          </div>
+        </EdgeLabelRenderer>
+      ) : edgeData ? (
         <EdgeLabelRenderer>
           <button
             aria-label={`Focus edge from ${edgeData.sourceName} to ${edgeData.targetName}`}
@@ -2525,6 +2614,7 @@ interface GraphBoundaryTerminalsProps {
   isFocused: boolean;
   kind: "input" | "output";
   onFocusTerminal(terminalId: string): void;
+  previewItemKeys: string[];
   side: GraphSide;
   terminalId: string;
 }
@@ -2535,6 +2625,7 @@ function GraphBoundaryTerminals({
   isFocused,
   kind,
   onFocusTerminal,
+  previewItemKeys,
   side,
   terminalId,
 }: GraphBoundaryTerminalsProps) {
@@ -2544,6 +2635,7 @@ function GraphBoundaryTerminals({
 
   const hiddenCount = Math.max(0, entries.length - 3);
   const labelKind = kind === "input" ? "External input" : "External output";
+  const previewItemKeySet = new Set(previewItemKeys);
   const visibleEntries = entries.slice(0, 3);
   const overflowEntries = entries.slice(3);
   return (
@@ -2575,7 +2667,11 @@ function GraphBoundaryTerminals({
     >
       {visibleEntries.map((entry) => (
         <span
-          className="layout-graph-boundary__item"
+          className={`layout-graph-boundary__item ${
+            previewItemKeySet.has(getEntityKey(entry))
+              ? "layout-graph-boundary__item--smart-preview"
+              : ""
+          }`}
           key={`${kind}-${entry.type}:${entry.name}`}
         >
           <GraphItemToken
@@ -2597,7 +2693,11 @@ function GraphBoundaryTerminals({
       ) : null}
       {overflowEntries.map((entry, index) => (
         <span
-          className="layout-graph-boundary__item layout-graph-boundary__item--overflow"
+          className={`layout-graph-boundary__item layout-graph-boundary__item--overflow ${
+            previewItemKeySet.has(getEntityKey(entry))
+              ? "layout-graph-boundary__item--smart-preview"
+              : ""
+          }`}
           key={`${kind}-overflow-${entry.type}:${entry.name}`}
           style={{ "--overflow-offset": `${index * 30}px` } as CSSProperties}
         >
@@ -2814,6 +2914,8 @@ function buildFlowNode(
     onSelectItem,
     onSelectNode,
     selectedTerminalId,
+    smartLinkInputItemKeys: [],
+    smartLinkOutputItemKeys: [],
     subtitle: node.subtitle,
     terminalSides: {
       inputSide:
@@ -3397,21 +3499,108 @@ function getRelayEgressEdges(
   ).map(graphConnectionToEdgeItems);
 }
 
+interface SmartLinkPreview {
+  edges: ItemFlowEdgeType[];
+  inputItemKeysByNodeId: Map<string, Set<string>>;
+  outputItemKeysByNodeId: Map<string, Set<string>>;
+}
+
+function buildSmartLinkPreview(
+  data: RecipeExplorerData,
+  nodes: GraphFlowNode[],
+  edgePorts: Record<string, GraphEdgePorts>,
+  edgeRoutes: Record<string, GraphEdgeRoute>,
+  previewNodeId: string | null,
+): SmartLinkPreview {
+  const previewNode = previewNodeId
+    ? nodes.find((node) => node.id === previewNodeId)
+    : null;
+  const inputItemKeysByNodeId = new Map<string, Set<string>>();
+  const outputItemKeysByNodeId = new Map<string, Set<string>>();
+
+  if (!previewNode) {
+    return {
+      edges: [],
+      inputItemKeysByNodeId,
+      outputItemKeysByNodeId,
+    };
+  }
+
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const connections = getSmartLinkConnectionCandidates(previewNode, nodes);
+  const edges = connections.flatMap((connection): ItemFlowEdgeType[] => {
+    const sourceNode = nodeById.get(connection.sourceId);
+    const targetNode = nodeById.get(connection.targetId);
+
+    if (!sourceNode || !targetNode) {
+      return [];
+    }
+
+    const itemKeys = connection.availableItems.map((item) => getEntityKey(item));
+    addSetValues(outputItemKeysByNodeId, connection.sourceId, itemKeys);
+    addSetValues(inputItemKeysByNodeId, connection.targetId, itemKeys);
+
+    const ports = edgePorts[connection.id] ?? defaultGraphEdgePorts;
+
+    return [
+      {
+        id: `preview:${connection.id}`,
+        type: "item-flow",
+        source: connection.sourceId,
+        target: connection.targetId,
+        sourceHandle: getGraphHandleId("source", ports.sourceSide),
+        targetHandle: getGraphHandleId("target", ports.targetSide),
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: "#b7d58f",
+        },
+        data: {
+          availableItems: connection.availableItems,
+          data,
+          hasItemOverride: false,
+          isPreview: true,
+          items: connection.availableItems,
+          onFocusEdge: noopFocusEdge,
+          onRouteChange: noopRouteChange,
+          onRouteReset: noopRouteReset,
+          ports,
+          route: edgeRoutes[connection.id] ?? null,
+          sourceName: sourceNode.data.label,
+          targetName: targetNode.data.label,
+        },
+      },
+    ];
+  });
+
+  return {
+    edges,
+    inputItemKeysByNodeId,
+    outputItemKeysByNodeId,
+  };
+}
+
 function getSmartLinkEdgeItems(
   node: GraphFlowNode,
   nodes: GraphFlowNode[],
 ): Array<{ edgeId: string; itemKeys: string[] }> {
+  return uniqueGraphEdgeItems(
+    getSmartLinkConnectionCandidates(node, nodes).map(graphConnectionToEdgeItems),
+  );
+}
+
+function getSmartLinkConnectionCandidates(
+  node: GraphFlowNode,
+  nodes: GraphFlowNode[],
+): GraphConnectionCandidate[] {
   const connectionNode = getGraphFlowConnectionNode(node);
   const graphNodes = nodes.map(getGraphFlowConnectionNode);
-  const connections =
-    node.data.kind === "relay"
-      ? getCompatibleGraphConnections([connectionNode], graphNodes)
-      : [
-          ...getCompatibleGraphConnections([connectionNode], graphNodes),
-          ...getCompatibleGraphConnections(graphNodes, [connectionNode]),
-        ];
 
-  return uniqueGraphEdgeItems(connections.map(graphConnectionToEdgeItems));
+  return node.data.kind === "relay"
+    ? getCompatibleGraphConnections([connectionNode], graphNodes)
+    : [
+        ...getCompatibleGraphConnections([connectionNode], graphNodes),
+        ...getCompatibleGraphConnections(graphNodes, [connectionNode]),
+      ];
 }
 
 function graphConnectionToEdgeItems(
@@ -3726,6 +3915,12 @@ function addSetValue<T>(map: Map<string, Set<T>>, key: string, value: T) {
   map.set(key, values);
 }
 
+function addSetValues<T>(map: Map<string, Set<T>>, key: string, values: T[]) {
+  for (const value of values) {
+    addSetValue(map, key, value);
+  }
+}
+
 function getEntityKey(entry: IngredientPrototype | ProductPrototype): EntityKey {
   return entityKey(entry);
 }
@@ -3733,6 +3928,12 @@ function getEntityKey(entry: IngredientPrototype | ProductPrototype): EntityKey 
 function addMapValue<K, V>(map: Map<K, V[]>, key: K, value: V) {
   map.set(key, [...(map.get(key) ?? []), value]);
 }
+
+function noopFocusEdge(_edgeId: string, _additive?: boolean) {}
+
+function noopRouteChange(_edgeId: string, _route: GraphEdgeRoute) {}
+
+function noopRouteReset(_edgeId: string) {}
 
 function formatId(id: string): string {
   return id.replaceAll("-", " ");
