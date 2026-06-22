@@ -13,12 +13,12 @@ import {
   CirclePlus,
   Copy,
   ExternalLink,
-  GitMerge,
   Link2,
   Maximize2,
   Minimize2,
   Redo2,
   RotateCcw,
+  Sparkles,
   Trash2,
   Undo2,
   X,
@@ -60,6 +60,12 @@ import {
   getRecipeMetadata,
   type RecipeExplorerData,
 } from "../data/factoriolab";
+import {
+  getCompatibleGraphConnections,
+  getGraphEdgeId,
+  type GraphConnectionCandidate,
+  type GraphConnectionNode,
+} from "../graph-connections";
 import type {
   GraphEdgeRoute,
   GraphEdgePorts,
@@ -596,20 +602,15 @@ export function LayoutGraphDialog({
     setPendingConnection(null);
   }
 
-  function smartMergeRelay(node: GraphFlowNode) {
-    if (node.data.kind !== "relay") {
-      return;
-    }
+  function smartLinkNode(node: GraphFlowNode) {
+    const edgeItems = getSmartLinkEdgeItems(node, graph.nodes);
 
-    const itemKeys = node.data.materials.map((material) => getEntityKey(material));
-    const egressEdges = getRelayEgressEdges(node.id, itemKeys, graph.nodes);
-
-    if (!egressEdges.length) {
+    if (!edgeItems.length) {
       return;
     }
 
     onGraphEditStart();
-    for (const edge of egressEdges) {
+    for (const edge of edgeItems) {
       onEdgeItemsChange(edge.edgeId, edge.itemKeys);
     }
   }
@@ -764,7 +765,7 @@ export function LayoutGraphDialog({
             onApplyNodeChanges={applyNodeToolbarChanges}
             onDeleteRelay={deleteRelay}
             onResetEdgeItems={resetEdgeItems}
-            onSmartMergeRelay={smartMergeRelay}
+            onSmartLinkNode={smartLinkNode}
             onToggleConnectMode={toggleConnectMode}
             onTogglePendingConnectionItem={togglePendingConnectionItem}
           />
@@ -1065,7 +1066,7 @@ interface GraphHeaderToolbarProps {
   onCreateRelayFromEdges(): void;
   onDeleteRelay(relayId: string): void;
   onResetEdgeItems(edgeId: string): void;
-  onSmartMergeRelay(node: GraphFlowNode): void;
+  onSmartLinkNode(node: GraphFlowNode): void;
   onToggleConnectMode(nodeId: string): void;
   onTogglePendingConnectionItem(itemKey: string): void;
 }
@@ -1088,7 +1089,7 @@ function GraphHeaderToolbar({
   onCreateRelayFromEdges,
   onDeleteRelay,
   onResetEdgeItems,
-  onSmartMergeRelay,
+  onSmartLinkNode,
   onToggleConnectMode,
   onTogglePendingConnectionItem,
 }: GraphHeaderToolbarProps) {
@@ -1177,7 +1178,7 @@ function GraphHeaderToolbar({
         nodeHasTerminalOverrides={nodeHasTerminalOverrides}
         onApplyNodeChanges={onApplyNodeChanges}
         onDeleteRelay={onDeleteRelay}
-        onSmartMergeRelay={onSmartMergeRelay}
+        onSmartLinkNode={onSmartLinkNode}
         onToggleConnectMode={onToggleConnectMode}
       />
     );
@@ -1205,7 +1206,7 @@ interface GraphNodeToolbarProps {
   nodeHasTerminalOverrides: boolean;
   onApplyNodeChanges(node: GraphFlowNode, changes: GraphNodeToolbarChanges): void;
   onDeleteRelay(relayId: string): void;
-  onSmartMergeRelay(node: GraphFlowNode): void;
+  onSmartLinkNode(node: GraphFlowNode): void;
   onToggleConnectMode(nodeId: string): void;
 }
 
@@ -1216,7 +1217,7 @@ function GraphNodeToolbar({
   nodeHasTerminalOverrides,
   onApplyNodeChanges,
   onDeleteRelay,
-  onSmartMergeRelay,
+  onSmartLinkNode,
   onToggleConnectMode,
 }: GraphNodeToolbarProps) {
   const label = node.data.label;
@@ -1421,17 +1422,15 @@ function GraphNodeToolbar({
           <Trash2 size={16} aria-hidden="true" />
         </button>
       ) : null}
-      {node.data.kind === "relay" ? (
-        <button
-          aria-label={`Smart merge ${label}`}
-          className="icon-button layout-graph-toolbar__button"
-          data-tooltip="Smart merge"
-          type="button"
-          onClick={() => onSmartMergeRelay(node)}
-        >
-          <GitMerge size={16} aria-hidden="true" />
-        </button>
-      ) : null}
+      <button
+        aria-label={`Smart link ${label}`}
+        className="icon-button layout-graph-toolbar__button"
+        data-tooltip="Smart link"
+        type="button"
+        onClick={() => onSmartLinkNode(node)}
+      >
+        <Sparkles size={16} aria-hidden="true" />
+      </button>
       <button
         aria-label={isConnecting ? "Cancel connect mode" : `Connect ${label}`}
         aria-pressed={isConnecting}
@@ -2614,15 +2613,11 @@ function GraphBoundaryTerminals({
   );
 }
 
-interface GraphNodeModel {
-  id: string;
-  ingredients: IngredientPrototype[];
+interface GraphNodeModel extends GraphConnectionNode {
   kind: "recipe" | "relay";
-  label: string;
   materials: ProductPrototype[];
   recipe?: RecipePrototype;
   relay?: GraphRelay;
-  results: ProductPrototype[];
   subtitle: string;
   externalInputOptions: GraphExternalItemOption[];
   externalInputs: IngredientPrototype[];
@@ -2647,15 +2642,6 @@ interface GraphEdgeDraft {
   targetId: string;
   sourceId: string;
   items: ProductPrototype[];
-}
-
-interface GraphConnectionCandidate {
-  availableItems: ProductPrototype[];
-  id: string;
-  sourceId: string;
-  sourceName: string;
-  targetId: string;
-  targetName: string;
 }
 
 interface LayoutGraphModel {
@@ -2877,63 +2863,35 @@ function buildGraphEdgeDrafts(
   connectionCandidates: GraphConnectionCandidate[];
 } {
   const activeEdges: GraphEdgeDraft[] = [];
-  const connectionCandidates: GraphConnectionCandidate[] = [];
+  const connectionCandidates = getCompatibleGraphConnections(nodes);
 
-  for (const source of nodes) {
-    const results = source.results;
+  for (const candidate of connectionCandidates) {
+    const hasItemOverride = Object.prototype.hasOwnProperty.call(
+      edgeItems,
+      candidate.id,
+    );
+    const selectedItemKeys = hasItemOverride
+      ? new Set(edgeItems[candidate.id])
+      : null;
+    const items = selectedItemKeys
+      ? candidate.availableItems.filter((item) => selectedItemKeys.has(getEntityKey(item)))
+      : candidate.availableItems;
 
-    for (const target of nodes) {
-      if (target.id === source.id) {
-        continue;
-      }
-
-      const ingredients = target.ingredients;
-      const availableItems = uniqueProducts(
-        results.filter((result) =>
-          ingredients.some((ingredient) => entitiesCanFlow(result, ingredient)),
-        ),
-      );
-
-      if (!availableItems.length) {
-        continue;
-      }
-
-      const id = getGraphEdgeId(source.id, target.id);
-      const hasItemOverride = Object.prototype.hasOwnProperty.call(edgeItems, id);
-      const selectedItemKeys = hasItemOverride
-        ? new Set(edgeItems[id])
-        : null;
-      const items = selectedItemKeys
-        ? availableItems.filter((item) => selectedItemKeys.has(getEntityKey(item)))
-        : availableItems;
-
-      connectionCandidates.push({
-        availableItems,
-        id,
-        sourceId: source.id,
-        sourceName: getGraphNodeName(source),
-        targetId: target.id,
-        targetName: getGraphNodeName(target),
+    if (items.length) {
+      activeEdges.push({
+        availableItems: candidate.availableItems,
+        hasItemOverride,
+        id: candidate.id,
+        sourceId: candidate.sourceId,
+        targetId: candidate.targetId,
+        items,
       });
-
-      if (items.length) {
-        activeEdges.push({
-          availableItems,
-          hasItemOverride,
-          id,
-          sourceId: source.id,
-          targetId: target.id,
-          items,
-        });
-      }
     }
   }
 
   return {
     activeEdges: activeEdges.sort((left, right) => left.id.localeCompare(right.id)),
-    connectionCandidates: connectionCandidates.sort((left, right) =>
-      left.id.localeCompare(right.id),
-    ),
+    connectionCandidates,
   };
 }
 
@@ -3426,33 +3384,84 @@ function getRelayEgressEdges(
     return [];
   }
 
-  return nodes.flatMap((target) => {
-    if (target.id === relayId) {
-      return [];
+  const relayNode: GraphConnectionNode = {
+    id: relayId,
+    ingredients: relayProducts.map(productToIngredient),
+    label: "Relay",
+    results: relayProducts,
+  };
+
+  return getCompatibleGraphConnections(
+    [relayNode],
+    nodes.map(getGraphFlowConnectionNode),
+  ).map(graphConnectionToEdgeItems);
+}
+
+function getSmartLinkEdgeItems(
+  node: GraphFlowNode,
+  nodes: GraphFlowNode[],
+): Array<{ edgeId: string; itemKeys: string[] }> {
+  const connectionNode = getGraphFlowConnectionNode(node);
+  const graphNodes = nodes.map(getGraphFlowConnectionNode);
+  const connections =
+    node.data.kind === "relay"
+      ? getCompatibleGraphConnections([connectionNode], graphNodes)
+      : [
+          ...getCompatibleGraphConnections([connectionNode], graphNodes),
+          ...getCompatibleGraphConnections(graphNodes, [connectionNode]),
+        ];
+
+  return uniqueGraphEdgeItems(connections.map(graphConnectionToEdgeItems));
+}
+
+function graphConnectionToEdgeItems(
+  connection: GraphConnectionCandidate,
+): { edgeId: string; itemKeys: string[] } {
+  return {
+    edgeId: connection.id,
+    itemKeys: connection.availableItems.map((item) => getEntityKey(item)),
+  };
+}
+
+function uniqueGraphEdgeItems(
+  edgeItems: Array<{ edgeId: string; itemKeys: string[] }>,
+): Array<{ edgeId: string; itemKeys: string[] }> {
+  const itemKeysByEdgeId = new Map<string, Set<string>>();
+
+  for (const edgeItem of edgeItems) {
+    const itemKeys = itemKeysByEdgeId.get(edgeItem.edgeId) ?? new Set<string>();
+
+    for (const itemKey of edgeItem.itemKeys) {
+      itemKeys.add(itemKey);
     }
 
-    const ingredients = getGraphFlowNodeIngredients(target);
-    const availableItems = uniqueProducts(
-      relayProducts.filter((product) =>
-        ingredients.some((ingredient) => entitiesCanFlow(product, ingredient)),
-      ),
-    );
+    itemKeysByEdgeId.set(edgeItem.edgeId, itemKeys);
+  }
 
-    return availableItems.length
-      ? [
-          {
-            edgeId: getGraphEdgeId(relayId, target.id),
-            itemKeys: availableItems.map((item) => getEntityKey(item)),
-          },
-        ]
-      : [];
-  });
+  return [...itemKeysByEdgeId.entries()]
+    .map(([edgeId, itemKeys]) => ({ edgeId, itemKeys: [...itemKeys] }))
+    .sort((left, right) => left.edgeId.localeCompare(right.edgeId));
+}
+
+function getGraphFlowConnectionNode(node: GraphFlowNode): GraphConnectionNode {
+  return {
+    id: node.id,
+    ingredients: getGraphFlowNodeIngredients(node),
+    label: node.data.label,
+    results: getGraphFlowNodeResults(node),
+  };
 }
 
 function getGraphFlowNodeIngredients(node: GraphFlowNode): IngredientPrototype[] {
   return node.data.kind === "recipe"
     ? (node.data.recipe.ingredients ?? [])
     : node.data.materials.map(productToIngredient);
+}
+
+function getGraphFlowNodeResults(node: GraphFlowNode): ProductPrototype[] {
+  return node.data.kind === "recipe"
+    ? (node.data.recipe.results ?? [])
+    : node.data.materials;
 }
 
 function addReplacementEdgeItems(
@@ -3521,10 +3530,6 @@ function formatGraphEntityList(
   return hiddenCount > 0
     ? `${visibleLabels.join(", ")} +${hiddenCount}`
     : visibleLabels.join(", ");
-}
-
-function getGraphEdgeId(sourceId: string, targetId: string): string {
-  return `${sourceId}->${targetId}`;
 }
 
 function getGraphHandleId(kind: "source" | "target", side: GraphSide): string {

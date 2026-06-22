@@ -5,7 +5,11 @@ import {
   Database,
   Package,
 } from "lucide-react";
-import type { RecipePrototype } from "../factorio/prototypes";
+import type {
+  IngredientPrototype,
+  ProductPrototype,
+  RecipePrototype,
+} from "../factorio/prototypes";
 import {
   explorerData,
   getIconIdForItem,
@@ -43,6 +47,10 @@ import {
   parseCompactLayoutState,
   serializeCompactLayoutState,
 } from "./layout-url-codec";
+import {
+  getCompatibleGraphConnections,
+  type GraphConnectionNode,
+} from "./graph-connections";
 import {
   getMachineModuleCapacity,
   getRecipeModuleOptions,
@@ -253,7 +261,9 @@ export function App() {
   }
 
   function addRecipeToFocusedLayout(recipeId: string) {
-    if (!focusedLayout || !recipeData.recipeById.has(recipeId)) {
+    const recipe = recipeData.recipeById.get(recipeId);
+
+    if (!focusedLayout || !recipe) {
       return;
     }
 
@@ -263,7 +273,20 @@ export function App() {
     setLayouts((currentLayouts) =>
       currentLayouts.map((layout) =>
         layout.id === focusedLayout.id
-          ? { ...layout, collapsed: false, entries: [...layout.entries, entry] }
+          ? {
+              ...layout,
+              collapsed: false,
+              edgeItems: {
+                ...layout.edgeItems,
+                ...createHiddenEdgeItemsForNewRecipe(
+                  layout,
+                  entry,
+                  recipe,
+                  recipeData.recipeById,
+                ),
+              },
+              entries: [...layout.entries, entry],
+            }
           : layout,
       ),
     );
@@ -2205,6 +2228,69 @@ function createLayoutEntry(recipeId: string): RecipeLayoutEntry {
   };
 }
 
+function createHiddenEdgeItemsForNewRecipe(
+  layout: RecipeLayout,
+  entry: RecipeLayoutEntry,
+  recipe: RecipePrototype,
+  recipeById: ReadonlyMap<string, RecipePrototype>,
+): Record<string, string[]> {
+  const newNode = createRecipeGraphConnectionNode(entry.id, recipe);
+  const existingNodes = getLayoutGraphConnectionNodes(layout, recipeById);
+  const hiddenEdgeItems: Record<string, string[]> = {};
+
+  for (const connection of [
+    ...getCompatibleGraphConnections([newNode], existingNodes),
+    ...getCompatibleGraphConnections(existingNodes, [newNode]),
+  ]) {
+    hiddenEdgeItems[connection.id] = [];
+  }
+
+  return hiddenEdgeItems;
+}
+
+function getLayoutGraphConnectionNodes(
+  layout: RecipeLayout,
+  recipeById: ReadonlyMap<string, RecipePrototype>,
+): GraphConnectionNode[] {
+  return [
+    ...layout.entries.flatMap((entry) => {
+      const recipe = recipeById.get(entry.recipeId);
+
+      return recipe ? [createRecipeGraphConnectionNode(entry.id, recipe)] : [];
+    }),
+    ...layout.relays.flatMap(createRelayGraphConnectionNode),
+  ];
+}
+
+function createRecipeGraphConnectionNode(
+  entryId: string,
+  recipe: RecipePrototype,
+): GraphConnectionNode {
+  return {
+    id: entryId,
+    ingredients: recipe.ingredients ?? [],
+    label: getRecipeMetadata(recipe).name,
+    results: recipe.results ?? [],
+  };
+}
+
+function createRelayGraphConnectionNode(relay: GraphRelay): GraphConnectionNode[] {
+  const results = uniqueProducts(
+    relay.itemKeys.flatMap((itemKey) => productFromEntityKey(itemKey) ?? []),
+  );
+
+  return results.length
+    ? [
+        {
+          id: relay.id,
+          ingredients: results.map(productToIngredient),
+          label: "Relay",
+          results,
+        },
+      ]
+    : [];
+}
+
 function serializeLayoutEntry(entry: RecipeLayoutEntry): unknown[] {
   const productionSize = normalizeProductionSize(entry.productionSize);
   const factorySettings = serializeLayoutEntryFactorySettings(entry);
@@ -2671,6 +2757,58 @@ function parseOrderedStringList(value: unknown): string[] {
 function sanitizeLayoutIconIds(iconIds: readonly string[] | undefined): string[] {
   return uniqueOrderedStrings([...(iconIds ?? [])])
     .filter((iconId) => explorerData.iconById.has(iconId));
+}
+
+function productFromEntityKey(itemKey: string): ProductPrototype | null {
+  const entity = parseEntityKey(itemKey);
+
+  if (!entity) {
+    return null;
+  }
+
+  return entity.type === "item"
+    ? { type: "item", name: entity.name, amount: 1 }
+    : { type: "fluid", name: entity.name, amount: 1 };
+}
+
+function productToIngredient(product: ProductPrototype): IngredientPrototype {
+  return product.type === "item"
+    ? { type: "item", name: product.name, amount: 1 }
+    : { type: "fluid", name: product.name, amount: 1 };
+}
+
+function parseEntityKey(itemKey: string): { type: "item" | "fluid"; name: string } | null {
+  const separator = itemKey.indexOf(":");
+
+  if (separator <= 0 || separator >= itemKey.length - 1) {
+    return null;
+  }
+
+  const type = itemKey.slice(0, separator);
+
+  if (type !== "item" && type !== "fluid") {
+    return null;
+  }
+
+  return {
+    type,
+    name: itemKey.slice(separator + 1),
+  };
+}
+
+function uniqueProducts(entries: ProductPrototype[]): ProductPrototype[] {
+  const seen = new Set<string>();
+
+  return entries.filter((entry) => {
+    const key = `${entry.type}:${entry.name}`;
+
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
 }
 
 function uniqueOrderedStrings(values: string[]): string[] {
