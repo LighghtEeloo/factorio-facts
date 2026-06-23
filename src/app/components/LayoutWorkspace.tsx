@@ -2,11 +2,13 @@ import {
   ArrowRight,
   Boxes,
   BookmarkPlus,
+  Check,
   ChevronDown,
   ExternalLink,
   GripVertical,
   Import,
   Network,
+  Package,
   PackageOpen,
   Plus,
   RotateCcw,
@@ -86,6 +88,7 @@ interface LayoutWorkspaceProps {
     iconIds: string[],
     hiddenIconIds: string[],
   ): void;
+  onOpenItemSelector(): void;
   onOpenLayoutGraph(layoutId: string): void;
   onRecipeBeaconsChange(
     layoutId: string,
@@ -124,6 +127,7 @@ export function LayoutWorkspace({
   onImportLayout,
   onInstallLayout,
   onLayoutIconSettingsChange,
+  onOpenItemSelector,
   onOpenLayoutGraph,
   onRecipeBeaconsChange,
   onRecipeMachineChange,
@@ -144,6 +148,7 @@ export function LayoutWorkspace({
     useState<string | null>(null);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [exportText, setExportText] = useState<string | null>(null);
+  const [isDeleteConfirming, setIsDeleteConfirming] = useState(false);
   const inspectorRef = useRef<HTMLElement | null>(null);
   const focusedLayout =
     layouts.find((layout) => layout.id === focusedLayoutId) ?? layouts[0] ?? null;
@@ -212,6 +217,10 @@ export function LayoutWorkspace({
     inspectorRef.current?.focus();
     setPendingInspectorFocusEntryId(null);
   }, [focusedLayout?.entries, pendingInspectorFocusEntryId, selectedEntry?.id]);
+
+  useEffect(() => {
+    setIsDeleteConfirming(false);
+  }, [focusedLayout?.id]);
 
   useEffect(() => {
     if (!draggedEntryId || !focusedLayout) {
@@ -300,6 +309,55 @@ export function LayoutWorkspace({
     }
   }
 
+  function confirmDeleteLayout() {
+    if (!focusedLayout) {
+      return;
+    }
+
+    onDeleteLayout(focusedLayout.id);
+    setIsDeleteConfirming(false);
+  }
+
+  function renderDeleteControl() {
+    return isDeleteConfirming ? (
+      <div
+        aria-label="Confirm layout delete"
+        className="layout-inline-confirm"
+        role="group"
+      >
+        <span className="layout-inline-confirm__label">Delete?</span>
+        <button
+          aria-label="Confirm layout delete"
+          className="icon-button layout-inline-confirm__button"
+          data-tooltip="Confirm delete"
+          type="button"
+          onClick={confirmDeleteLayout}
+        >
+          <Check size={16} aria-hidden="true" />
+        </button>
+        <button
+          aria-label="Cancel layout delete"
+          className="icon-button layout-inline-confirm__button"
+          data-tooltip="Cancel delete"
+          type="button"
+          onClick={() => setIsDeleteConfirming(false)}
+        >
+          <X size={16} aria-hidden="true" />
+        </button>
+      </div>
+    ) : (
+      <button
+        aria-label="Delete layout"
+        className="icon-button"
+        data-tooltip="Delete layout"
+        type="button"
+        onClick={() => setIsDeleteConfirming(true)}
+      >
+        <Trash2 size={18} aria-hidden="true" />
+      </button>
+    );
+  }
+
   const layoutEditorStyle = {
     "--layout-editor-machine-width": `${getLayoutMachineSelectionWidth(
       data,
@@ -354,17 +412,7 @@ export function LayoutWorkspace({
         </div>
         <div className="layout-workspace__actions">
           {!focusedLayout.entries.length ? (
-            <>
-              <button
-                aria-label="Delete layout"
-                className="icon-button"
-                data-tooltip="Delete layout"
-                type="button"
-                onClick={() => onDeleteLayout(focusedLayout.id)}
-              >
-                <Trash2 size={18} aria-hidden="true" />
-              </button>
-            </>
+            renderDeleteControl()
           ) : (
             <>
               <button
@@ -377,15 +425,6 @@ export function LayoutWorkspace({
                 <ExternalLink size={18} aria-hidden="true" />
               </button>
               <button
-                aria-label="Install as recipe"
-                className="icon-button"
-                data-tooltip="Install as recipe"
-                type="button"
-                onClick={() => onInstallLayout(focusedLayout.id)}
-              >
-                <BookmarkPlus size={18} aria-hidden="true" />
-              </button>
-              <button
                 aria-label="Open layout graph"
                 className="icon-button"
                 data-tooltip="Open graph"
@@ -394,6 +433,16 @@ export function LayoutWorkspace({
               >
                 <Network size={18} aria-hidden="true" />
               </button>
+              <button
+                aria-label="Install as recipe"
+                className="icon-button"
+                data-tooltip="Install as recipe"
+                type="button"
+                onClick={() => onInstallLayout(focusedLayout.id)}
+              >
+                <BookmarkPlus size={18} aria-hidden="true" />
+              </button>
+              {renderDeleteControl()}
             </>
           )}
         </div>
@@ -466,14 +515,24 @@ export function LayoutWorkspace({
                   <h2>No recipes yet</h2>
                   <span>Empty layout</span>
                 </div>
-                <button
-                  className="primary-action-button"
-                  type="button"
-                  onClick={openImportDialog}
-                >
-                  <Import size={18} aria-hidden="true" />
-                  Import layout
-                </button>
+                <div className="layout-editor__empty-actions">
+                  <button
+                    className="primary-action-button"
+                    type="button"
+                    onClick={onOpenItemSelector}
+                  >
+                    <Package size={18} aria-hidden="true" />
+                    Select item
+                  </button>
+                  <button
+                    className="secondary-action-button"
+                    type="button"
+                    onClick={openImportDialog}
+                  >
+                    <Import size={18} aria-hidden="true" />
+                    Import layout
+                  </button>
+                </div>
               </div>
             )}
           </div>

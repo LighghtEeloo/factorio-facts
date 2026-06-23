@@ -115,6 +115,7 @@ export function App() {
   const initialUrlState = useMemo(readAppStateFromUrl, []);
   const [activeView, setActiveView] = useState<AppView>(initialUrlState.activeView);
   const [selectedItemId, setSelectedItemId] = useState(initialUrlState.selectedItemId);
+  const [itemSelectorRequest, setItemSelectorRequest] = useState(0);
   const [filters, setFilters] = useState<FilterState>(initialUrlState.filters);
   const [focusedLayoutId, setFocusedLayoutId] = useState(initialUrlState.focusedLayoutId);
   const [layouts, setLayouts] = useState<RecipeLayout[]>(initialUrlState.layouts);
@@ -210,6 +211,11 @@ export function App() {
   function selectItem(itemId: string) {
     setSelectedItemId(itemId);
     setActiveView("recipes");
+  }
+
+  function openItemSelector() {
+    setActiveView("recipes");
+    setItemSelectorRequest((currentRequest) => currentRequest + 1);
   }
 
   function createLayout() {
@@ -1131,6 +1137,7 @@ export function App() {
         focusedLayoutId={focusedLayout?.id ?? defaultLayoutId}
         getInstalledRecipeReferenceCount={getInstalledRecipeReferenceCount}
         installedRecipes={installedRecipes}
+        itemSelectorRequest={itemSelectorRequest}
         layouts={layouts}
         onAddInstalledRecipeToLayout={addRecipeToFocusedLayout}
         onCreateLayout={createLayout}
@@ -1233,6 +1240,7 @@ export function App() {
             onExportLayout={exportLayout}
             onImportLayout={importLayout}
             onInstallLayout={installLayout}
+            onOpenItemSelector={openItemSelector}
             onOpenLayoutGraph={openLayoutGraph}
             onRecipeBeaconsChange={updateRecipeBeacons}
             onRecipeMachineChange={updateRecipeMachine}

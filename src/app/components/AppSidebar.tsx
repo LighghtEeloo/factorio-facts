@@ -49,6 +49,7 @@ interface AppSidebarProps {
   data: RecipeExplorerData;
   focusedLayoutId: string;
   installedRecipes: InstalledLayoutRecipe[];
+  itemSelectorRequest: number;
   layouts: RecipeLayout[];
   selectedItemId: string | null;
   getInstalledRecipeReferenceCount(recipeId: string): number;
@@ -73,6 +74,7 @@ export function AppSidebar({
   focusedLayoutId,
   getInstalledRecipeReferenceCount,
   installedRecipes,
+  itemSelectorRequest,
   layouts,
   onAddInstalledRecipeToLayout,
   selectedItemId,
@@ -108,6 +110,12 @@ export function AppSidebar({
       setIsSelectorOpen(true);
     }
   }, [selectedItemId]);
+
+  useEffect(() => {
+    if (itemSelectorRequest > 0) {
+      setIsSelectorOpen(true);
+    }
+  }, [itemSelectorRequest]);
 
   useEffect(() => {
     if (!isSelectorOpen) {
