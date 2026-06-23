@@ -132,7 +132,7 @@ When an edge is focused, its source and target nodes show clickable endpoint tar
 
 ### Graph Toolbar
 
-The graph view header has a contextual node/edge toolbar centered between the layout title and the graph actions. Its job is to expose semantic graph edits without adding another floating inspector panel to the canvas. The graph itself should remain a spatial planning surface: nodes, edges, terminal sets, endpoint handles, and bend handles stay close to the objects they affect, while the toolbar provides the compact list-editing controls that would be too noisy if repeated on every node or edge.
+The graph view header has a contextual node/edge toolbar centered between the layout title and the graph actions. The graph title block mirrors the layout editor header with the composite icon, inferred title, boundary summary, and recipe count, and the header keeps a stable layout-editor-height row even when no contextual toolbar is active. Its job is to expose semantic graph edits without adding another floating inspector panel to the canvas. The graph itself should remain a spatial planning surface: nodes, edges, terminal sets, endpoint handles, and bend handles stay close to the objects they affect, while the toolbar provides the compact list-editing controls that would be too noisy if repeated on every node or edge.
 
 The toolbar follows the current graph focus state:
 

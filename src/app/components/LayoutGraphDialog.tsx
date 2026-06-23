@@ -60,7 +60,11 @@ import {
   getRecipeMetadata,
   type RecipeExplorerData,
 } from "../data/factoriolab";
-import { getRecipeLayoutTitle } from "../composite-recipes";
+import {
+  getCompositeRecipeIconIds,
+  getRecipeLayoutTitle,
+  inferLayoutCompositeBoundary,
+} from "../composite-recipes";
 import {
   getCompatibleGraphConnections,
   getGraphEdgeId,
@@ -79,7 +83,7 @@ import type {
   RecipeLayoutEntry,
 } from "../types";
 import { IconSprite } from "./IconSprite";
-import { RecipeIcon } from "./RecipeIcon";
+import { CompositeRecipeIcon, RecipeIcon } from "./RecipeIcon";
 
 const graphColumnGap = 310;
 const graphBaseX = 96;
@@ -494,7 +498,21 @@ export function LayoutGraphDialog({
     Object.keys(layout.edgeItems).length > 0 ||
     Object.keys(layout.externalItems).length > 0 ||
     Object.keys(layout.terminalSides).length > 0;
-  const title = getRecipeLayoutTitle(data, layout);
+  const compositeBoundary = useMemo(
+    () => inferLayoutCompositeBoundary(layout, data.recipeById),
+    [data.recipeById, layout],
+  );
+  const title = getRecipeLayoutTitle(data, layout, compositeBoundary.results);
+  const compositeIconIds = getCompositeRecipeIconIds(
+    data,
+    compositeBoundary.results,
+    layout.iconIds,
+    layout.hiddenIconIds,
+  );
+  const compositeIconEntries = compositeIconIds.map((iconId) => ({
+    icon: data.iconById.get(iconId),
+    label: data.itemById.get(iconId)?.name ?? formatId(iconId),
+  }));
 
   useEffect(() => {
     setNodes(graph.nodes);
@@ -792,11 +810,28 @@ export function LayoutGraphDialog({
         role={isWorkspace ? undefined : "dialog"}
       >
         <header className="layout-graph-dialog__header">
-          <div>
-            <h2 id="layout-graph-title">{title}</h2>
-            <span>
-              {layout.entries.length} {layout.entries.length === 1 ? "recipe" : "recipes"}
-            </span>
+          <div className="layout-graph-title">
+            <CompositeRecipeIcon
+              atlas={data.atlas}
+              icons={compositeIconEntries}
+              label={`${title} icon`}
+              size={42}
+            />
+            <div className="layout-graph-title__text">
+              <h2 id="layout-graph-title">{title}</h2>
+              <span className="layout-graph-title__meta">
+                {layout.entries.length ? (
+                  <span>
+                    {compositeBoundary.ingredients.length} in /{" "}
+                    {compositeBoundary.results.length} out
+                  </span>
+                ) : null}
+                <span className="layout-workspace__count">
+                  {layout.entries.length}{" "}
+                  {layout.entries.length === 1 ? "recipe" : "recipes"}
+                </span>
+              </span>
+            </div>
           </div>
           <GraphHeaderToolbar
             connectingFromNodeId={connectingFromNodeId}

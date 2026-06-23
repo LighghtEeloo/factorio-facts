@@ -2670,6 +2670,7 @@ button {
   align-items: center;
   gap: 12px;
   min-width: 0;
+  min-height: 72px;
 }
 
 .layout-graph-dialog__header > :first-child {
@@ -2680,19 +2681,44 @@ button {
   justify-self: end;
 }
 
-.layout-graph-dialog__header h2 {
+.layout-graph-title {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.layout-graph-title__text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.layout-graph-title h2 {
   overflow: hidden;
   margin: 0;
-  color: #e4d6a7;
-  font-size: 0.96rem;
+  color: #f0eee4;
+  font-size: 1.18rem;
+  font-weight: 700;
   letter-spacing: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.layout-graph-dialog__header span {
-  color: #9f9a86;
-  font-size: 0.76rem;
+.layout-graph-title__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: #a7a18d;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: none;
+}
+
+.layout-graph-title__meta span {
+  min-width: 0;
 }
 
 .layout-graph-dialog__header .layout-graph-reset-confirm__label {
