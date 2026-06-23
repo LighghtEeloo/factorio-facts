@@ -122,6 +122,9 @@ export function App() {
   const [installedRecipes, setInstalledRecipes] = useState<InstalledLayoutRecipe[]>(
     initialUrlState.installedRecipes,
   );
+  const [viewedInstalledRecipeId, setViewedInstalledRecipeId] = useState<string | null>(
+    null,
+  );
   const [graphLayoutId, setGraphLayoutId] = useState<string | null>(
     initialUrlState.graphLayoutId,
   );
@@ -141,6 +144,9 @@ export function App() {
     (graphLayoutId ? layouts.find((layout) => layout.id === graphLayoutId) : null) ??
     (activeView === "graph" ? focusedLayout ?? null : null);
   const graphHistory = graphLayout ? graphHistories[graphLayout.id] : undefined;
+  const viewedInstalledRecipe = viewedInstalledRecipeId
+    ? installedRecipes.find((recipe) => recipe.id === viewedInstalledRecipeId) ?? null
+    : null;
 
   if (!explorerData.items.length) {
     throw new Error("FactorioLab data did not include any items");
@@ -201,6 +207,7 @@ export function App() {
       setLayouts(nextState.layouts);
       setInstalledRecipes(nextState.installedRecipes);
       setGraphLayoutId(nextState.graphLayoutId);
+      setViewedInstalledRecipeId(null);
       setGraphHistories({});
     }
 
@@ -208,12 +215,23 @@ export function App() {
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
+  useEffect(() => {
+    if (
+      viewedInstalledRecipeId &&
+      !installedRecipes.some((recipe) => recipe.id === viewedInstalledRecipeId)
+    ) {
+      setViewedInstalledRecipeId(null);
+    }
+  }, [installedRecipes, viewedInstalledRecipeId]);
+
   function selectItem(itemId: string) {
+    setViewedInstalledRecipeId(null);
     setSelectedItemId(itemId);
     setActiveView("recipes");
   }
 
   function openItemSelector() {
+    setViewedInstalledRecipeId(null);
     setActiveView("recipes");
     setItemSelectorRequest((currentRequest) => currentRequest + 1);
   }
@@ -223,6 +241,7 @@ export function App() {
 
     setLayouts((currentLayouts) => [...currentLayouts, layout]);
     setFocusedLayoutId(layout.id);
+    setViewedInstalledRecipeId(null);
     setActiveView("layouts");
   }
 
@@ -254,6 +273,7 @@ export function App() {
 
   function focusLayout(layoutId: string) {
     setFocusedLayoutId(layoutId);
+    setViewedInstalledRecipeId(null);
 
     if (activeView === "graph") {
       setGraphLayoutId(layoutId);
@@ -262,8 +282,27 @@ export function App() {
 
   function openLayoutGraph(layoutId: string) {
     setFocusedLayoutId(layoutId);
+    setViewedInstalledRecipeId(null);
     setGraphLayoutId(layoutId);
     setActiveView("graph");
+  }
+
+  function openInstalledRecipe(recipeId: string) {
+    if (!installedRecipes.some((recipe) => recipe.id === recipeId)) {
+      return;
+    }
+
+    setViewedInstalledRecipeId(recipeId);
+    setGraphLayoutId(null);
+    setActiveView("layouts");
+  }
+
+  function changeView(view: AppView) {
+    if (view !== "layouts") {
+      setViewedInstalledRecipeId(null);
+    }
+
+    setActiveView(view);
   }
 
   function addRecipeToFocusedLayout(recipeId: string) {
@@ -579,6 +618,7 @@ export function App() {
       : nextLayouts[0]?.id ?? defaultLayoutId;
 
     clearGraphHistory(layoutId);
+    setViewedInstalledRecipeId(null);
     setInstalledRecipes((currentInstalledRecipes) => [
       ...currentInstalledRecipes,
       installedRecipe,
@@ -616,6 +656,7 @@ export function App() {
     setLayouts((currentLayouts) => [...currentLayouts, restoredLayout]);
     setFocusedLayoutId(restoredLayout.id);
     setGraphLayoutId(null);
+    setViewedInstalledRecipeId(null);
     setActiveView("layouts");
   }
 
@@ -693,6 +734,7 @@ export function App() {
         ),
       );
       setFocusedLayoutId(layoutId);
+      setViewedInstalledRecipeId(null);
       clearGraphHistory(layoutId);
       return true;
     } catch {
@@ -728,6 +770,7 @@ export function App() {
       ]);
       setFocusedLayoutId(layoutId);
       setGraphLayoutId(null);
+      setViewedInstalledRecipeId(null);
       setActiveView("layouts");
       clearGraphHistory(layoutId);
       return true;
@@ -1144,11 +1187,13 @@ export function App() {
         onFocusLayout={focusLayout}
         onImportLayout={importLayoutAsNew}
         onInstalledRecipeUnload={unloadInstalledRecipe}
+        onOpenInstalledRecipe={openInstalledRecipe}
         onOpenLayoutGraph={openLayoutGraph}
         onReorderLayout={reorderLayout}
         onSelectItem={selectItem}
-        onViewChange={setActiveView}
+        onViewChange={changeView}
         selectedItemId={selectedItem?.id ?? null}
+        viewedInstalledRecipeId={viewedInstalledRecipeId}
       />
 
       {activeView === "recipes" ? (
@@ -1234,6 +1279,7 @@ export function App() {
           <LayoutWorkspace
             data={recipeData}
             focusedLayoutId={focusedLayout?.id ?? defaultLayoutId}
+            layoutOverride={viewedInstalledRecipe?.layout ?? null}
             layouts={layouts}
             onCreateLayout={createLayout}
             onDeleteLayout={deleteLayout}
@@ -1251,6 +1297,8 @@ export function App() {
             onRenameLayout={renameLayout}
             onReorderRecipeInLayout={reorderRecipeInLayout}
             onSelectItem={selectItem}
+            readOnly={Boolean(viewedInstalledRecipe)}
+            readOnlyLabel="Installed layout"
           />
           <DataFootnote />
         </div>

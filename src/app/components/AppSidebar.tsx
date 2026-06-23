@@ -23,7 +23,6 @@ import type {
   FactorioLabIcon,
   FactorioLabItem,
 } from "../../factoriolab/types";
-import type { RecipePrototype } from "../../factorio/prototypes";
 import {
   getCompositeRecipeIconIds,
   getRecipeLayoutTitle,
@@ -52,12 +51,14 @@ interface AppSidebarProps {
   itemSelectorRequest: number;
   layouts: RecipeLayout[];
   selectedItemId: string | null;
+  viewedInstalledRecipeId: string | null;
   getInstalledRecipeReferenceCount(recipeId: string): number;
   onAddInstalledRecipeToLayout(recipeId: string): void;
   onCreateLayout(): void;
   onFocusLayout(layoutId: string): void;
   onImportLayout(value: string): boolean;
   onInstalledRecipeUnload(recipeId: string): void;
+  onOpenInstalledRecipe(recipeId: string): void;
   onOpenLayoutGraph(layoutId: string): void;
   onReorderLayout(
     sourceLayoutId: string,
@@ -82,10 +83,12 @@ export function AppSidebar({
   onFocusLayout,
   onImportLayout,
   onInstalledRecipeUnload,
+  onOpenInstalledRecipe,
   onOpenLayoutGraph,
   onReorderLayout,
   onSelectItem,
   onViewChange,
+  viewedInstalledRecipeId,
 }: AppSidebarProps) {
   const [isSelectorOpen, setIsSelectorOpen] = useState(selectedItemId === null);
   const [selectorQuery, setSelectorQuery] = useState("");
@@ -277,21 +280,22 @@ export function AppSidebar({
               }
 
               const metadata = getRecipeMetadata(recipe);
-              const contextItemId = getRecipeContextItemId(data, recipe);
               const referenceCount = getInstalledRecipeReferenceCount(installedRecipe.id);
+              const isViewed = installedRecipe.id === viewedInstalledRecipeId;
 
               return (
-                <div className="sidebar-installed-row" key={installedRecipe.id}>
+                <div
+                  className={`sidebar-installed-row ${
+                    isViewed ? "sidebar-installed-row--focused" : ""
+                  }`}
+                  key={installedRecipe.id}
+                >
                   <button
-                    aria-label={`Open ${metadata.name} recipe context`}
+                    aria-label={`Open ${metadata.name} installed layout`}
+                    aria-pressed={isViewed}
                     className="sidebar-installed-row__main"
-                    disabled={!contextItemId}
                     type="button"
-                    onClick={() => {
-                      if (contextItemId) {
-                        onSelectItem(contextItemId);
-                      }
-                    }}
+                    onClick={() => onOpenInstalledRecipe(installedRecipe.id)}
                   >
                     <RecipeIcon data={data} recipe={recipe} size={26} />
                     <span>
@@ -559,19 +563,6 @@ function getLayoutCompositeIconEntries(
     icon: data.iconById.get(iconId),
     label: data.itemById.get(iconId)?.name ?? formatId(iconId),
   }));
-}
-
-function getRecipeContextItemId(
-  data: RecipeExplorerData,
-  recipe: RecipePrototype,
-): string | null {
-  const resultItem = recipe.results?.find((entry) => data.itemById.has(entry.name));
-
-  if (resultItem) {
-    return resultItem.name;
-  }
-
-  return recipe.ingredients?.find((entry) => data.itemById.has(entry.name))?.name ?? null;
 }
 
 function groupItemsByCategory(

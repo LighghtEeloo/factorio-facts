@@ -81,6 +81,7 @@ import { RecipeMetaPills } from "./RecipeMetaPills";
 interface LayoutWorkspaceProps {
   data: RecipeExplorerData;
   focusedLayoutId: string;
+  layoutOverride?: RecipeLayout | null;
   layouts: RecipeLayout[];
   onCreateLayout(): void;
   onDeleteLayout(layoutId: string): void;
@@ -119,11 +120,14 @@ interface LayoutWorkspaceProps {
     placement: LayoutReorderPlacement,
   ): void;
   onSelectItem(itemId: string): void;
+  readOnly?: boolean;
+  readOnlyLabel?: string;
 }
 
 export function LayoutWorkspace({
   data,
   focusedLayoutId,
+  layoutOverride = null,
   layouts,
   onCreateLayout,
   onDeleteLayout,
@@ -141,6 +145,8 @@ export function LayoutWorkspace({
   onRenameLayout,
   onReorderRecipeInLayout,
   onSelectItem,
+  readOnly = false,
+  readOnlyLabel = "Read only",
 }: LayoutWorkspaceProps) {
   const [draggedEntryId, setDraggedEntryId] = useState<string | null>(null);
   const [entryDropTarget, setEntryDropTarget] = useState<{
@@ -155,7 +161,10 @@ export function LayoutWorkspace({
   const [isDeleteConfirming, setIsDeleteConfirming] = useState(false);
   const inspectorRef = useRef<HTMLElement | null>(null);
   const focusedLayout =
-    layouts.find((layout) => layout.id === focusedLayoutId) ?? layouts[0] ?? null;
+    layoutOverride ??
+    layouts.find((layout) => layout.id === focusedLayoutId) ??
+    layouts[0] ??
+    null;
   const selectedEntry =
     focusedLayout?.entries.find((entry) => entry.id === selectedEntryId) ??
     focusedLayout?.entries[0] ??
@@ -227,7 +236,19 @@ export function LayoutWorkspace({
   }, [focusedLayout?.id]);
 
   useEffect(() => {
-    if (!draggedEntryId || !focusedLayout) {
+    if (!readOnly) {
+      return;
+    }
+
+    setDraggedEntryId(null);
+    setEntryDropTarget(null);
+    setIsDeleteConfirming(false);
+    setIsImportDialogOpen(false);
+    setExportText(null);
+  }, [focusedLayout?.id, readOnly]);
+
+  useEffect(() => {
+    if (readOnly || !draggedEntryId || !focusedLayout) {
       return;
     }
 
@@ -273,7 +294,7 @@ export function LayoutWorkspace({
       document.removeEventListener("pointermove", handlePointerMove);
       document.removeEventListener("pointerup", handlePointerUp);
     };
-  }, [draggedEntryId, entryDropTarget, focusedLayout, onReorderRecipeInLayout]);
+  }, [draggedEntryId, entryDropTarget, focusedLayout, onReorderRecipeInLayout, readOnly]);
 
   if (!focusedLayout) {
     return (
@@ -294,6 +315,10 @@ export function LayoutWorkspace({
   }
 
   function openImportDialog() {
+    if (readOnly) {
+      return;
+    }
+
     setIsImportDialogOpen(true);
   }
 
@@ -314,7 +339,7 @@ export function LayoutWorkspace({
   }
 
   function confirmDeleteLayout() {
-    if (!focusedLayout) {
+    if (readOnly || !focusedLayout) {
       return;
     }
 
@@ -323,6 +348,10 @@ export function LayoutWorkspace({
   }
 
   function renderDeleteControl() {
+    if (readOnly) {
+      return null;
+    }
+
     return isDeleteConfirming ? (
       <div
         aria-label="Confirm layout delete"
@@ -374,7 +403,9 @@ export function LayoutWorkspace({
       <LayoutWorkbenchHeader
         panel
         actions={
-          !focusedLayout.entries.length ? (
+          readOnly ? (
+            <span className="layout-readonly-badge">{readOnlyLabel}</span>
+          ) : !focusedLayout.entries.length ? (
             renderDeleteControl()
           ) : (
             <>
@@ -413,22 +444,31 @@ export function LayoutWorkspace({
           <LayoutWorkbenchTitle
             icon={
               focusedLayout.entries.length ? (
-                <CompositeIconEditor
-                  customIconIds={focusedLayout.iconIds}
-                  data={data}
-                  hiddenIconIds={focusedLayout.hiddenIconIds}
-                  icons={compositeIconEntries}
-                  orderedIcons={compositeOrderedIconEntries}
-                  title={title}
-                  visibleIconCount={compositeVisibleIconIds.length}
-                  onChange={(iconIds, hiddenIconIds) =>
-                    onLayoutIconSettingsChange(
-                      focusedLayout.id,
-                      iconIds,
-                      hiddenIconIds,
-                    )
-                  }
-                />
+                readOnly ? (
+                  <CompositeRecipeIcon
+                    atlas={data.atlas}
+                    icons={compositeIconEntries}
+                    label={`${title} icon`}
+                    size={42}
+                  />
+                ) : (
+                  <CompositeIconEditor
+                    customIconIds={focusedLayout.iconIds}
+                    data={data}
+                    hiddenIconIds={focusedLayout.hiddenIconIds}
+                    icons={compositeIconEntries}
+                    orderedIcons={compositeOrderedIconEntries}
+                    title={title}
+                    visibleIconCount={compositeVisibleIconIds.length}
+                    onChange={(iconIds, hiddenIconIds) =>
+                      onLayoutIconSettingsChange(
+                        focusedLayout.id,
+                        iconIds,
+                        hiddenIconIds,
+                      )
+                    }
+                  />
+                )
               ) : (
                 <Boxes size={42} aria-hidden="true" />
               )
@@ -449,7 +489,12 @@ export function LayoutWorkspace({
             }
             name={focusedLayout.name}
             title={title}
-            onNameChange={(name) => onRenameLayout(focusedLayout.id, name)}
+            {...(readOnly
+              ? {}
+              : {
+                  onNameChange: (name: string) =>
+                    onRenameLayout(focusedLayout.id, name),
+                })}
           />
         }
       />
@@ -489,8 +534,13 @@ export function LayoutWorkspace({
                     index={index}
                     key={entry.id}
                     recipe={recipe}
+                    readOnly={readOnly}
                     selected={selectedEntry?.id === entry.id}
                     onDragStart={() => {
+                      if (readOnly) {
+                        return;
+                      }
+
                       setDraggedEntryId(entry.id);
                       setEntryDropTarget(null);
                     }}
@@ -522,22 +572,28 @@ export function LayoutWorkspace({
                   <span>Empty layout</span>
                 </div>
                 <div className="layout-editor__empty-actions">
-                  <button
-                    className="primary-action-button"
-                    type="button"
-                    onClick={onOpenItemSelector}
-                  >
-                    <Package size={18} aria-hidden="true" />
-                    Select item
-                  </button>
-                  <button
-                    className="secondary-action-button"
-                    type="button"
-                    onClick={openImportDialog}
-                  >
-                    <Import size={18} aria-hidden="true" />
-                    Import layout
-                  </button>
+                  {readOnly ? (
+                    <span className="layout-readonly-badge">{readOnlyLabel}</span>
+                  ) : (
+                    <>
+                      <button
+                        className="primary-action-button"
+                        type="button"
+                        onClick={onOpenItemSelector}
+                      >
+                        <Package size={18} aria-hidden="true" />
+                        Select item
+                      </button>
+                      <button
+                        className="secondary-action-button"
+                        type="button"
+                        onClick={openImportDialog}
+                      >
+                        <Import size={18} aria-hidden="true" />
+                        Import layout
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             )}
@@ -549,13 +605,14 @@ export function LayoutWorkspace({
           entry={selectedEntry}
           inspectorRef={inspectorRef}
           recipe={selectedRecipe}
+          readOnly={readOnly}
           onBeaconsChange={(beacons) => {
-            if (focusedLayout && selectedEntry) {
+            if (!readOnly && focusedLayout && selectedEntry) {
               onRecipeBeaconsChange(focusedLayout.id, selectedEntry.id, beacons);
             }
           }}
           onModulesChange={(modules) => {
-            if (focusedLayout && selectedEntry) {
+            if (!readOnly && focusedLayout && selectedEntry) {
               onRecipeModulesChange(focusedLayout.id, selectedEntry.id, modules);
             }
           }}
@@ -934,6 +991,7 @@ interface LayoutEditorRecipeRowProps {
   dropPlacement: LayoutReorderPlacement | null;
   entry: RecipeLayoutEntry;
   index: number;
+  readOnly: boolean;
   recipe: RecipePrototype;
   selected: boolean;
   onDragStart(): void;
@@ -999,6 +1057,7 @@ function LayoutEditorRecipeRow({
   onOpenRecipeContext,
   onSelect,
   onSelectFactorySettings,
+  readOnly,
   recipe,
   selected,
 }: LayoutEditorRecipeRowProps) {
@@ -1021,13 +1080,19 @@ function LayoutEditorRecipeRow({
     <div
       className={`layout-editor-row ${selected ? "layout-editor-row--selected" : ""} ${
         dragging ? "layout-editor-row--dragging" : ""
-      } ${dropPlacement ? `layout-editor-row--drop-${dropPlacement}` : ""}`}
+      } ${dropPlacement ? `layout-editor-row--drop-${dropPlacement}` : ""} ${
+        readOnly ? "layout-editor-row--readonly" : ""
+      }`}
       data-layout-editor-entry={entry.id}
     >
       <span
         className="layout-editor-row__index"
-        data-tooltip="Drag to reorder"
+        data-tooltip={readOnly ? "Read-only order" : "Drag to reorder"}
         onPointerDown={(event) => {
+          if (readOnly) {
+            return;
+          }
+
           event.preventDefault();
           event.currentTarget.setPointerCapture(event.pointerId);
           onDragStart();
@@ -1085,6 +1150,7 @@ function LayoutEditorRecipeRow({
                   aria-pressed={isSelected}
                   className="layout-editor-row__machine-option"
                   data-tooltip={option.name}
+                  disabled={readOnly}
                   key={option.id}
                   type="button"
                   onClick={(event) => {
@@ -1116,6 +1182,7 @@ function LayoutEditorRecipeRow({
         <FactorySettingsSummary
           data={data}
           entry={entry}
+          readOnly={readOnly}
           recipeName={metadata.name}
           onSelect={onSelectFactorySettings}
         />
@@ -1128,6 +1195,7 @@ function LayoutEditorRecipeRow({
           min="0.000001"
           step="any"
           type="number"
+          disabled={readOnly}
           value={productionSizeDraft}
           onBlur={() => {
             if (parseProductionSizeInput(productionSizeDraft) === null) {
@@ -1148,15 +1216,19 @@ function LayoutEditorRecipeRow({
           onPointerDown={(event) => event.stopPropagation()}
         />
       </label>
-      <button
-        aria-label={`Remove ${metadata.name} from layout`}
-        className="layout-editor-row__remove"
-        data-tooltip="Remove recipe"
-        type="button"
-        onClick={onRemove}
-      >
-        <X size={16} aria-hidden="true" />
-      </button>
+      {readOnly ? (
+        <span className="layout-editor-row__remove layout-editor-row__remove--blank" />
+      ) : (
+        <button
+          aria-label={`Remove ${metadata.name} from layout`}
+          className="layout-editor-row__remove"
+          data-tooltip="Remove recipe"
+          type="button"
+          onClick={onRemove}
+        >
+          <X size={16} aria-hidden="true" />
+        </button>
+      )}
     </div>
   );
 }
@@ -1165,10 +1237,12 @@ function FactorySettingsSummary({
   data,
   entry,
   onSelect,
+  readOnly,
   recipeName,
 }: {
   data: RecipeExplorerData;
   entry: RecipeLayoutEntry;
+  readOnly: boolean;
   recipeName: string;
   onSelect(): void;
 }) {
@@ -1182,6 +1256,7 @@ function FactorySettingsSummary({
       }`}
       data-tooltip={summaryCount ? "Factory settings" : "No modules or beacons"}
       type="button"
+      disabled={readOnly && !summaryCount}
       onClick={onSelect}
     >
       {entry.modules?.map((module) => (
@@ -1247,6 +1322,7 @@ interface LayoutRecipeInspectorProps {
   data: RecipeExplorerData;
   entry: RecipeLayoutEntry | null;
   inspectorRef: RefObject<HTMLElement | null>;
+  readOnly: boolean;
   recipe: RecipePrototype | null;
   onBeaconsChange(beacons: LayoutBeaconSettings[]): void;
   onModulesChange(modules: LayoutModuleSettings[]): void;
@@ -1260,6 +1336,7 @@ function LayoutRecipeInspector({
   onBeaconsChange,
   onModulesChange,
   onOpenRecipeContext,
+  readOnly,
   recipe,
 }: LayoutRecipeInspectorProps) {
   if (!entry || !recipe) {
@@ -1422,6 +1499,7 @@ function LayoutRecipeInspector({
             data={data}
             emptyLabel="No modules selected"
             options={machineModuleOptions}
+            readOnly={readOnly}
             value={entry.modules ?? []}
             onChange={onModulesChange}
           />
@@ -1437,6 +1515,7 @@ function LayoutRecipeInspector({
         {canUseFactorySettings ? (
           <BeaconSettingsRows
             data={data}
+            readOnly={readOnly}
             value={entry.beacons ?? []}
             onChange={onBeaconsChange}
           />
@@ -1469,6 +1548,7 @@ interface ModuleSettingsRowsProps {
   emptyLabel: string;
   getDefaultSetting?(): LayoutModuleSettings | null;
   options: LayoutFactoryItemOption[];
+  readOnly?: boolean;
   value: LayoutModuleSettings[];
   onChange(value: LayoutModuleSettings[]): void;
 }
@@ -1480,6 +1560,7 @@ function ModuleSettingsRows({
   emptyLabel,
   getDefaultSetting,
   options,
+  readOnly = false,
   value,
   onChange,
 }: ModuleSettingsRowsProps) {
@@ -1521,6 +1602,7 @@ function ModuleSettingsRows({
             data={data}
             key={`${setting.id}:${index}`}
             options={options}
+            readOnly={readOnly}
             setting={setting}
             onCountChange={(count) =>
               commit(value.map((item, itemIndex) =>
@@ -1540,8 +1622,9 @@ function ModuleSettingsRows({
       )}
       <button
         className="factory-settings-editor__add"
-        disabled={!canAdd}
+        disabled={readOnly || !canAdd}
         type="button"
+        hidden={readOnly}
         onClick={addModule}
       >
         <Plus size={15} aria-hidden="true" />
@@ -1554,6 +1637,7 @@ function ModuleSettingsRows({
 interface FactoryModuleSettingRowProps {
   data: RecipeExplorerData;
   options: LayoutFactoryItemOption[];
+  readOnly: boolean;
   setting: LayoutModuleSettings;
   onCountChange(count: number): void;
   onIdChange(id: string): void;
@@ -1566,6 +1650,7 @@ function FactoryModuleSettingRow({
   onIdChange,
   onRemove,
   options,
+  readOnly,
   setting,
 }: FactoryModuleSettingRowProps) {
   const selectedOption = getSelectedFactoryOption(data, options, setting.id);
@@ -1575,24 +1660,30 @@ function FactoryModuleSettingRow({
       <FactoryIconDropdown
         ariaLabel="Module"
         data={data}
+        disabled={readOnly}
         options={options}
         value={setting.id}
         onChange={onIdChange}
       />
       <FactoryCountInput
         ariaLabel={`${selectedOption.name} count`}
+        disabled={readOnly}
         value={setting.count}
         onChange={onCountChange}
       />
-      <button
-        aria-label={`Remove ${selectedOption.name}`}
-        className="factory-settings-row__remove"
-        data-tooltip="Remove"
-        type="button"
-        onClick={onRemove}
-      >
-        <X size={14} aria-hidden="true" />
-      </button>
+      {readOnly ? (
+        <span className="factory-settings-row__remove factory-settings-row__remove--blank" />
+      ) : (
+        <button
+          aria-label={`Remove ${selectedOption.name}`}
+          className="factory-settings-row__remove"
+          data-tooltip="Remove"
+          type="button"
+          onClick={onRemove}
+        >
+          <X size={14} aria-hidden="true" />
+        </button>
+      )}
     </div>
   );
 }
@@ -1600,6 +1691,7 @@ function FactoryModuleSettingRow({
 interface FactoryIconDropdownProps {
   ariaLabel: string;
   data: RecipeExplorerData;
+  disabled?: boolean;
   options: LayoutFactoryItemOption[];
   value: string;
   onChange(id: string): void;
@@ -1608,6 +1700,7 @@ interface FactoryIconDropdownProps {
 function FactoryIconDropdown({
   ariaLabel,
   data,
+  disabled = false,
   onChange,
   options,
   value,
@@ -1653,8 +1746,13 @@ function FactoryIconDropdown({
         aria-label={ariaLabel}
         className="factory-icon-dropdown__button"
         data-tooltip={selectedOption.name}
+        disabled={disabled}
         type="button"
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => {
+          if (!disabled) {
+            setOpen((current) => !current);
+          }
+        }}
       >
         <IconSprite
           atlas={data.atlas}
@@ -1707,11 +1805,17 @@ function FactoryIconDropdown({
 
 interface FactoryCountInputProps {
   ariaLabel: string;
+  disabled?: boolean;
   value: number;
   onChange(value: number): void;
 }
 
-function FactoryCountInput({ ariaLabel, onChange, value }: FactoryCountInputProps) {
+function FactoryCountInput({
+  ariaLabel,
+  disabled = false,
+  onChange,
+  value,
+}: FactoryCountInputProps) {
   const [draft, setDraft] = useState(formatFactoryCountInput(value));
 
   useEffect(() => {
@@ -1725,6 +1829,7 @@ function FactoryCountInput({ ariaLabel, onChange, value }: FactoryCountInputProp
       min="0"
       step="1"
       type="number"
+      disabled={disabled}
       value={draft}
       onBlur={() => {
         if (!draft.trim() || parseFactoryCountInput(draft) !== null) {
@@ -1749,11 +1854,17 @@ function FactoryCountInput({ ariaLabel, onChange, value }: FactoryCountInputProp
 
 interface BeaconSettingsRowsProps {
   data: RecipeExplorerData;
+  readOnly?: boolean;
   value: LayoutBeaconSettings[];
   onChange(value: LayoutBeaconSettings[]): void;
 }
 
-function BeaconSettingsRows({ data, onChange, value }: BeaconSettingsRowsProps) {
+function BeaconSettingsRows({
+  data,
+  onChange,
+  readOnly = false,
+  value,
+}: BeaconSettingsRowsProps) {
   const beaconOptions = getBeaconOptions(data);
 
   function commit(nextValue: LayoutBeaconSettings[]) {
@@ -1785,6 +1896,7 @@ function BeaconSettingsRows({ data, onChange, value }: BeaconSettingsRowsProps) 
                 <FactoryIconDropdown
                   ariaLabel="Beacon"
                   data={data}
+                  disabled={readOnly}
                   options={beaconOptions}
                   value={beacon.id}
                   onChange={(nextBeaconId) => {
@@ -1803,6 +1915,7 @@ function BeaconSettingsRows({ data, onChange, value }: BeaconSettingsRowsProps) 
                 />
                 <FactoryCountInput
                   ariaLabel={`${selectedOption.name} count`}
+                  disabled={readOnly}
                   value={beacon.count}
                   onChange={(count) =>
                     commit(value.map((item, itemIndex) =>
@@ -1810,15 +1923,19 @@ function BeaconSettingsRows({ data, onChange, value }: BeaconSettingsRowsProps) 
                     ))
                   }
                 />
-                <button
-                  aria-label={`Remove ${selectedOption.name}`}
-                  className="factory-settings-row__remove"
-                  data-tooltip="Remove"
-                  type="button"
-                  onClick={() => commit(value.filter((_, itemIndex) => itemIndex !== index))}
-                >
-                  <X size={14} aria-hidden="true" />
-                </button>
+                {readOnly ? (
+                  <span className="factory-settings-row__remove factory-settings-row__remove--blank" />
+                ) : (
+                  <button
+                    aria-label={`Remove ${selectedOption.name}`}
+                    className="factory-settings-row__remove"
+                    data-tooltip="Remove"
+                    type="button"
+                    onClick={() => commit(value.filter((_, itemIndex) => itemIndex !== index))}
+                  >
+                    <X size={14} aria-hidden="true" />
+                  </button>
+                )}
               </div>
               <ModuleSettingsRows
                 addLabel="Add beacon module"
@@ -1829,6 +1946,7 @@ function BeaconSettingsRows({ data, onChange, value }: BeaconSettingsRowsProps) 
                   getDefaultBeaconModuleSettings(data, beacon.id)[0] ?? null
                 }
                 options={moduleOptions}
+                readOnly={readOnly}
                 value={beacon.modules}
                 onChange={(modules) =>
                   commit(value.map((item, itemIndex) =>
@@ -1844,8 +1962,9 @@ function BeaconSettingsRows({ data, onChange, value }: BeaconSettingsRowsProps) 
       )}
       <button
         className="factory-settings-editor__add"
-        disabled={!beaconOptions.length}
+        disabled={readOnly || !beaconOptions.length}
         type="button"
+        hidden={readOnly}
         onClick={addBeacon}
       >
         <Plus size={15} aria-hidden="true" />
