@@ -2904,18 +2904,43 @@ button {
   opacity: 0.74;
 }
 
+.react-flow__edge-path.layout-graph-edge {
+  stroke: #9f8b48;
+}
+
 .layout-graph-edge--selected {
   stroke: #f0c96e;
   stroke-width: 3;
   opacity: 1;
 }
 
+.react-flow__edge-path.layout-graph-edge--selected {
+  stroke: #f0c96e;
+}
+
 .layout-graph-edge--smart-preview {
-  stroke: #b7d58f;
   stroke-dasharray: 8 7;
   stroke-width: 3;
   opacity: 0.92;
   pointer-events: none;
+}
+
+.layout-graph-edge--smart-preview-input {
+  stroke: #b7d58f;
+}
+
+.react-flow__edge-path.layout-graph-edge--smart-preview-input {
+  stroke: #b7d58f;
+}
+
+.layout-graph-edge--smart-preview-output,
+.layout-graph-edge--smart-preview-mixed {
+  stroke: #f0c96e;
+}
+
+.react-flow__edge-path.layout-graph-edge--smart-preview-output,
+.react-flow__edge-path.layout-graph-edge--smart-preview-mixed {
+  stroke: #f0c96e;
 }
 
 .layout-graph-edge-label {
@@ -2951,18 +2976,36 @@ button {
 }
 
 .layout-graph-edge-label--smart-preview {
+  cursor: default;
+  pointer-events: none;
+}
+
+.layout-graph-edge-label--smart-preview-input {
   border-color: #9fc18d;
   background: rgba(21, 31, 19, 0.95);
   box-shadow:
     0 0 0 2px rgba(159, 193, 141, 0.18),
     0 8px 18px rgba(0, 0, 0, 0.24);
-  cursor: default;
-  pointer-events: none;
 }
 
-.layout-graph-edge-label--smart-preview .layout-graph-token {
+.layout-graph-edge-label--smart-preview-output,
+.layout-graph-edge-label--smart-preview-mixed {
+  border-color: #e0a649;
+  background: rgba(48, 42, 27, 0.96);
+  box-shadow:
+    0 0 0 2px rgba(240, 201, 110, 0.18),
+    0 8px 18px rgba(0, 0, 0, 0.24);
+}
+
+.layout-graph-edge-label--smart-preview-input .layout-graph-token {
   border-color: #9fc18d;
   background: #1d281a;
+}
+
+.layout-graph-edge-label--smart-preview-output .layout-graph-token,
+.layout-graph-edge-label--smart-preview-mixed .layout-graph-token {
+  border-color: #e0a649;
+  background: #302a1b;
 }
 
 .layout-graph-edge-route-reset {
@@ -3145,12 +3188,31 @@ button {
     0 12px 22px rgba(0, 0, 0, 0.22);
 }
 
-.layout-graph-node--smart-preview
+.layout-graph-node--smart-preview-input
   :is(.layout-graph-node__main, .layout-graph-relay__main) {
   border-color: #b7d58f;
   box-shadow:
     inset 0 0 0 1px rgba(183, 213, 143, 0.78),
     0 0 0 3px rgba(183, 213, 143, 0.16),
+    0 12px 22px rgba(0, 0, 0, 0.24);
+}
+
+.layout-graph-node--smart-preview-output
+  :is(.layout-graph-node__main, .layout-graph-relay__main) {
+  border-color: #f0c96e;
+  box-shadow:
+    inset 0 0 0 1px rgba(240, 201, 110, 0.8),
+    0 0 0 3px rgba(240, 201, 110, 0.16),
+    0 12px 22px rgba(0, 0, 0, 0.24);
+}
+
+.layout-graph-node--smart-preview-input.layout-graph-node--smart-preview-output
+  :is(.layout-graph-node__main, .layout-graph-relay__main) {
+  border-color: #f0c96e;
+  box-shadow:
+    inset 0 0 0 1px rgba(240, 201, 110, 0.8),
+    0 0 0 3px rgba(183, 213, 143, 0.16),
+    0 0 0 6px rgba(240, 201, 110, 0.12),
     0 12px 22px rgba(0, 0, 0, 0.24);
 }
 
@@ -3519,15 +3581,12 @@ button {
   border-color: #f0c96e;
 }
 
-.layout-graph-boundary__item--smart-preview .layout-graph-token {
-  box-shadow: 0 0 0 3px rgba(183, 213, 143, 0.18);
-}
-
 .layout-graph-boundary--input
   .layout-graph-boundary__item--smart-preview
   .layout-graph-token {
   border-color: #b7d58f;
   background: #24301f;
+  box-shadow: 0 0 0 3px rgba(183, 213, 143, 0.18);
 }
 
 .layout-graph-boundary--output
@@ -3535,6 +3594,7 @@ button {
   .layout-graph-token {
   border-color: #f0c96e;
   background: #302a1b;
+  box-shadow: 0 0 0 3px rgba(240, 201, 110, 0.18);
 }
 
 .layout-graph-token--static {

@@ -2150,13 +2150,16 @@ function RelayNode({ data, id }: NodeProps<RelayFlowNode>) {
 }
 
 function getGraphNodeStateClassName(data: BaseGraphNodeData): string {
+  const hasSmartLinkInput = data.smartLinkInputItemKeys.length > 0;
+  const hasSmartLinkOutput = data.smartLinkOutputItemKeys.length > 0;
+
   return [
     data.isSelected ? "layout-graph-node--selected" : "",
     data.isConnecting ? "layout-graph-node--connecting" : "",
     data.isConnectableTarget ? "layout-graph-node--connectable" : "",
-    data.smartLinkInputItemKeys.length || data.smartLinkOutputItemKeys.length
-      ? "layout-graph-node--smart-preview"
-      : "",
+    hasSmartLinkInput || hasSmartLinkOutput ? "layout-graph-node--smart-preview" : "",
+    hasSmartLinkInput ? "layout-graph-node--smart-preview-input" : "",
+    hasSmartLinkOutput ? "layout-graph-node--smart-preview-output" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -2236,6 +2239,7 @@ interface ItemFlowEdgeData extends Record<string, unknown> {
   onRouteReset(edgeId: string): void;
   ports: GraphEdgePorts;
   route: GraphEdgeRoute | null;
+  smartLinkPreviewKind?: "input" | "output";
   sourceName: string;
   targetName: string;
 }
@@ -2379,6 +2383,13 @@ function ItemFlowEdge({
   const labelX = route?.x ?? bezierLabelX;
   const labelY = route?.y ?? bezierLabelY;
   const isPreview = Boolean(edgeData?.isPreview);
+  const previewKind = edgeData?.smartLinkPreviewKind ?? "mixed";
+  const previewEdgeClassName = isPreview
+    ? `layout-graph-edge--smart-preview-${previewKind}`
+    : "";
+  const previewLabelClassName = isPreview
+    ? `layout-graph-edge-label--smart-preview-${previewKind}`
+    : "";
 
   useEffect(() => {
     if (!isRouteDragging || !edgeData) {
@@ -2478,7 +2489,7 @@ function ItemFlowEdge({
       <BaseEdge
         className={`layout-graph-edge ${
           selected ? "layout-graph-edge--selected" : ""
-        } ${isPreview ? "layout-graph-edge--smart-preview" : ""}`}
+        } ${isPreview ? "layout-graph-edge--smart-preview" : ""} ${previewEdgeClassName}`}
         id={id}
         path={path}
         {...(markerEnd ? { markerEnd } : {})}
@@ -2487,7 +2498,7 @@ function ItemFlowEdge({
         <EdgeLabelRenderer>
           <div
             aria-hidden="true"
-            className="layout-graph-edge-label layout-graph-edge-label--smart-preview nodrag nopan"
+            className={`layout-graph-edge-label layout-graph-edge-label--smart-preview ${previewLabelClassName} nodrag nopan`}
             style={{
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
             }}
@@ -3541,6 +3552,7 @@ function buildSmartLinkPreview(
     addSetValues(inputItemKeysByNodeId, connection.targetId, itemKeys);
 
     const ports = edgePorts[connection.id] ?? defaultGraphEdgePorts;
+    const previewKind = connection.targetId === previewNode.id ? "input" : "output";
 
     return [
       {
@@ -3552,7 +3564,7 @@ function buildSmartLinkPreview(
         targetHandle: getGraphHandleId("target", ports.targetSide),
         markerEnd: {
           type: MarkerType.ArrowClosed,
-          color: "#b7d58f",
+          color: previewKind === "input" ? "#b7d58f" : "#f0c96e",
         },
         data: {
           availableItems: connection.availableItems,
@@ -3565,6 +3577,7 @@ function buildSmartLinkPreview(
           onRouteReset: noopRouteReset,
           ports,
           route: edgeRoutes[connection.id] ?? null,
+          smartLinkPreviewKind: previewKind,
           sourceName: sourceNode.data.label,
           targetName: targetNode.data.label,
         },
