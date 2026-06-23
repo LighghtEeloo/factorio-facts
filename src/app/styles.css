@@ -2900,27 +2900,54 @@ button {
 
 .layout-graph-edge {
   stroke: #9f8b48;
-  stroke-width: 2;
+  stroke-width: 2px;
   opacity: 0.74;
 }
 
 .react-flow__edge-path.layout-graph-edge {
   stroke: #9f8b48;
+  stroke-width: 2px;
 }
 
 .layout-graph-edge--selected {
   stroke: #f0c96e;
-  stroke-width: 3;
+  stroke-width: 3px;
   opacity: 1;
 }
 
 .react-flow__edge-path.layout-graph-edge--selected {
   stroke: #f0c96e;
+  stroke-width: 3px;
+}
+
+.react-flow__edge-path.layout-graph-edge--node-related {
+  stroke-width: 3px;
+}
+
+.layout-graph-edge--node-related {
+  stroke-width: 3px;
+  opacity: 1;
+}
+
+.layout-graph-edge--node-related-input {
+  stroke: #b7d58f;
+}
+
+.react-flow__edge-path.layout-graph-edge--node-related-input {
+  stroke: #b7d58f;
+}
+
+.layout-graph-edge--node-related-output {
+  stroke: #f0c96e;
+}
+
+.react-flow__edge-path.layout-graph-edge--node-related-output {
+  stroke: #f0c96e;
 }
 
 .layout-graph-edge--smart-preview {
   stroke-dasharray: 8 7;
-  stroke-width: 3;
+  stroke-width: 3px;
   opacity: 0.92;
   pointer-events: none;
 }
@@ -2973,6 +3000,32 @@ button {
 .layout-graph-edge-label--dragging {
   border-color: #f0c96e;
   background: rgba(55, 44, 24, 0.98);
+}
+
+.layout-graph-edge-label--node-related-input {
+  border-color: #9fc18d;
+  background: rgba(21, 31, 19, 0.95);
+  box-shadow:
+    0 0 0 2px rgba(159, 193, 141, 0.16),
+    0 8px 18px rgba(0, 0, 0, 0.24);
+}
+
+.layout-graph-edge-label--node-related-output {
+  border-color: #e0a649;
+  background: rgba(48, 42, 27, 0.96);
+  box-shadow:
+    0 0 0 2px rgba(240, 201, 110, 0.16),
+    0 8px 18px rgba(0, 0, 0, 0.24);
+}
+
+.layout-graph-edge-label--node-related-input .layout-graph-token {
+  border-color: #9fc18d;
+  background: #1d281a;
+}
+
+.layout-graph-edge-label--node-related-output .layout-graph-token {
+  border-color: #e0a649;
+  background: #302a1b;
 }
 
 .layout-graph-edge-label--smart-preview {

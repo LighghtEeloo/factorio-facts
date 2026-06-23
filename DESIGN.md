@@ -138,7 +138,7 @@ The toolbar follows the current graph focus state:
 
 - No focused node, edge, terminal, edge set, or pending connection: show no active controls. The header should remain stable so export, undo/redo, reset, and close/back actions do not jump around.
 - Focused terminal set: show the terminal toolbar. The related node still shows four side targets for docking that terminal set, while the terminal toolbar owns the create-relay action for moving that boundary outward into a relay node.
-- Focused node: show the node toolbar.
+- Focused node: show the node toolbar and softly highlight active edges related to that node. Incoming related edges use the external-input green, and outgoing related edges use the external-output gold.
 - Focused existing edge: show the edge toolbar.
 - Focused edge set: show the edge-set toolbar for routing the selected flows through one relay.
 - Pending connection between two nodes: show the pending edge toolbar until the user confirms or cancels.

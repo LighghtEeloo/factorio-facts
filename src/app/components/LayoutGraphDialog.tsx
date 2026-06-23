@@ -401,14 +401,18 @@ export function LayoutGraphDialog({
     ],
   );
   const edges = useMemo(
-    () => [
-      ...graph.edges.map((edge) => ({
+    (): ItemFlowEdgeType[] => [
+      ...graph.edges.map((edge): ItemFlowEdgeType => ({
         ...edge,
+        data: {
+          ...edge.data!,
+          focusRelation: getFocusedNodeEdgeRelation(edge, selectedNodeId),
+        },
         selected: selectedEdgeIds.includes(edge.id),
       })),
       ...smartLinkPreview.edges,
     ],
-    [graph.edges, selectedEdgeIds, smartLinkPreview.edges],
+    [graph.edges, selectedEdgeIds, selectedNodeId, smartLinkPreview.edges],
   );
   const selectedEdges = edges.filter((edge) => selectedEdgeIds.includes(edge.id));
   const selectedEdge = selectedEdges.length === 1 ? selectedEdges[0] ?? null : null;
@@ -2232,6 +2236,7 @@ interface ItemFlowEdgeData extends Record<string, unknown> {
   availableItems: ProductPrototype[];
   data: RecipeExplorerData;
   hasItemOverride: boolean;
+  focusRelation?: "input" | "output" | null;
   isPreview?: boolean;
   items: ProductPrototype[];
   onFocusEdge(edgeId: string, additive?: boolean): void;
@@ -2245,6 +2250,25 @@ interface ItemFlowEdgeData extends Record<string, unknown> {
 }
 
 type ItemFlowEdgeType = Edge<ItemFlowEdgeData, "item-flow">;
+
+function getFocusedNodeEdgeRelation(
+  edge: ItemFlowEdgeType,
+  nodeId: string | null,
+): "input" | "output" | null {
+  if (!nodeId) {
+    return null;
+  }
+
+  if (edge.target === nodeId) {
+    return "input";
+  }
+
+  if (edge.source === nodeId) {
+    return "output";
+  }
+
+  return null;
+}
 
 function getEndpointSelectorForNode(
   nodeId: string,
@@ -2382,6 +2406,13 @@ function ItemFlowEdge({
     : bezierPath;
   const labelX = route?.x ?? bezierLabelX;
   const labelY = route?.y ?? bezierLabelY;
+  const focusRelation = edgeData?.focusRelation ?? null;
+  const focusEdgeClassName = focusRelation
+    ? `layout-graph-edge--node-related layout-graph-edge--node-related-${focusRelation}`
+    : "";
+  const focusLabelClassName = focusRelation
+    ? `layout-graph-edge-label--node-related layout-graph-edge-label--node-related-${focusRelation}`
+    : "";
   const isPreview = Boolean(edgeData?.isPreview);
   const previewKind = edgeData?.smartLinkPreviewKind ?? "mixed";
   const previewEdgeClassName = isPreview
@@ -2489,7 +2520,9 @@ function ItemFlowEdge({
       <BaseEdge
         className={`layout-graph-edge ${
           selected ? "layout-graph-edge--selected" : ""
-        } ${isPreview ? "layout-graph-edge--smart-preview" : ""} ${previewEdgeClassName}`}
+        } ${focusEdgeClassName} ${
+          isPreview ? "layout-graph-edge--smart-preview" : ""
+        } ${previewEdgeClassName}`}
         id={id}
         path={path}
         {...(markerEnd ? { markerEnd } : {})}
@@ -2521,7 +2554,9 @@ function ItemFlowEdge({
             aria-label={`Focus edge from ${edgeData.sourceName} to ${edgeData.targetName}`}
             className={`layout-graph-edge-label nodrag nopan ${
               selected ? "layout-graph-edge-label--selected" : ""
-            } ${isRouteDragging ? "layout-graph-edge-label--dragging" : ""}`}
+            } ${focusLabelClassName} ${
+              isRouteDragging ? "layout-graph-edge-label--dragging" : ""
+            }`}
             data-tooltip={selected ? "Drag to bend edge" : "Focus or drag edge"}
             style={{
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
