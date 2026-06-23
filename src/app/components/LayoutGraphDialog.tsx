@@ -983,7 +983,7 @@ export function LayoutGraphDialog({
               nodeTypes={nodeTypes}
               nodesConnectable={false}
               onEdgeClick={(event, edge) =>
-                focusEdge(edge.id, event.shiftKey || event.metaKey)
+                focusEdge(edge.id, event.shiftKey)
               }
               onNodeClick={handleNodeClick}
               onNodeDragStop={handleNodeDragStop}
@@ -1103,11 +1103,8 @@ function GraphShortcutHints() {
     >
       <span>
         <kbd>Shift</kbd>
-        click node
-      </span>
-      <span>
-        <kbd>Shift</kbd>/<kbd>Cmd</kbd>
-        click edge
+        {" "}
+        multi-select
       </span>
     </aside>
   );
@@ -2661,7 +2658,7 @@ function ItemFlowEdge({
             type="button"
             onClick={(event) => {
               event.stopPropagation();
-              edgeData.onFocusEdge(id, event.shiftKey || event.metaKey);
+              edgeData.onFocusEdge(id, event.shiftKey);
             }}
             onFocus={() => edgeData.onFocusEdge(id)}
             onPointerDown={startRouteDrag}
