@@ -31,8 +31,6 @@ import type {
   GraphSide,
   GraphTerminalKind,
   InstalledLayoutRecipe,
-  LayoutBeaconSettings,
-  LayoutModuleSettings,
   LayoutReorderPlacement,
   RecipeLayout,
   RecipeLayoutEntry,
@@ -51,14 +49,6 @@ import {
   getCompatibleGraphConnections,
   type GraphConnectionNode,
 } from "./graph-connections";
-import {
-  getMachineModuleCapacity,
-  getRecipeModuleOptions,
-  getRecipeSelectedMachineId,
-  sanitizeBeaconSettings,
-  sanitizeModuleSettings,
-  sanitizeRecipeLayoutEntryFactorySettings,
-} from "./layout-factory-settings";
 import "./styles.css";
 
 const defaultFilters: FilterState = {
@@ -392,100 +382,6 @@ export function App() {
                   ? { ...entry, productionSize: nextProductionSize }
                   : entry,
               ),
-            }
-          : layout,
-      ),
-    );
-  }
-
-  function updateRecipeMachine(layoutId: string, entryId: string, machineId: string) {
-    setLayouts((currentLayouts) =>
-      currentLayouts.map((layout) =>
-        layout.id === layoutId
-          ? {
-              ...layout,
-              entries: layout.entries.map((entry) => {
-                if (entry.id !== entryId) {
-                  return entry;
-                }
-
-                return isRecipeMachineIdAllowed(entry.recipeId, machineId)
-                  ? sanitizeRecipeLayoutEntryFactorySettings(recipeData, {
-                      ...entry,
-                      machineId,
-                    })
-                  : entry;
-              }),
-            }
-          : layout,
-      ),
-    );
-  }
-
-  function updateRecipeModules(
-    layoutId: string,
-    entryId: string,
-    modules: LayoutModuleSettings[],
-  ) {
-    setLayouts((currentLayouts) =>
-      currentLayouts.map((layout) =>
-        layout.id === layoutId
-          ? {
-              ...layout,
-              entries: layout.entries.map((entry) => {
-                if (entry.id !== entryId) {
-                  return entry;
-                }
-
-                const recipe = recipeData.recipeById.get(entry.recipeId);
-                const machineId = recipe
-                  ? getRecipeSelectedMachineId(recipe, entry.machineId)
-                  : null;
-                const moduleOptions = recipe
-                  ? getRecipeModuleOptions(recipeData, recipe, machineId)
-                  : [];
-                const moduleCapacity = getMachineModuleCapacity(recipeData, machineId);
-                const nextModules = sanitizeModuleSettings(
-                  modules,
-                  moduleOptions,
-                  moduleCapacity,
-                );
-                const { modules: _modules, ...entryWithoutModules } = entry;
-
-                return sanitizeRecipeLayoutEntryFactorySettings(recipeData, {
-                  ...entryWithoutModules,
-                  ...(nextModules.length ? { modules: nextModules } : {}),
-                });
-              }),
-            }
-          : layout,
-      ),
-    );
-  }
-
-  function updateRecipeBeacons(
-    layoutId: string,
-    entryId: string,
-    beacons: LayoutBeaconSettings[],
-  ) {
-    setLayouts((currentLayouts) =>
-      currentLayouts.map((layout) =>
-        layout.id === layoutId
-          ? {
-              ...layout,
-              entries: layout.entries.map((entry) => {
-                if (entry.id !== entryId) {
-                  return entry;
-                }
-
-                const nextBeacons = sanitizeBeaconSettings(recipeData, beacons);
-                const { beacons: _beacons, ...entryWithoutBeacons } = entry;
-
-                return sanitizeRecipeLayoutEntryFactorySettings(recipeData, {
-                  ...entryWithoutBeacons,
-                  ...(nextBeacons.length ? { beacons: nextBeacons } : {}),
-                });
-              }),
             }
           : layout,
       ),
@@ -1288,9 +1184,6 @@ export function App() {
             onInstallLayout={installLayout}
             onOpenItemSelector={openItemSelector}
             onOpenLayoutGraph={openLayoutGraph}
-            onRecipeBeaconsChange={updateRecipeBeacons}
-            onRecipeMachineChange={updateRecipeMachine}
-            onRecipeModulesChange={updateRecipeModules}
             onRecipeProductionSizeChange={updateRecipeProductionSize}
             onRemoveRecipeFromLayout={removeRecipeFromLayout}
             onLayoutIconSettingsChange={updateLayoutIconSettings}
@@ -1406,7 +1299,6 @@ function readAppStateFromUrl(): AppUrlState {
     parseCompactLayoutState(params.get("s"), {
       defaultLayoutId,
       isRecipeIdAllowed: (recipeId) => explorerData.recipeById.has(recipeId),
-      isRecipeMachineIdAllowed,
     }) ?? parseLayoutState(params.get("layouts")),
   );
   const activeView = parseAppView(params.get("mode"));
@@ -1573,9 +1465,15 @@ function sanitizeRecipeLayout(layout: RecipeLayout): RecipeLayout {
     ...layout,
     iconIds: sanitizeLayoutIconIds(layout.iconIds),
     hiddenIconIds: sanitizeLayoutIconIds(layout.hiddenIconIds),
-    entries: layout.entries.map((entry) =>
-      sanitizeRecipeLayoutEntryFactorySettings(explorerData, entry),
-    ),
+    entries: layout.entries.map(normalizeRecipeLayoutEntry),
+  };
+}
+
+function normalizeRecipeLayoutEntry(entry: RecipeLayoutEntry): RecipeLayoutEntry {
+  return {
+    id: entry.id,
+    productionSize: normalizeProductionSize(entry.productionSize),
+    recipeId: entry.recipeId,
   };
 }
 
@@ -2067,9 +1965,6 @@ function parseLayoutEntry(
   options: ParseLayoutStateOptions = {},
 ): RecipeLayoutEntry[] {
   let rawId: unknown;
-  let rawMachineId: unknown;
-  let rawModules: unknown;
-  let rawBeacons: unknown;
   let rawProductionSize: unknown;
   let rawRecipeId: unknown;
 
@@ -2077,20 +1972,10 @@ function parseLayoutEntry(
     rawId = rawEntry[0];
     rawRecipeId = rawEntry[1];
     rawProductionSize = rawEntry[2];
-    rawMachineId = rawEntry[3];
-    const rawFactorySettings = rawEntry[4];
-
-    if (isRecord(rawFactorySettings)) {
-      rawModules = rawFactorySettings.u;
-      rawBeacons = rawFactorySettings.b;
-    }
   } else if (isRecord(rawEntry)) {
     const entry = rawEntry as SerializedLayoutEntry;
 
     rawId = entry.i;
-    rawBeacons = entry.b;
-    rawMachineId = entry.m;
-    rawModules = entry.u;
     rawRecipeId = entry.r;
     rawProductionSize = entry.s;
   }
@@ -2103,87 +1988,16 @@ function parseLayoutEntry(
     return [];
   }
 
-  const machineId = parseRecipeMachineId(rawMachineId, rawRecipeId);
-  const entry = sanitizeRecipeLayoutEntryFactorySettings(explorerData, {
+  const entry = normalizeRecipeLayoutEntry({
     id: getUniqueId(
       typeof rawId === "string" && rawId ? rawId : `entry-${index + 1}`,
       seenEntryIds,
     ),
     productionSize: parseProductionSize(rawProductionSize),
     recipeId: rawRecipeId,
-    ...(machineId ? { machineId } : {}),
-    ...parseLayoutEntryFactorySettings(rawModules, rawBeacons),
   });
 
   return [entry];
-}
-
-function parseLayoutEntryFactorySettings(
-  rawModules: unknown,
-  rawBeacons: unknown,
-): Pick<RecipeLayoutEntry, "beacons" | "modules"> {
-  const modules = parseLayoutModuleSettings(rawModules);
-  const beacons = parseLayoutBeaconSettings(rawBeacons);
-
-  return {
-    ...(modules.length ? { modules } : {}),
-    ...(beacons.length ? { beacons } : {}),
-  };
-}
-
-function parseLayoutModuleSettings(value: unknown): LayoutModuleSettings[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.flatMap((rawSetting) => {
-    let rawId: unknown;
-    let rawCount: unknown;
-
-    if (Array.isArray(rawSetting)) {
-      rawId = rawSetting[0];
-      rawCount = rawSetting[1];
-    } else if (isRecord(rawSetting)) {
-      rawId = rawSetting.i;
-      rawCount = rawSetting.c;
-    }
-
-    return typeof rawId === "string" && typeof rawCount === "number"
-      ? [{ id: rawId, count: rawCount }]
-      : [];
-  });
-}
-
-function parseLayoutBeaconSettings(value: unknown): LayoutBeaconSettings[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.flatMap((rawSetting) => {
-    let rawId: unknown;
-    let rawCount: unknown;
-    let rawModules: unknown;
-
-    if (Array.isArray(rawSetting)) {
-      rawId = rawSetting[0];
-      rawCount = rawSetting[1];
-      rawModules = rawSetting[2];
-    } else if (isRecord(rawSetting)) {
-      rawId = rawSetting.i;
-      rawCount = rawSetting.c;
-      rawModules = rawSetting.u;
-    }
-
-    return typeof rawId === "string" && typeof rawCount === "number"
-      ? [{ id: rawId, count: rawCount, modules: parseLayoutModuleSettings(rawModules) }]
-      : [];
-  });
-}
-
-function parseRecipeMachineId(value: unknown, recipeId: string): string | null {
-  return typeof value === "string" && isRecipeMachineIdAllowed(recipeId, value)
-    ? value
-    : null;
 }
 
 function parseProductionSize(value: unknown): number {
@@ -2662,79 +2476,12 @@ function createRelayGraphConnectionNode(relay: GraphRelay): GraphConnectionNode[
 
 function serializeLayoutEntry(entry: RecipeLayoutEntry): unknown[] {
   const productionSize = normalizeProductionSize(entry.productionSize);
-  const factorySettings = serializeLayoutEntryFactorySettings(entry);
 
-  if (
-    !factorySettings &&
-    !entry.machineId &&
-    isDefaultProductionSize(productionSize)
-  ) {
+  if (isDefaultProductionSize(productionSize)) {
     return [entry.id, entry.recipeId];
   }
 
-  if (!factorySettings && !entry.machineId) {
-    return [entry.id, entry.recipeId, productionSize];
-  }
-
-  return factorySettings
-    ? [entry.id, entry.recipeId, productionSize, entry.machineId ?? null, factorySettings]
-    : [entry.id, entry.recipeId, productionSize, entry.machineId];
-}
-
-function serializeLayoutEntryFactorySettings(
-  entry: RecipeLayoutEntry,
-): { b?: unknown[]; u?: unknown[] } | null {
-  const modules = serializeLayoutModuleSettings(entry.modules);
-  const beacons = serializeLayoutBeaconSettings(entry.beacons);
-
-  return modules || beacons
-    ? {
-        ...(beacons ? { b: beacons } : {}),
-        ...(modules ? { u: modules } : {}),
-      }
-    : null;
-}
-
-function serializeLayoutModuleSettings(
-  modules: readonly LayoutModuleSettings[] | undefined,
-): Array<[string, number]> | null {
-  const settings = modules
-    ?.flatMap((module) => {
-      const count = normalizeFactorySettingCount(module.count);
-
-      return count === null ? [] : ([[module.id, count]] satisfies Array<[string, number]>);
-    });
-
-  return settings?.length ? settings : null;
-}
-
-function serializeLayoutBeaconSettings(
-  beacons: readonly LayoutBeaconSettings[] | undefined,
-): Array<[string, number, Array<[string, number]>]> | null {
-  const settings = beacons
-    ?.flatMap((beacon) => {
-      const count = normalizeFactorySettingCount(beacon.count);
-
-      if (count === null) {
-        return [];
-      }
-
-      const modules = serializeLayoutModuleSettings(beacon.modules) ?? [];
-
-      return [[
-        beacon.id,
-        count,
-        modules,
-      ]] satisfies Array<[string, number, Array<[string, number]>]>;
-    });
-
-  return settings?.length ? settings : null;
-}
-
-function normalizeFactorySettingCount(value: number): number | null {
-  return Number.isFinite(value) && value >= 0
-    ? Math.round(value * 1_000_000) / 1_000_000
-    : null;
+  return [entry.id, entry.recipeId, productionSize];
 }
 
 function createLayoutId(): string {
@@ -2802,20 +2549,7 @@ function cloneRecipeLayout(layout: RecipeLayout, layoutId = layout.id): RecipeLa
     id: layoutId,
     iconIds: [...layout.iconIds],
     hiddenIconIds: [...layout.hiddenIconIds],
-    entries: layout.entries.map((entry) => ({
-      ...entry,
-      ...(entry.modules
-        ? { modules: entry.modules.map((module) => ({ ...module })) }
-        : {}),
-      ...(entry.beacons
-        ? {
-            beacons: entry.beacons.map((beacon) => ({
-              ...beacon,
-              modules: beacon.modules.map((module) => ({ ...module })),
-            })),
-          }
-        : {}),
-    })),
+    entries: layout.entries.map(normalizeRecipeLayoutEntry),
     relays: layout.relays.map((relay) => ({
       ...relay,
       itemKeys: [...relay.itemKeys],
@@ -3222,16 +2956,6 @@ function normalizeProductionSize(value: number): number {
 
 function isDefaultProductionSize(value: number): boolean {
   return normalizeProductionSize(value) === defaultProductionSize;
-}
-
-function isRecipeMachineIdAllowed(recipeId: string, machineId: string): boolean {
-  if (isCompositeRecipeId(recipeId)) {
-    return false;
-  }
-
-  const recipe = explorerData.recipeById.get(recipeId);
-
-  return recipe ? getRecipeMetadata(recipe).producers.includes(machineId) : false;
 }
 
 function parseItemId(value: string | null): string | null {

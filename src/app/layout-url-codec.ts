@@ -11,8 +11,6 @@ import type {
   GraphSide,
   GraphTerminalKind,
   InstalledLayoutRecipe,
-  LayoutBeaconSettings,
-  LayoutModuleSettings,
   RecipeLayout,
   RecipeLayoutEntry,
 } from "./types";
@@ -29,24 +27,7 @@ type GraphSideCode = 0 | 1 | 2 | 3;
 type GraphTerminalKindCode = 0 | 1;
 type CompactEntry =
   | number
-  | [recipeIndex: number, productionSize: number]
-  | [recipeIndex: number, productionSize: number, machineId: string]
-  | [
-      recipeIndex: number,
-      productionSize: number,
-      machineId: string | null,
-      factorySettings: CompactFactorySettings,
-    ];
-type CompactModuleSettings = [moduleId: string, count: number];
-type CompactBeaconSettings = [
-  beaconId: string,
-  count: number,
-  modules: CompactModuleSettings[],
-];
-interface CompactFactorySettings {
-  b?: CompactBeaconSettings[];
-  u?: CompactModuleSettings[];
-}
+  | [recipeIndex: number, productionSize: number];
 type CompactPosition = [entryIndex: number, x: number, y: number];
 type CompactEdgePorts = [
   sourceIndex: number,
@@ -88,7 +69,6 @@ export interface ParsedLayoutUrlState {
 export interface LayoutUrlCodecOptions {
   defaultLayoutId: string;
   isRecipeIdAllowed(recipeId: string): boolean;
-  isRecipeMachineIdAllowed(recipeId: string, machineId: string): boolean;
 }
 
 export function serializeCompactLayoutState(
@@ -253,69 +233,12 @@ function compactLayoutEntry(
 ): CompactEntry {
   const recipeIndex = getRecipeIndex(entry.recipeId, recipeIds, recipeIndexById);
   const productionSize = normalizeProductionSize(entry.productionSize);
-  const factorySettings = compactFactorySettings(entry);
 
-  if (
-    !factorySettings &&
-    !entry.machineId &&
-    productionSize === defaultProductionSize
-  ) {
+  if (productionSize === defaultProductionSize) {
     return recipeIndex;
   }
 
-  if (factorySettings) {
-    return [recipeIndex, productionSize, entry.machineId ?? null, factorySettings];
-  }
-
-  return entry.machineId ? [recipeIndex, productionSize, entry.machineId] : [recipeIndex, productionSize];
-}
-
-function compactFactorySettings(entry: RecipeLayoutEntry): CompactFactorySettings | null {
-  const modules = compactModuleSettings(entry.modules);
-  const beacons = compactBeaconSettings(entry.beacons);
-
-  return modules || beacons
-    ? {
-        ...(beacons ? { b: beacons } : {}),
-        ...(modules ? { u: modules } : {}),
-      }
-    : null;
-}
-
-function compactModuleSettings(
-  modules: readonly LayoutModuleSettings[] | undefined,
-): CompactModuleSettings[] | null {
-  const settings = modules
-    ?.flatMap((module) => {
-      const count = normalizeFactorySettingCount(module.count);
-
-      return count === null
-        ? []
-        : ([[module.id, count]] satisfies CompactModuleSettings[]);
-    });
-
-  return settings?.length ? settings : null;
-}
-
-function compactBeaconSettings(
-  beacons: readonly LayoutBeaconSettings[] | undefined,
-): CompactBeaconSettings[] | null {
-  const settings = beacons
-    ?.flatMap((beacon) => {
-      const count = normalizeFactorySettingCount(beacon.count);
-
-      return count === null
-        ? []
-        : ([
-            [
-              beacon.id,
-              count,
-              compactModuleSettings(beacon.modules) ?? [],
-            ],
-          ] satisfies CompactBeaconSettings[]);
-    });
-
-  return settings?.length ? settings : null;
+  return [recipeIndex, productionSize];
 }
 
 function getLayoutGraphNodeIndexById(layout: RecipeLayout): Map<string, number> {
@@ -719,8 +642,6 @@ function parseCompactEntries(
   value.forEach((rawEntry, entryIndex) => {
     const rawRecipeIndex = Array.isArray(rawEntry) ? rawEntry[0] : rawEntry;
     const rawProductionSize = Array.isArray(rawEntry) ? rawEntry[1] : undefined;
-    const rawMachineId = Array.isArray(rawEntry) ? rawEntry[2] : undefined;
-    const rawFactorySettings = Array.isArray(rawEntry) ? rawEntry[3] : undefined;
     const recipeIndex = parseNonNegativeInteger(rawRecipeIndex);
     const recipeId = recipeIndex === null ? null : recipeIds[recipeIndex] ?? null;
 
@@ -729,16 +650,9 @@ function parseCompactEntries(
     }
 
     const entryId = `${layoutId}-entry-${entryIndex + 1}`;
-    const machineId =
-      typeof rawMachineId === "string" &&
-      options.isRecipeMachineIdAllowed(recipeId, rawMachineId)
-        ? rawMachineId
-        : null;
 
     entries.push({
       id: entryId,
-      ...(machineId ? { machineId } : {}),
-      ...parseCompactFactorySettings(rawFactorySettings),
       productionSize: parseProductionSize(rawProductionSize),
       recipeId,
     });
@@ -746,66 +660,6 @@ function parseCompactEntries(
   });
 
   return { entries, entryIdByIndex };
-}
-
-function parseCompactFactorySettings(
-  value: unknown,
-): Pick<RecipeLayoutEntry, "beacons" | "modules"> {
-  if (!isRecord(value)) {
-    return {};
-  }
-
-  const modules = parseCompactModuleSettings(value.u);
-  const beacons = parseCompactBeaconSettings(value.b);
-
-  return {
-    ...(beacons.length ? { beacons } : {}),
-    ...(modules.length ? { modules } : {}),
-  };
-}
-
-function parseCompactModuleSettings(value: unknown): LayoutModuleSettings[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.flatMap((rawSetting) => {
-    if (!Array.isArray(rawSetting)) {
-      return [];
-    }
-
-    const id = rawSetting[0];
-    const count = rawSetting[1];
-
-    return typeof id === "string" && typeof count === "number"
-      ? [{ id, count: parseFactorySettingCount(count) }]
-      : [];
-  });
-}
-
-function parseCompactBeaconSettings(value: unknown): LayoutBeaconSettings[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.flatMap((rawSetting) => {
-    if (!Array.isArray(rawSetting)) {
-      return [];
-    }
-
-    const id = rawSetting[0];
-    const count = rawSetting[1];
-
-    return typeof id === "string" && typeof count === "number"
-      ? [
-          {
-            id,
-            count: parseFactorySettingCount(count),
-            modules: parseCompactModuleSettings(rawSetting[2]),
-          },
-        ]
-      : [];
-  });
 }
 
 function parseCompactRelays(
@@ -1151,18 +1005,6 @@ function normalizeProductionSize(value: number): number {
   return Number.isFinite(value) && value > 0
     ? Math.round(value * 1_000_000) / 1_000_000
     : defaultProductionSize;
-}
-
-function normalizeFactorySettingCount(value: number): number | null {
-  return Number.isFinite(value) && value >= 0
-    ? Math.round(value * 1_000_000) / 1_000_000
-    : null;
-}
-
-function parseFactorySettingCount(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0
-    ? Math.round(value * 1_000_000) / 1_000_000
-    : 0;
 }
 
 function uniqueStrings(values: string[]): string[] {

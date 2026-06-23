@@ -1355,10 +1355,8 @@ button {
 
 .layout-editor-row {
   display: grid;
-  grid-template-areas: "index main machine factory size remove";
-  grid-template-columns:
-    40px minmax(0, 1fr) var(--layout-editor-machine-width, 84px)
-    minmax(108px, 160px) 90px 32px;
+  grid-template-areas: "index main size remove";
+  grid-template-columns: 40px minmax(0, 1fr) 90px 32px;
   align-items: center;
   gap: 7px;
   min-width: 0;
@@ -1506,159 +1504,6 @@ button {
   font-size: 0.68rem;
   padding: 0 7px;
   white-space: nowrap;
-}
-
-.layout-editor-row__machine {
-  grid-area: machine;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  width: var(--layout-editor-machine-width, 84px);
-  min-width: 0;
-  min-height: 38px;
-  max-width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
-  border: 1px solid #3f4235;
-  border-radius: 7px;
-  background: #151710;
-  color: #c9c4b3;
-  padding: 3px;
-  scrollbar-width: thin;
-}
-
-.layout-editor-row__machine:focus-within,
-.layout-editor-row__machine:hover {
-  border-color: #57523d;
-}
-
-.layout-editor-row__machine-option {
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 30px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: #c9c4b3;
-  cursor: pointer;
-  padding: 0;
-}
-
-.layout-editor-row__machine-option:hover,
-.layout-editor-row__machine-option:focus-visible {
-  border-color: #57523d;
-  background: #25261f;
-}
-
-.layout-editor-row__machine-option[aria-pressed="true"] {
-  border-color: #d7b65f;
-  background: #2b281b;
-}
-
-.layout-editor-row__machine-option:disabled,
-.layout-editor-row__machine-option:disabled:hover {
-  cursor: default;
-  opacity: 0.76;
-  border-color: transparent;
-  background: transparent;
-}
-
-.layout-editor-row__machine-option:disabled[aria-pressed="true"] {
-  border-color: #6d674b;
-  background: #242318;
-}
-
-.layout-editor-row__machine-none {
-  display: inline-flex;
-  align-items: center;
-  min-height: 30px;
-  color: #85806c;
-  font-size: 0.7rem;
-  padding: 0 8px;
-}
-
-.layout-editor-row__machine--blank,
-.layout-editor-row__factory--blank {
-  border-style: dashed;
-  background: #12140f;
-  cursor: default;
-}
-
-.layout-editor-row__machine--blank:hover {
-  border-color: #3f4235;
-  background: #12140f;
-}
-
-.layout-editor-row__factory {
-  grid-area: factory;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
-  min-height: 38px;
-  overflow: hidden;
-  border: 1px solid #3f4235;
-  border-radius: 7px;
-  background: #151710;
-  color: #9f9a86;
-  cursor: pointer;
-  padding: 0 7px;
-  text-align: left;
-}
-
-.layout-editor-row__factory:hover,
-.layout-editor-row__factory:focus-visible {
-  border-color: #57523d;
-  background: #1b1d17;
-}
-
-.layout-editor-row__factory:disabled,
-.layout-editor-row__factory:disabled:hover {
-  cursor: default;
-  border-color: #3f4235;
-  background: #151710;
-  color: #7f7a68;
-}
-
-.layout-editor-row__factory:focus-visible {
-  outline: 0;
-}
-
-.layout-editor-row__factory--empty {
-  justify-content: center;
-  font-size: 0.68rem;
-}
-
-.layout-editor-row__factory--blank:hover {
-  border-color: #3f4235;
-  background: #12140f;
-}
-
-.layout-editor-row__factory--blank {
-  cursor: default;
-}
-
-.factory-setting-chip {
-  display: inline-grid;
-  grid-template-columns: 20px auto;
-  align-items: center;
-  gap: 3px;
-  min-width: 0;
-  height: 26px;
-  border: 1px solid #46483a;
-  border-radius: 999px;
-  background: #1b1d17;
-  color: #d7b65f;
-  padding: 0 5px 0 3px;
-}
-
-.factory-setting-chip em {
-  font-size: 0.68rem;
-  font-style: normal;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
 }
 
 .layout-editor-row__size {
@@ -1833,12 +1678,6 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
-.layout-inspector__factory {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-}
-
 .layout-inspector__section-heading {
   display: flex;
   align-items: baseline;
@@ -1865,186 +1704,6 @@ button {
   margin: 0;
   color: #9f9a86;
   font-size: 0.74rem;
-}
-
-.factory-settings-editor {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-}
-
-.factory-settings-row {
-  display: grid;
-  grid-template-columns: 34px minmax(58px, 1fr) 30px;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
-  position: relative;
-}
-
-.factory-settings-row input {
-  min-width: 0;
-  height: 34px;
-  border: 1px solid #3f4235;
-  border-radius: 6px;
-  outline: 0;
-  background: #151710;
-  color: #f0eee4;
-  font-size: 0.75rem;
-  padding: 0 8px;
-  font-variant-numeric: tabular-nums;
-}
-
-.factory-settings-row input:focus {
-  border-color: #6d674b;
-  background: #1b1d17;
-}
-
-.factory-settings-row input:disabled {
-  cursor: default;
-  color: #c9c4b3;
-  opacity: 1;
-}
-
-.factory-icon-dropdown {
-  position: relative;
-  width: 34px;
-  height: 34px;
-}
-
-.factory-icon-dropdown__button,
-.factory-icon-dropdown__option {
-  display: grid;
-  place-items: center;
-  border: 1px solid #3f4235;
-  border-radius: 6px;
-  background: #151710;
-  color: #c9c4b3;
-  cursor: pointer;
-  padding: 0;
-}
-
-.factory-icon-dropdown__button {
-  position: relative;
-  width: 34px;
-  height: 34px;
-}
-
-.factory-icon-dropdown__button:hover,
-.factory-icon-dropdown__button:focus-visible,
-.factory-icon-dropdown__button[aria-expanded="true"],
-.factory-icon-dropdown__option:hover,
-.factory-icon-dropdown__option:focus-visible {
-  border-color: #57523d;
-  background: #25261f;
-}
-
-.factory-icon-dropdown__button:disabled,
-.factory-icon-dropdown__button:disabled:hover {
-  cursor: default;
-  border-color: #3f4235;
-  background: #151710;
-  opacity: 1;
-}
-
-.factory-icon-dropdown__button:focus-visible,
-.factory-icon-dropdown__option:focus-visible {
-  outline: 0;
-}
-
-.factory-icon-dropdown__chevron {
-  position: absolute;
-  right: 1px;
-  bottom: 1px;
-  color: #d7b65f;
-  pointer-events: none;
-}
-
-.factory-icon-dropdown__menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  z-index: 30;
-  display: grid;
-  grid-template-columns: repeat(4, 30px);
-  gap: 4px;
-  max-width: 142px;
-  border: 1px solid #4b4b3d;
-  border-radius: 7px;
-  background: #1b1d17;
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.34);
-  padding: 5px;
-}
-
-.factory-icon-dropdown__option {
-  width: 30px;
-  height: 30px;
-}
-
-.factory-icon-dropdown__option[aria-checked="true"] {
-  border-color: #d7b65f;
-  background: #2b281b;
-}
-
-.factory-settings-row__remove,
-.factory-settings-editor__add {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid #3f4235;
-  border-radius: 6px;
-  background: #151710;
-  color: #c9c4b3;
-  cursor: pointer;
-}
-
-.factory-settings-row__remove {
-  width: 30px;
-  height: 34px;
-  padding: 0;
-}
-
-.factory-settings-row__remove--blank,
-.factory-settings-row__remove--blank:hover {
-  cursor: default;
-  border-color: transparent;
-  background: transparent;
-}
-
-.factory-settings-editor__add {
-  gap: 6px;
-  min-height: 34px;
-  padding: 0 10px;
-  font-size: 0.74rem;
-}
-
-.factory-settings-row__remove:hover,
-.factory-settings-editor__add:hover {
-  border-color: #57523d;
-  background: #25261f;
-  color: #f0eee4;
-}
-
-.factory-settings-editor__add:disabled,
-.factory-settings-editor__add:disabled:hover {
-  border-color: #33352b;
-  background: #12140f;
-  color: #6d674b;
-  cursor: not-allowed;
-}
-
-.beacon-settings-card {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-  border: 1px solid #34362d;
-  border-radius: 8px;
-  background: rgba(17, 19, 14, 0.6);
-  padding: 6px;
-}
-
-.beacon-settings-card .factory-settings-editor {
-  padding-left: 15px;
 }
 
 .layout-inspector__icon-pill {
@@ -4003,10 +3662,9 @@ button {
 
   .layout-editor-row {
     grid-template-areas:
-      "index main main remove"
-      ". machine machine ."
-      ". factory size .";
-    grid-template-columns: 36px minmax(0, 1fr) 84px 32px;
+      "index main remove"
+      ". size .";
+    grid-template-columns: 36px minmax(0, 1fr) 32px;
     gap: 6px;
   }
 
@@ -4021,14 +3679,6 @@ button {
   .layout-editor-row__size {
     gap: 5px;
     padding: 0 6px;
-  }
-
-  .layout-editor-row__machine {
-    padding: 3px;
-  }
-
-  .layout-editor-row__factory {
-    min-height: 34px;
   }
 
   .recipe-grid,

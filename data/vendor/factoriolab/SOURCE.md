@@ -26,4 +26,4 @@ This directory contains bootstrap data vendored from FactorioLab.
 
 ## Notes
 
-FactorioLab's data is optimized for calculator behavior. Import it through `src/factoriolab/adapter.ts` rather than treating it as canonical `data.raw.recipe`.
+FactorioLab is an upstream factory-calculator project, not factorio-facts. Import its vendored public data through `src/factoriolab/adapter.ts` rather than treating that app-specific schema as canonical `data.raw.recipe`.

@@ -3,7 +3,6 @@ import {
   Boxes,
   BookmarkPlus,
   Check,
-  ChevronDown,
   ExternalLink,
   GripVertical,
   Import,
@@ -17,9 +16,7 @@ import {
   X,
 } from "lucide-react";
 import {
-  type CSSProperties,
   type DragEvent,
-  type RefObject,
   useEffect,
   useRef,
   useState,
@@ -43,25 +40,8 @@ import {
   inferLayoutCompositeBoundary,
   isCompositeRecipe,
 } from "../composite-recipes";
-import {
-  getBeaconModuleCapacity,
-  getBeaconModuleOptions,
-  getBeaconOptions,
-  getDefaultBeaconModuleSettings,
-  getDefaultBeaconSettings,
-  getDefaultMachineModuleSettings,
-  getFactorySettingsSummaryCount,
-  getMachineModuleCapacity,
-  getRecipeModuleOptions,
-  getRecipeSelectedMachineId,
-  sanitizeBeaconSettings,
-  sanitizeModuleSettings,
-  type LayoutFactoryItemOption,
-} from "../layout-factory-settings";
 import type {
-  LayoutBeaconSettings,
   LayoutCompositeBoundary,
-  LayoutModuleSettings,
   LayoutReorderPlacement,
   RecipeLayout,
   RecipeLayoutEntry,
@@ -95,17 +75,6 @@ interface LayoutWorkspaceProps {
   ): void;
   onOpenItemSelector(): void;
   onOpenLayoutGraph(layoutId: string): void;
-  onRecipeBeaconsChange(
-    layoutId: string,
-    entryId: string,
-    beacons: LayoutBeaconSettings[],
-  ): void;
-  onRecipeMachineChange(layoutId: string, entryId: string, machineId: string): void;
-  onRecipeModulesChange(
-    layoutId: string,
-    entryId: string,
-    modules: LayoutModuleSettings[],
-  ): void;
   onRecipeProductionSizeChange(
     layoutId: string,
     entryId: string,
@@ -137,9 +106,6 @@ export function LayoutWorkspace({
   onLayoutIconSettingsChange,
   onOpenItemSelector,
   onOpenLayoutGraph,
-  onRecipeBeaconsChange,
-  onRecipeMachineChange,
-  onRecipeModulesChange,
   onRecipeProductionSizeChange,
   onRemoveRecipeFromLayout,
   onRenameLayout,
@@ -154,12 +120,9 @@ export function LayoutWorkspace({
     placement: LayoutReorderPlacement;
   } | null>(null);
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
-  const [pendingInspectorFocusEntryId, setPendingInspectorFocusEntryId] =
-    useState<string | null>(null);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [exportText, setExportText] = useState<string | null>(null);
   const [isDeleteConfirming, setIsDeleteConfirming] = useState(false);
-  const inspectorRef = useRef<HTMLElement | null>(null);
   const focusedLayout =
     layoutOverride ??
     layouts.find((layout) => layout.id === focusedLayoutId) ??
@@ -204,7 +167,6 @@ export function LayoutWorkspace({
   useEffect(() => {
     if (!focusedLayout?.entries.length) {
       setSelectedEntryId(null);
-      setPendingInspectorFocusEntryId(null);
       return;
     }
 
@@ -212,24 +174,6 @@ export function LayoutWorkspace({
       setSelectedEntryId(focusedLayout.entries[0]?.id ?? null);
     }
   }, [focusedLayout?.entries, focusedLayout?.id, selectedEntryId]);
-
-  useEffect(() => {
-    if (!pendingInspectorFocusEntryId) {
-      return;
-    }
-
-    if (!focusedLayout?.entries.some((entry) => entry.id === pendingInspectorFocusEntryId)) {
-      setPendingInspectorFocusEntryId(null);
-      return;
-    }
-
-    if (selectedEntry?.id !== pendingInspectorFocusEntryId) {
-      return;
-    }
-
-    inspectorRef.current?.focus();
-    setPendingInspectorFocusEntryId(null);
-  }, [focusedLayout?.entries, pendingInspectorFocusEntryId, selectedEntry?.id]);
 
   useEffect(() => {
     setIsDeleteConfirming(false);
@@ -391,13 +335,6 @@ export function LayoutWorkspace({
     );
   }
 
-  const layoutEditorStyle = {
-    "--layout-editor-machine-width": `${getLayoutMachineSelectionWidth(
-      data,
-      focusedLayout,
-    )}px`,
-  } as LayoutEditorStyle;
-
   return (
     <section className="layout-workspace">
       <LayoutWorkbenchHeader
@@ -502,7 +439,6 @@ export function LayoutWorkspace({
       <div className="layout-workspace__body">
         <section
           className="layout-editor app-panel"
-          style={layoutEditorStyle}
           aria-label={`${title} recipes`}
         >
           {focusedLayout.entries.length ? (
@@ -551,15 +487,8 @@ export function LayoutWorkspace({
                         productionSize,
                       )
                     }
-                    onMachineChange={(machineId) =>
-                      onRecipeMachineChange(focusedLayout.id, entry.id, machineId)
-                    }
                     onRemove={() => onRemoveRecipeFromLayout(focusedLayout.id, entry.id)}
                     onSelect={() => setSelectedEntryId(entry.id)}
-                    onSelectFactorySettings={() => {
-                      setSelectedEntryId(entry.id);
-                      setPendingInspectorFocusEntryId(entry.id);
-                    }}
                     onOpenRecipeContext={onSelectItem}
                   />
                 );
@@ -603,19 +532,7 @@ export function LayoutWorkspace({
         <LayoutRecipeInspector
           data={data}
           entry={selectedEntry}
-          inspectorRef={inspectorRef}
           recipe={selectedRecipe}
-          readOnly={readOnly}
-          onBeaconsChange={(beacons) => {
-            if (!readOnly && focusedLayout && selectedEntry) {
-              onRecipeBeaconsChange(focusedLayout.id, selectedEntry.id, beacons);
-            }
-          }}
-          onModulesChange={(modules) => {
-            if (!readOnly && focusedLayout && selectedEntry) {
-              onRecipeModulesChange(focusedLayout.id, selectedEntry.id, modules);
-            }
-          }}
           onOpenRecipeContext={onSelectItem}
         />
       </div>
@@ -995,53 +912,10 @@ interface LayoutEditorRecipeRowProps {
   recipe: RecipePrototype;
   selected: boolean;
   onDragStart(): void;
-  onMachineChange(machineId: string): void;
   onProductionSizeChange(productionSize: number): void;
   onRemove(): void;
   onSelect(): void;
-  onSelectFactorySettings(): void;
   onOpenRecipeContext(itemId: string): void;
-}
-
-interface LayoutMachineOption {
-  icon: FactorioLabIcon | undefined;
-  id: string;
-  name: string;
-}
-
-type LayoutEditorStyle = CSSProperties & {
-  "--layout-editor-machine-width": string;
-};
-
-const machineOptionButtonWidth = 32;
-const machineOptionGap = 5;
-const machineOptionChromeWidth = 8;
-const minMachineSelectionWidth = 84;
-const maxMachineSelectionWidth = 320;
-
-function getLayoutMachineSelectionWidth(
-  data: RecipeExplorerData,
-  layout: RecipeLayout,
-): number {
-  const longestProducerList = layout.entries.reduce((longest, entry) => {
-    const recipe = data.recipeById.get(entry.recipeId);
-
-    return recipe
-      ? Math.max(longest, getRecipeMetadata(recipe).producers.length)
-      : longest;
-  }, 0);
-  const listWidth =
-    longestProducerList > 0
-      ? longestProducerList * machineOptionButtonWidth +
-        Math.max(0, longestProducerList - 1) * machineOptionGap +
-        machineOptionChromeWidth
-      : minMachineSelectionWidth;
-
-  return clampNumber(
-    listWidth,
-    minMachineSelectionWidth,
-    maxMachineSelectionWidth,
-  );
 }
 
 function LayoutEditorRecipeRow({
@@ -1050,24 +924,17 @@ function LayoutEditorRecipeRow({
   dropPlacement,
   entry,
   index,
-  onMachineChange,
   onDragStart,
   onProductionSizeChange,
   onRemove,
   onOpenRecipeContext,
   onSelect,
-  onSelectFactorySettings,
   readOnly,
   recipe,
   selected,
 }: LayoutEditorRecipeRowProps) {
   const metadata = getRecipeMetadata(recipe);
   const isComposite = isCompositeRecipe(recipe);
-  const machineOptions = getRecipeMachineOptions(data, metadata.producers);
-  const selectedMachine =
-    machineOptions.find((option) => option.id === entry.machineId) ??
-    machineOptions[0] ??
-    null;
   const [productionSizeDraft, setProductionSizeDraft] = useState(
     formatProductionSize(entry.productionSize),
   );
@@ -1129,64 +996,6 @@ function LayoutEditorRecipeRow({
           )}
         </span>
       </button>
-      {isComposite ? (
-        <div className="layout-editor-row__machine layout-editor-row__machine--blank" />
-      ) : (
-        <div
-          aria-label={`${metadata.name} producing machine`}
-          className="layout-editor-row__machine"
-          role="group"
-          data-tooltip={
-            selectedMachine ? `Machine: ${selectedMachine.name}` : "No machine choice"
-          }
-        >
-          {machineOptions.length ? (
-            machineOptions.map((option) => {
-              const isSelected = option.id === selectedMachine?.id;
-
-              return (
-                <button
-                  aria-label={`Use ${option.name}`}
-                  aria-pressed={isSelected}
-                  className="layout-editor-row__machine-option"
-                  data-tooltip={option.name}
-                  disabled={readOnly}
-                  key={option.id}
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-
-                    if (!isSelected) {
-                      onMachineChange(option.id);
-                    }
-                  }}
-                  onPointerDown={(event) => event.stopPropagation()}
-                >
-                  <IconSprite
-                    atlas={data.atlas}
-                    icon={option.icon}
-                    label={option.name}
-                    size={22}
-                  />
-                </button>
-              );
-            })
-          ) : (
-            <span className="layout-editor-row__machine-none">natural</span>
-          )}
-        </div>
-      )}
-      {isComposite ? (
-        <div className="layout-editor-row__factory layout-editor-row__factory--blank" />
-      ) : (
-        <FactorySettingsSummary
-          data={data}
-          entry={entry}
-          readOnly={readOnly}
-          recipeName={metadata.name}
-          onSelect={onSelectFactorySettings}
-        />
-      )}
       <label className="layout-editor-row__size" data-tooltip="Production size">
         <span aria-hidden="true">×</span>
         <input
@@ -1233,116 +1042,22 @@ function LayoutEditorRecipeRow({
   );
 }
 
-function FactorySettingsSummary({
-  data,
-  entry,
-  onSelect,
-  readOnly,
-  recipeName,
-}: {
-  data: RecipeExplorerData;
-  entry: RecipeLayoutEntry;
-  readOnly: boolean;
-  recipeName: string;
-  onSelect(): void;
-}) {
-  const summaryCount = getFactorySettingsSummaryCount(entry.modules, entry.beacons);
-
-  return (
-    <button
-      aria-label={`Edit modules and beacons for ${recipeName}`}
-      className={`layout-editor-row__factory ${
-        summaryCount ? "" : "layout-editor-row__factory--empty"
-      }`}
-      data-tooltip={summaryCount ? "Factory settings" : "No modules or beacons"}
-      type="button"
-      disabled={readOnly && !summaryCount}
-      onClick={onSelect}
-    >
-      {entry.modules?.map((module) => (
-        <FactorySettingChip
-          count={module.count}
-          data={data}
-          id={module.id}
-          key={`module:${module.id}`}
-        />
-      ))}
-      {entry.beacons?.map((beacon, index) => (
-        <FactorySettingChip
-          count={beacon.count}
-          data={data}
-          id={beacon.id}
-          key={`beacon:${beacon.id}:${index}`}
-        />
-      ))}
-      {summaryCount ? null : <span>empty</span>}
-    </button>
-  );
-}
-
-function FactorySettingChip({
-  count,
-  data,
-  id,
-}: {
-  count: number;
-  data: RecipeExplorerData;
-  id: string;
-}) {
-  const item = data.itemById.get(id);
-  const icon = data.iconById.get(item ? getIconIdForItem(item) : id);
-  const label = item?.name ?? formatId(id);
-
-  return (
-    <span className="factory-setting-chip" title={`${label} x ${formatNumber(count)}`}>
-      <IconSprite atlas={data.atlas} icon={icon} label={label} size={20} />
-      <em>{formatNumber(count)}</em>
-    </span>
-  );
-}
-
-function getRecipeMachineOptions(
-  data: RecipeExplorerData,
-  producerIds: string[],
-): LayoutMachineOption[] {
-  return producerIds.map((producerId) => {
-    const item = data.itemById.get(producerId);
-    const name = item?.name ?? formatId(producerId);
-    const iconId = item ? getIconIdForItem(item) : producerId;
-
-    return {
-      icon: data.iconById.get(iconId),
-      id: producerId,
-      name,
-    };
-  });
-}
-
 interface LayoutRecipeInspectorProps {
   data: RecipeExplorerData;
   entry: RecipeLayoutEntry | null;
-  inspectorRef: RefObject<HTMLElement | null>;
-  readOnly: boolean;
   recipe: RecipePrototype | null;
-  onBeaconsChange(beacons: LayoutBeaconSettings[]): void;
-  onModulesChange(modules: LayoutModuleSettings[]): void;
   onOpenRecipeContext(itemId: string): void;
 }
 
 function LayoutRecipeInspector({
   data,
   entry,
-  inspectorRef,
-  onBeaconsChange,
-  onModulesChange,
   onOpenRecipeContext,
-  readOnly,
   recipe,
 }: LayoutRecipeInspectorProps) {
   if (!entry || !recipe) {
     return (
       <aside
-        ref={inspectorRef}
         className="layout-inspector app-panel"
         aria-label="Recipe inspector"
         tabIndex={-1}
@@ -1360,10 +1075,6 @@ function LayoutRecipeInspector({
 
   const metadata = getRecipeMetadata(recipe);
   const contextItemId = getRecipeContextItemId(data, recipe);
-  const selectedMachineId = getRecipeSelectedMachineId(recipe, entry.machineId);
-  const machineModuleOptions = getRecipeModuleOptions(data, recipe, selectedMachineId);
-  const machineModuleCapacity = getMachineModuleCapacity(data, selectedMachineId);
-  const canUseFactorySettings = machineModuleOptions.length > 0 && Boolean(machineModuleCapacity);
   const tags = [
     ...metadata.flags,
     ...metadata.disallowedEffects.map((effect) => `no ${effect}`),
@@ -1373,7 +1084,6 @@ function LayoutRecipeInspector({
   if (isComposite) {
     return (
       <aside
-        ref={inspectorRef}
         className="layout-inspector app-panel"
         aria-label="Recipe inspector"
         tabIndex={-1}
@@ -1425,7 +1135,6 @@ function LayoutRecipeInspector({
 
   return (
     <aside
-      ref={inspectorRef}
       className="layout-inspector app-panel"
       aria-label="Recipe inspector"
       tabIndex={-1}
@@ -1457,7 +1166,7 @@ function LayoutRecipeInspector({
           </span>
         }
         metadata={metadata}
-        producerIds={selectedMachineId ? [selectedMachineId] : []}
+        producerIds={[]}
       />
 
       <div className="layout-inspector__equation">
@@ -1482,48 +1191,6 @@ function LayoutRecipeInspector({
         </div>
       ) : null}
 
-      <section className="layout-inspector__factory">
-        <header className="layout-inspector__section-heading">
-          <h3>Modules</h3>
-          {machineModuleCapacity && machineModuleCapacity !== true ? (
-            <span>
-              {formatNumber(sumModuleCounts(entry.modules))}/
-              {formatNumber(machineModuleCapacity)}
-            </span>
-          ) : null}
-        </header>
-        {canUseFactorySettings ? (
-          <ModuleSettingsRows
-            addLabel="Add module"
-            capacity={machineModuleCapacity}
-            data={data}
-            emptyLabel="No modules selected"
-            options={machineModuleOptions}
-            readOnly={readOnly}
-            value={entry.modules ?? []}
-            onChange={onModulesChange}
-          />
-        ) : (
-          <p className="layout-inspector__muted">Selected machine has no module slots.</p>
-        )}
-      </section>
-
-      <section className="layout-inspector__factory">
-        <header className="layout-inspector__section-heading">
-          <h3>Beacons</h3>
-        </header>
-        {canUseFactorySettings ? (
-          <BeaconSettingsRows
-            data={data}
-            readOnly={readOnly}
-            value={entry.beacons ?? []}
-            onChange={onBeaconsChange}
-          />
-        ) : (
-          <p className="layout-inspector__muted">Beacons need a module-capable machine.</p>
-        )}
-      </section>
-
       <button
         className="layout-inspector__open primary-action-button"
         disabled={!contextItemId}
@@ -1539,443 +1206,6 @@ function LayoutRecipeInspector({
       </button>
     </aside>
   );
-}
-
-interface ModuleSettingsRowsProps {
-  addLabel: string;
-  capacity: number | true | null;
-  data: RecipeExplorerData;
-  emptyLabel: string;
-  getDefaultSetting?(): LayoutModuleSettings | null;
-  options: LayoutFactoryItemOption[];
-  readOnly?: boolean;
-  value: LayoutModuleSettings[];
-  onChange(value: LayoutModuleSettings[]): void;
-}
-
-function ModuleSettingsRows({
-  addLabel,
-  capacity,
-  data,
-  emptyLabel,
-  getDefaultSetting,
-  options,
-  readOnly = false,
-  value,
-  onChange,
-}: ModuleSettingsRowsProps) {
-  const usedSlots = sumModuleCounts(value);
-  const finiteCapacity = capacity === true ? null : capacity;
-  const remainingSlots =
-    finiteCapacity === null ? Number.POSITIVE_INFINITY : Math.max(0, finiteCapacity - usedSlots);
-  const canAdd = options.length > 0 && remainingSlots > 0;
-
-  function commit(nextValue: LayoutModuleSettings[]) {
-    onChange(sanitizeModuleSettings(nextValue, options, capacity));
-  }
-
-  function addModule() {
-    if (!canAdd) {
-      return;
-    }
-
-    const defaults = getDefaultSetting
-      ? [getDefaultSetting()].filter(
-          (setting): setting is LayoutModuleSettings => setting !== null,
-        )
-      : getDefaultMachineModuleSettings(options, capacity);
-    const fallbackId = options[0]?.id;
-    const nextSetting = defaults[0] ?? (fallbackId ? { id: fallbackId, count: 1 } : null);
-
-    if (!nextSetting) {
-      return;
-    }
-
-    commit([...value, { ...nextSetting, count: Math.min(nextSetting.count, remainingSlots) }]);
-  }
-
-  return (
-    <div className="factory-settings-editor">
-      {value.length ? (
-        value.map((setting, index) => (
-          <FactoryModuleSettingRow
-            data={data}
-            key={`${setting.id}:${index}`}
-            options={options}
-            readOnly={readOnly}
-            setting={setting}
-            onCountChange={(count) =>
-              commit(value.map((item, itemIndex) =>
-                itemIndex === index ? { ...item, count } : item,
-              ))
-            }
-            onIdChange={(id) =>
-              commit(value.map((item, itemIndex) =>
-                itemIndex === index ? { ...item, id } : item,
-              ))
-            }
-            onRemove={() => commit(value.filter((_, itemIndex) => itemIndex !== index))}
-          />
-        ))
-      ) : (
-        <p className="layout-inspector__muted">{emptyLabel}</p>
-      )}
-      <button
-        className="factory-settings-editor__add"
-        disabled={readOnly || !canAdd}
-        type="button"
-        hidden={readOnly}
-        onClick={addModule}
-      >
-        <Plus size={15} aria-hidden="true" />
-        {addLabel}
-      </button>
-    </div>
-  );
-}
-
-interface FactoryModuleSettingRowProps {
-  data: RecipeExplorerData;
-  options: LayoutFactoryItemOption[];
-  readOnly: boolean;
-  setting: LayoutModuleSettings;
-  onCountChange(count: number): void;
-  onIdChange(id: string): void;
-  onRemove(): void;
-}
-
-function FactoryModuleSettingRow({
-  data,
-  onCountChange,
-  onIdChange,
-  onRemove,
-  options,
-  readOnly,
-  setting,
-}: FactoryModuleSettingRowProps) {
-  const selectedOption = getSelectedFactoryOption(data, options, setting.id);
-
-  return (
-    <div className="factory-settings-row">
-      <FactoryIconDropdown
-        ariaLabel="Module"
-        data={data}
-        disabled={readOnly}
-        options={options}
-        value={setting.id}
-        onChange={onIdChange}
-      />
-      <FactoryCountInput
-        ariaLabel={`${selectedOption.name} count`}
-        disabled={readOnly}
-        value={setting.count}
-        onChange={onCountChange}
-      />
-      {readOnly ? (
-        <span className="factory-settings-row__remove factory-settings-row__remove--blank" />
-      ) : (
-        <button
-          aria-label={`Remove ${selectedOption.name}`}
-          className="factory-settings-row__remove"
-          data-tooltip="Remove"
-          type="button"
-          onClick={onRemove}
-        >
-          <X size={14} aria-hidden="true" />
-        </button>
-      )}
-    </div>
-  );
-}
-
-interface FactoryIconDropdownProps {
-  ariaLabel: string;
-  data: RecipeExplorerData;
-  disabled?: boolean;
-  options: LayoutFactoryItemOption[];
-  value: string;
-  onChange(id: string): void;
-}
-
-function FactoryIconDropdown({
-  ariaLabel,
-  data,
-  disabled = false,
-  onChange,
-  options,
-  value,
-}: FactoryIconDropdownProps) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const selectedOption = getSelectedFactoryOption(data, options, value);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    function handlePointerDown(event: PointerEvent) {
-      const target = event.target;
-
-      if (target instanceof Node && rootRef.current?.contains(target)) {
-        return;
-      }
-
-      setOpen(false);
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    }
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open]);
-
-  return (
-    <div className="factory-icon-dropdown" ref={rootRef}>
-      <button
-        aria-expanded={open}
-        aria-label={ariaLabel}
-        className="factory-icon-dropdown__button"
-        data-tooltip={selectedOption.name}
-        disabled={disabled}
-        type="button"
-        onClick={() => {
-          if (!disabled) {
-            setOpen((current) => !current);
-          }
-        }}
-      >
-        <IconSprite
-          atlas={data.atlas}
-          icon={selectedOption.icon}
-          label={selectedOption.name}
-          size={24}
-        />
-        <ChevronDown
-          className="factory-icon-dropdown__chevron"
-          size={10}
-          aria-hidden="true"
-        />
-      </button>
-      {open ? (
-        <div className="factory-icon-dropdown__menu" role="menu" aria-label={ariaLabel}>
-          {options.map((option) => {
-            const selected = option.id === value;
-
-            return (
-              <button
-                aria-checked={selected}
-                aria-label={option.name}
-                className="factory-icon-dropdown__option"
-                data-tooltip={option.name}
-                key={option.id}
-                role="menuitemradio"
-                type="button"
-                onClick={() => {
-                  if (!selected) {
-                    onChange(option.id);
-                  }
-
-                  setOpen(false);
-                }}
-              >
-                <IconSprite
-                  atlas={data.atlas}
-                  icon={option.icon}
-                  label={option.name}
-                  size={24}
-                />
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-interface FactoryCountInputProps {
-  ariaLabel: string;
-  disabled?: boolean;
-  value: number;
-  onChange(value: number): void;
-}
-
-function FactoryCountInput({
-  ariaLabel,
-  disabled = false,
-  onChange,
-  value,
-}: FactoryCountInputProps) {
-  const [draft, setDraft] = useState(formatFactoryCountInput(value));
-
-  useEffect(() => {
-    setDraft(formatFactoryCountInput(value));
-  }, [value]);
-
-  return (
-    <input
-      aria-label={ariaLabel}
-      inputMode="decimal"
-      min="0"
-      step="1"
-      type="number"
-      disabled={disabled}
-      value={draft}
-      onBlur={() => {
-        if (!draft.trim() || parseFactoryCountInput(draft) !== null) {
-          return;
-        }
-
-        setDraft(formatFactoryCountInput(value));
-      }}
-      onChange={(event) => {
-        const nextDraft = event.target.value;
-        const nextValue = parseFactoryCountInput(nextDraft);
-
-        setDraft(nextDraft);
-
-        if (nextValue !== null) {
-          onChange(nextValue);
-        }
-      }}
-    />
-  );
-}
-
-interface BeaconSettingsRowsProps {
-  data: RecipeExplorerData;
-  readOnly?: boolean;
-  value: LayoutBeaconSettings[];
-  onChange(value: LayoutBeaconSettings[]): void;
-}
-
-function BeaconSettingsRows({
-  data,
-  onChange,
-  readOnly = false,
-  value,
-}: BeaconSettingsRowsProps) {
-  const beaconOptions = getBeaconOptions(data);
-
-  function commit(nextValue: LayoutBeaconSettings[]) {
-    onChange(sanitizeBeaconSettings(data, nextValue));
-  }
-
-  function addBeacon() {
-    const defaults = getDefaultBeaconSettings(data);
-    const fallbackBeacon = beaconOptions[0];
-
-    if (defaults[0]) {
-      commit([...value, defaults[0]]);
-    } else if (fallbackBeacon) {
-      commit([...value, { id: fallbackBeacon.id, count: 1, modules: [] }]);
-    }
-  }
-
-  return (
-    <div className="factory-settings-editor">
-      {value.length ? (
-        value.map((beacon, index) => {
-          const moduleOptions = getBeaconModuleOptions(data, beacon.id);
-          const moduleCapacity = getBeaconModuleCapacity(data, beacon.id);
-          const selectedOption = getSelectedFactoryOption(data, beaconOptions, beacon.id);
-
-          return (
-            <div className="beacon-settings-card" key={`${beacon.id}:${index}`}>
-              <div className="factory-settings-row">
-                <FactoryIconDropdown
-                  ariaLabel="Beacon"
-                  data={data}
-                  disabled={readOnly}
-                  options={beaconOptions}
-                  value={beacon.id}
-                  onChange={(nextBeaconId) => {
-                    const nextModules = sanitizeModuleSettings(
-                      beacon.modules,
-                      getBeaconModuleOptions(data, nextBeaconId),
-                      getBeaconModuleCapacity(data, nextBeaconId),
-                    );
-
-                    commit(value.map((item, itemIndex) =>
-                      itemIndex === index
-                        ? { ...item, id: nextBeaconId, modules: nextModules }
-                        : item,
-                    ));
-                  }}
-                />
-                <FactoryCountInput
-                  ariaLabel={`${selectedOption.name} count`}
-                  disabled={readOnly}
-                  value={beacon.count}
-                  onChange={(count) =>
-                    commit(value.map((item, itemIndex) =>
-                      itemIndex === index ? { ...item, count } : item,
-                    ))
-                  }
-                />
-                {readOnly ? (
-                  <span className="factory-settings-row__remove factory-settings-row__remove--blank" />
-                ) : (
-                  <button
-                    aria-label={`Remove ${selectedOption.name}`}
-                    className="factory-settings-row__remove"
-                    data-tooltip="Remove"
-                    type="button"
-                    onClick={() => commit(value.filter((_, itemIndex) => itemIndex !== index))}
-                  >
-                    <X size={14} aria-hidden="true" />
-                  </button>
-                )}
-              </div>
-              <ModuleSettingsRows
-                addLabel="Add beacon module"
-                capacity={moduleCapacity}
-                data={data}
-                emptyLabel="No beacon modules selected"
-                getDefaultSetting={() =>
-                  getDefaultBeaconModuleSettings(data, beacon.id)[0] ?? null
-                }
-                options={moduleOptions}
-                readOnly={readOnly}
-                value={beacon.modules}
-                onChange={(modules) =>
-                  commit(value.map((item, itemIndex) =>
-                    itemIndex === index ? { ...item, modules } : item,
-                  ))
-                }
-              />
-            </div>
-          );
-        })
-      ) : (
-        <p className="layout-inspector__muted">No beacons selected</p>
-      )}
-      <button
-        className="factory-settings-editor__add"
-        disabled={readOnly || !beaconOptions.length}
-        type="button"
-        hidden={readOnly}
-        onClick={addBeacon}
-      >
-        <Plus size={15} aria-hidden="true" />
-        Add beacon
-      </button>
-    </div>
-  );
-}
-
-function sumModuleCounts(modules: readonly LayoutModuleSettings[] | undefined): number {
-  return modules?.reduce((sum, module) => sum + module.count, 0) ?? 0;
 }
 
 interface InspectorMaterialGroupProps {
@@ -2041,41 +1271,6 @@ function parseProductionSizeInput(value: string): number | null {
   return Number.isFinite(productionSize) && productionSize > 0
     ? productionSize
     : null;
-}
-
-function formatFactoryCountInput(value: number): string {
-  return Number.isFinite(value) ? String(value) : "";
-}
-
-function parseFactoryCountInput(value: string): number | null {
-  if (!value.trim()) {
-    return null;
-  }
-
-  const count = Number(value);
-
-  return Number.isFinite(count) && count >= 0 ? count : null;
-}
-
-function getSelectedFactoryOption(
-  data: RecipeExplorerData,
-  options: readonly LayoutFactoryItemOption[],
-  id: string,
-): LayoutFactoryItemOption {
-  const option = options.find((item) => item.id === id);
-
-  if (option) {
-    return option;
-  }
-
-  const item = data.itemById.get(id);
-  const iconId = item ? getIconIdForItem(item) : id;
-
-  return {
-    icon: data.iconById.get(iconId),
-    id,
-    name: item?.name ?? formatId(id),
-  };
 }
 
 function getRecipeContextItemId(
