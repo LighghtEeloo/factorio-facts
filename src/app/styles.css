@@ -2952,6 +2952,10 @@ button {
   pointer-events: none;
 }
 
+.react-flow__edge-path.layout-graph-edge--smart-preview {
+  stroke-width: 3px;
+}
+
 .layout-graph-edge--smart-preview-input {
   stroke: #b7d58f;
 }
@@ -3239,6 +3243,34 @@ button {
     inset 0 0 0 1px rgba(159, 193, 141, 0.72),
     0 0 0 3px rgba(159, 193, 141, 0.16),
     0 12px 22px rgba(0, 0, 0, 0.22);
+}
+
+.layout-graph-node--related-input
+  :is(.layout-graph-node__main, .layout-graph-relay__main) {
+  border-color: #b7d58f;
+  box-shadow:
+    inset 0 0 0 1px rgba(183, 213, 143, 0.78),
+    0 0 0 3px rgba(183, 213, 143, 0.16),
+    0 12px 22px rgba(0, 0, 0, 0.24);
+}
+
+.layout-graph-node--related-output
+  :is(.layout-graph-node__main, .layout-graph-relay__main) {
+  border-color: #f0c96e;
+  box-shadow:
+    inset 0 0 0 1px rgba(240, 201, 110, 0.8),
+    0 0 0 3px rgba(240, 201, 110, 0.16),
+    0 12px 22px rgba(0, 0, 0, 0.24);
+}
+
+.layout-graph-node--related-input.layout-graph-node--related-output
+  :is(.layout-graph-node__main, .layout-graph-relay__main) {
+  border-color: #f0c96e;
+  box-shadow:
+    inset 0 0 0 1px rgba(240, 201, 110, 0.8),
+    0 0 0 3px rgba(183, 213, 143, 0.16),
+    0 0 0 6px rgba(240, 201, 110, 0.12),
+    0 12px 22px rgba(0, 0, 0, 0.24);
 }
 
 .layout-graph-node--smart-preview-input

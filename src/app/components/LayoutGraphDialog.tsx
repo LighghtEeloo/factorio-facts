@@ -400,6 +400,10 @@ export function LayoutGraphDialog({
       smartLinkPreviewNodeId,
     ],
   );
+  const focusedNodeRelations = useMemo(
+    () => buildFocusedNodeRelationMap(graph.edges, selectedNodeId),
+    [graph.edges, selectedNodeId],
+  );
   const edges = useMemo(
     (): ItemFlowEdgeType[] => [
       ...graph.edges.map((edge): ItemFlowEdgeType => ({
@@ -452,6 +456,8 @@ export function LayoutGraphDialog({
           isConnectableTarget,
           isConnecting: connectingFromNodeId === node.id,
           isSelected: node.id === selectedNodeId,
+          focusRelation: focusedNodeRelations.get(node.id) ?? null,
+          smartLinkRelation: smartLinkPreview.relationByNodeId.get(node.id) ?? null,
           smartLinkInputItemKeys: [
             ...(smartLinkPreview.inputItemKeysByNodeId.get(node.id) ?? []),
           ],
@@ -467,11 +473,13 @@ export function LayoutGraphDialog({
       changeEdgePorts,
       changeTerminalSide,
       connectingFromNodeId,
+      focusedNodeRelations,
       graph.connectionCandidates,
       selectedEdge,
       selectedNodeId,
       selectedTerminal,
       smartLinkPreview.inputItemKeysByNodeId,
+      smartLinkPreview.relationByNodeId,
       smartLinkPreview.outputItemKeysByNodeId,
     ],
   );
@@ -1958,14 +1966,18 @@ function GraphItemToggle({
 }
 
 type GraphNodeSelectHandler = (nodeId: string, event: ReactMouseEvent) => void;
+type GraphRelation = "input" | "output";
+type GraphRelationState = GraphRelation | "mixed";
 
 interface SelectableConnectableGraphNodeData extends Record<string, unknown> {
   endpointSelector?: GraphEndpointSelector | null;
+  focusRelation: GraphRelationState | null;
   isConnectableTarget: boolean;
   isConnecting: boolean;
   isSelected: boolean;
   label: string;
   onSelectNode: GraphNodeSelectHandler;
+  smartLinkRelation: GraphRelationState | null;
   smartLinkInputItemKeys: string[];
   smartLinkOutputItemKeys: string[];
 }
@@ -2005,9 +2017,11 @@ interface GraphEndpointSelector {
 
 interface GraphNodeInteractionState {
   endpointSelector: GraphEndpointSelector | null;
+  focusRelation: GraphRelationState | null;
   isConnectableTarget: boolean;
   isConnecting: boolean;
   isSelected: boolean;
+  smartLinkRelation: GraphRelationState | null;
   smartLinkInputItemKeys: string[];
   smartLinkOutputItemKeys: string[];
 }
@@ -2154,16 +2168,27 @@ function RelayNode({ data, id }: NodeProps<RelayFlowNode>) {
 }
 
 function getGraphNodeStateClassName(data: BaseGraphNodeData): string {
-  const hasSmartLinkInput = data.smartLinkInputItemKeys.length > 0;
-  const hasSmartLinkOutput = data.smartLinkOutputItemKeys.length > 0;
+  const focusRelation = data.focusRelation;
+  const smartLinkRelation = data.smartLinkRelation;
 
   return [
     data.isSelected ? "layout-graph-node--selected" : "",
     data.isConnecting ? "layout-graph-node--connecting" : "",
     data.isConnectableTarget ? "layout-graph-node--connectable" : "",
-    hasSmartLinkInput || hasSmartLinkOutput ? "layout-graph-node--smart-preview" : "",
-    hasSmartLinkInput ? "layout-graph-node--smart-preview-input" : "",
-    hasSmartLinkOutput ? "layout-graph-node--smart-preview-output" : "",
+    focusRelation ? "layout-graph-node--related" : "",
+    focusRelation === "input" || focusRelation === "mixed"
+      ? "layout-graph-node--related-input"
+      : "",
+    focusRelation === "output" || focusRelation === "mixed"
+      ? "layout-graph-node--related-output"
+      : "",
+    smartLinkRelation ? "layout-graph-node--smart-preview" : "",
+    smartLinkRelation === "input" || smartLinkRelation === "mixed"
+      ? "layout-graph-node--smart-preview-input"
+      : "",
+    smartLinkRelation === "output" || smartLinkRelation === "mixed"
+      ? "layout-graph-node--smart-preview-output"
+      : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -2236,7 +2261,7 @@ interface ItemFlowEdgeData extends Record<string, unknown> {
   availableItems: ProductPrototype[];
   data: RecipeExplorerData;
   hasItemOverride: boolean;
-  focusRelation?: "input" | "output" | null;
+  focusRelation?: GraphRelation | null;
   isPreview?: boolean;
   items: ProductPrototype[];
   onFocusEdge(edgeId: string, additive?: boolean): void;
@@ -2244,7 +2269,7 @@ interface ItemFlowEdgeData extends Record<string, unknown> {
   onRouteReset(edgeId: string): void;
   ports: GraphEdgePorts;
   route: GraphEdgeRoute | null;
-  smartLinkPreviewKind?: "input" | "output";
+  smartLinkPreviewKind?: GraphRelation;
   sourceName: string;
   targetName: string;
 }
@@ -2254,7 +2279,7 @@ type ItemFlowEdgeType = Edge<ItemFlowEdgeData, "item-flow">;
 function getFocusedNodeEdgeRelation(
   edge: ItemFlowEdgeType,
   nodeId: string | null,
-): "input" | "output" | null {
+): GraphRelation | null {
   if (!nodeId) {
     return null;
   }
@@ -2268,6 +2293,42 @@ function getFocusedNodeEdgeRelation(
   }
 
   return null;
+}
+
+function buildFocusedNodeRelationMap(
+  edges: ItemFlowEdgeType[],
+  nodeId: string | null,
+): Map<string, GraphRelationState> {
+  const relationByNodeId = new Map<string, GraphRelationState>();
+
+  if (!nodeId) {
+    return relationByNodeId;
+  }
+
+  for (const edge of edges) {
+    if (edge.target === nodeId) {
+      addGraphRelation(relationByNodeId, edge.source, "input");
+    } else if (edge.source === nodeId) {
+      addGraphRelation(relationByNodeId, edge.target, "output");
+    }
+  }
+
+  return relationByNodeId;
+}
+
+function addGraphRelation(
+  relationByNodeId: Map<string, GraphRelationState>,
+  nodeId: string,
+  relation: GraphRelation,
+) {
+  const existingRelation = relationByNodeId.get(nodeId);
+
+  if (!existingRelation || existingRelation === relation) {
+    relationByNodeId.set(nodeId, relation);
+    return;
+  }
+
+  relationByNodeId.set(nodeId, "mixed");
 }
 
 function getEndpointSelectorForNode(
@@ -2950,6 +3011,7 @@ function buildFlowNode(
     externalInputs: node.externalInputs,
     externalOutputOptions: node.externalOutputOptions,
     externalOutputs: node.externalOutputs,
+    focusRelation: null,
     isConnectableTarget: false,
     isConnecting: false,
     isSelected: false,
@@ -2960,6 +3022,7 @@ function buildFlowNode(
     onSelectItem,
     onSelectNode,
     selectedTerminalId,
+    smartLinkRelation: null,
     smartLinkInputItemKeys: [],
     smartLinkOutputItemKeys: [],
     subtitle: node.subtitle,
@@ -3549,6 +3612,7 @@ interface SmartLinkPreview {
   edges: ItemFlowEdgeType[];
   inputItemKeysByNodeId: Map<string, Set<string>>;
   outputItemKeysByNodeId: Map<string, Set<string>>;
+  relationByNodeId: Map<string, GraphRelationState>;
 }
 
 function buildSmartLinkPreview(
@@ -3563,12 +3627,14 @@ function buildSmartLinkPreview(
     : null;
   const inputItemKeysByNodeId = new Map<string, Set<string>>();
   const outputItemKeysByNodeId = new Map<string, Set<string>>();
+  const relationByNodeId = new Map<string, GraphRelationState>();
 
   if (!previewNode) {
     return {
       edges: [],
       inputItemKeysByNodeId,
       outputItemKeysByNodeId,
+      relationByNodeId,
     };
   }
 
@@ -3583,11 +3649,15 @@ function buildSmartLinkPreview(
     }
 
     const itemKeys = connection.availableItems.map((item) => getEntityKey(item));
+    const previewRelation: GraphRelation =
+      connection.targetId === previewNode.id ? "input" : "output";
+
     addSetValues(outputItemKeysByNodeId, connection.sourceId, itemKeys);
     addSetValues(inputItemKeysByNodeId, connection.targetId, itemKeys);
+    addGraphRelation(relationByNodeId, connection.sourceId, previewRelation);
+    addGraphRelation(relationByNodeId, connection.targetId, previewRelation);
 
     const ports = edgePorts[connection.id] ?? defaultGraphEdgePorts;
-    const previewKind = connection.targetId === previewNode.id ? "input" : "output";
 
     return [
       {
@@ -3599,7 +3669,7 @@ function buildSmartLinkPreview(
         targetHandle: getGraphHandleId("target", ports.targetSide),
         markerEnd: {
           type: MarkerType.ArrowClosed,
-          color: previewKind === "input" ? "#b7d58f" : "#f0c96e",
+          color: previewRelation === "input" ? "#b7d58f" : "#f0c96e",
         },
         data: {
           availableItems: connection.availableItems,
@@ -3612,7 +3682,7 @@ function buildSmartLinkPreview(
           onRouteReset: noopRouteReset,
           ports,
           route: edgeRoutes[connection.id] ?? null,
-          smartLinkPreviewKind: previewKind,
+          smartLinkPreviewKind: previewRelation,
           sourceName: sourceNode.data.label,
           targetName: targetNode.data.label,
         },
@@ -3624,6 +3694,7 @@ function buildSmartLinkPreview(
     edges,
     inputItemKeysByNodeId,
     outputItemKeysByNodeId,
+    relationByNodeId,
   };
 }
 
