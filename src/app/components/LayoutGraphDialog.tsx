@@ -11,7 +11,6 @@ import {
 import {
   Check,
   CirclePlus,
-  Copy,
   ExternalLink,
   Link2,
   Maximize2,
@@ -83,6 +82,7 @@ import type {
   RecipeLayoutEntry,
 } from "../types";
 import { IconSprite } from "./IconSprite";
+import { LayoutExportDialog } from "./LayoutStringDialogs";
 import { CompositeRecipeIcon, RecipeIcon } from "./RecipeIcon";
 
 const graphColumnGap = 310;
@@ -176,7 +176,6 @@ export function LayoutGraphDialog({
   );
   const [isResetConfirming, setIsResetConfirming] = useState(false);
   const [exportText, setExportText] = useState<string | null>(null);
-  const [isExportCopied, setIsExportCopied] = useState(false);
   const graphNodesRef = useRef<GraphFlowNode[]>([]);
   const connectionCandidatesRef = useRef<GraphConnectionCandidate[]>([]);
   const focusEdge = useCallback((edgeId: string, additive = false) => {
@@ -766,26 +765,10 @@ export function LayoutGraphDialog({
     }
 
     setExportText(value);
-    setIsExportCopied(false);
   }
 
   function closeExportDialog() {
     setExportText(null);
-    setIsExportCopied(false);
-  }
-
-  async function copyExportText() {
-    if (!exportText) {
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(exportText);
-      setIsExportCopied(true);
-      window.setTimeout(() => setIsExportCopied(false), 1400);
-    } catch {
-      setIsExportCopied(false);
-    }
   }
 
   return (
@@ -1009,56 +992,7 @@ export function LayoutGraphDialog({
         )}
       </section>
       {exportText ? (
-        <div
-          className="layout-string-backdrop"
-          onClick={closeExportDialog}
-        >
-          <section
-            aria-labelledby="layout-export-title"
-            aria-modal="true"
-            className="layout-string-dialog app-panel"
-            role="dialog"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <header className="layout-string-dialog__header">
-              <h2 id="layout-export-title">Export layout string</h2>
-              <button
-                aria-label="Close export"
-                className="icon-button"
-                data-tooltip="Close"
-                type="button"
-                onClick={closeExportDialog}
-              >
-                <X size={16} aria-hidden="true" />
-              </button>
-            </header>
-            <label className="layout-string-dialog__field">
-              <span>Layout JSON</span>
-              <textarea readOnly spellCheck={false} value={exportText} />
-            </label>
-            <div className="layout-string-dialog__actions">
-              <button
-                className="layout-string-dialog__secondary"
-                type="button"
-                onClick={closeExportDialog}
-              >
-                Close
-              </button>
-              <button
-                className="primary-action-button"
-                type="button"
-                onClick={() => void copyExportText()}
-              >
-                {isExportCopied ? (
-                  <Check size={18} aria-hidden="true" />
-                ) : (
-                  <Copy size={18} aria-hidden="true" />
-                )}
-                {isExportCopied ? "Copied" : "Copy"}
-              </button>
-            </div>
-          </section>
-        </div>
+        <LayoutExportDialog text={exportText} onClose={closeExportDialog} />
       ) : null}
     </div>
   );

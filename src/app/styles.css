@@ -135,6 +135,13 @@ button {
   color: #f0eee4;
 }
 
+.sidebar-section__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
 .sidebar-section__title span {
   overflow: hidden;
   text-overflow: ellipsis;

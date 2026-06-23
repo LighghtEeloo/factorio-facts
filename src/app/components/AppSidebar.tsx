@@ -4,6 +4,7 @@ import {
   BookmarkMinus,
   Boxes,
   Cog,
+  Import,
   ListPlus,
   Network,
   Package,
@@ -41,6 +42,7 @@ import type {
 } from "../types";
 import { IconSprite } from "./IconSprite";
 import { CompositeRecipeIcon, RecipeIcon } from "./RecipeIcon";
+import { LayoutImportDialog } from "./LayoutStringDialogs";
 
 interface AppSidebarProps {
   activeView: AppView;
@@ -53,6 +55,7 @@ interface AppSidebarProps {
   onAddInstalledRecipeToLayout(recipeId: string): void;
   onCreateLayout(): void;
   onFocusLayout(layoutId: string): void;
+  onImportLayout(value: string): boolean;
   onInstalledRecipeUnload(recipeId: string): void;
   onOpenLayoutGraph(layoutId: string): void;
   onReorderLayout(
@@ -75,6 +78,7 @@ export function AppSidebar({
   selectedItemId,
   onCreateLayout,
   onFocusLayout,
+  onImportLayout,
   onInstalledRecipeUnload,
   onOpenLayoutGraph,
   onReorderLayout,
@@ -83,6 +87,7 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const [isSelectorOpen, setIsSelectorOpen] = useState(selectedItemId === null);
   const [selectorQuery, setSelectorQuery] = useState("");
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [draggedLayoutId, setDraggedLayoutId] = useState<string | null>(null);
   const [layoutDropTarget, setLayoutDropTarget] = useState<{
     layoutId: string;
@@ -335,15 +340,26 @@ export function AppSidebar({
             <Boxes size={18} aria-hidden="true" />
             <span>Layouts</span>
           </span>
-          <button
-            aria-label="Create layout"
-            className="icon-button"
-            data-tooltip="Create layout"
-            type="button"
-            onClick={onCreateLayout}
-          >
-            <Plus size={18} aria-hidden="true" />
-          </button>
+          <div className="sidebar-section__actions">
+            <button
+              aria-label="Import layout"
+              className="icon-button"
+              data-tooltip="Import layout"
+              type="button"
+              onClick={() => setIsImportDialogOpen(true)}
+            >
+              <Import size={18} aria-hidden="true" />
+            </button>
+            <button
+              aria-label="Create layout"
+              className="icon-button"
+              data-tooltip="Create layout"
+              type="button"
+              onClick={onCreateLayout}
+            >
+              <Plus size={18} aria-hidden="true" />
+            </button>
+          </div>
         </div>
 
         <div className="sidebar-layout-list">
@@ -502,6 +518,13 @@ export function AppSidebar({
             </div>
           </section>
         </div>
+      ) : null}
+
+      {isImportDialogOpen ? (
+        <LayoutImportDialog
+          onClose={() => setIsImportDialogOpen(false)}
+          onImport={onImportLayout}
+        />
       ) : null}
     </aside>
   );

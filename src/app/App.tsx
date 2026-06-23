@@ -630,16 +630,23 @@ export function App() {
       return null;
     }
 
-    return createLayoutExportString(layout);
+    return createLayoutExportString(layout, installedRecipes);
   }
 
-  function createLayoutExportString(layout: RecipeLayout): string {
-    const state = JSON.parse(serializeLayoutState([layout], layout.id)) as unknown;
+  function createLayoutExportString(
+    layout: RecipeLayout,
+    installedRecipes: readonly InstalledLayoutRecipe[],
+  ): string {
+    const dependencies = getInstalledRecipeDependencies(layout, installedRecipes);
+    const state = serializeLayoutForExport(layout);
     const payload = {
       type: "factorio-facts/layout",
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       state,
+      ...(dependencies.length
+        ? { dependencies: dependencies.map(serializeInstalledRecipeDependency) }
+        : {}),
     };
 
     return `${JSON.stringify(payload, null, 2)}\n`;
@@ -653,17 +660,26 @@ export function App() {
     }
 
     try {
-      const importedLayout = parseImportedLayout(value);
+      const importedBundle = parseImportedLayoutBundle(value, installedRecipes);
 
-      if (!importedLayout) {
+      if (!importedBundle) {
         return false;
       }
 
+      const resolvedBundle = resolveImportedLayoutBundle(
+        importedBundle,
+        installedRecipes,
+      );
+
+      setInstalledRecipes((currentInstalledRecipes) => [
+        ...currentInstalledRecipes,
+        ...resolvedBundle.dependencies,
+      ]);
       setLayouts((currentLayouts) =>
         currentLayouts.map((layout) =>
           layout.id === layoutId
             ? {
-                ...importedLayout,
+                ...resolvedBundle.layout,
                 id: layout.id,
                 collapsed: false,
               }
@@ -671,6 +687,42 @@ export function App() {
         ),
       );
       setFocusedLayoutId(layoutId);
+      clearGraphHistory(layoutId);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function importLayoutAsNew(value: string): boolean {
+    try {
+      const importedBundle = parseImportedLayoutBundle(value, installedRecipes);
+
+      if (!importedBundle) {
+        return false;
+      }
+
+      const resolvedBundle = resolveImportedLayoutBundle(
+        importedBundle,
+        installedRecipes,
+      );
+      const layoutId = createImportedLayoutId(resolvedBundle.layout.id, layouts);
+      const importedLayout = cloneRecipeLayout(resolvedBundle.layout, layoutId);
+
+      setInstalledRecipes((currentInstalledRecipes) => [
+        ...currentInstalledRecipes,
+        ...resolvedBundle.dependencies,
+      ]);
+      setLayouts((currentLayouts) => [
+        ...currentLayouts,
+        {
+          ...importedLayout,
+          collapsed: false,
+        },
+      ]);
+      setFocusedLayoutId(layoutId);
+      setGraphLayoutId(null);
+      setActiveView("layouts");
       clearGraphHistory(layoutId);
       return true;
     } catch {
@@ -1083,6 +1135,7 @@ export function App() {
         onAddInstalledRecipeToLayout={addRecipeToFocusedLayout}
         onCreateLayout={createLayout}
         onFocusLayout={focusLayout}
+        onImportLayout={importLayoutAsNew}
         onInstalledRecipeUnload={unloadInstalledRecipe}
         onOpenLayoutGraph={openLayoutGraph}
         onReorderLayout={reorderLayout}
@@ -1177,6 +1230,7 @@ export function App() {
             layouts={layouts}
             onCreateLayout={createLayout}
             onDeleteLayout={deleteLayout}
+            onExportLayout={exportLayout}
             onImportLayout={importLayout}
             onInstallLayout={installLayout}
             onOpenLayoutGraph={openLayoutGraph}
@@ -1438,6 +1492,15 @@ interface ParsedLayoutState {
   layouts: RecipeLayout[];
 }
 
+interface ParsedImportedLayoutBundle {
+  dependencies: InstalledLayoutRecipe[];
+  layout: RecipeLayout;
+}
+
+interface ParseLayoutStateOptions {
+  allowedRecipeIds?: ReadonlySet<string>;
+}
+
 function normalizeParsedLayoutState(state: ParsedLayoutState): ParsedLayoutState {
   return {
     ...state,
@@ -1463,6 +1526,12 @@ function sanitizeRecipeLayout(layout: RecipeLayout): RecipeLayout {
 interface SerializedLayoutState {
   f?: unknown;
   l?: unknown;
+}
+
+interface SerializedLayoutExportDependency {
+  id?: unknown;
+  name?: unknown;
+  state?: unknown;
 }
 
 interface SerializedLayout {
@@ -1495,7 +1564,10 @@ interface SerializedGraphRelay {
   k?: unknown;
 }
 
-function parseLayoutState(value: string | null): ParsedLayoutState {
+function parseLayoutState(
+  value: string | null,
+  options: ParseLayoutStateOptions = {},
+): ParsedLayoutState {
   if (!value) {
     const layout = createEmptyLayout(defaultLayoutId);
 
@@ -1513,7 +1585,7 @@ function parseLayoutState(value: string | null): ParsedLayoutState {
     const seenLayoutIds = new Set<string>();
     const layouts = Array.isArray(rawLayouts)
       ? rawLayouts.flatMap((rawLayout, index) =>
-          parseLayout(rawLayout, index, seenLayoutIds),
+          parseLayout(rawLayout, index, seenLayoutIds, options),
         )
       : [];
 
@@ -1533,7 +1605,10 @@ function parseLayoutState(value: string | null): ParsedLayoutState {
   }
 }
 
-function parseImportedLayout(value: string): RecipeLayout | null {
+function parseImportedLayoutBundle(
+  value: string,
+  installedRecipes: readonly InstalledLayoutRecipe[],
+): ParsedImportedLayoutBundle | null {
   const parsed = JSON.parse(value) as unknown;
 
   if (!isRecord(parsed)) {
@@ -1541,9 +1616,11 @@ function parseImportedLayout(value: string): RecipeLayout | null {
   }
 
   let state: unknown = parsed;
+  let rawDependencies: unknown = [];
 
   if (parsed.type === "factorio-facts/layout" && isRecord(parsed.state)) {
     state = parsed.state;
+    rawDependencies = parsed.dependencies;
   } else if (!Array.isArray(parsed.l) && isRecord(parsed.layout)) {
     state = { l: [parsed.layout] };
   }
@@ -1552,16 +1629,104 @@ function parseImportedLayout(value: string): RecipeLayout | null {
     return null;
   }
 
-  const importedState = normalizeParsedLayoutState(parseLayoutState(JSON.stringify(state)));
+  const dependencyIds = parseImportedDependencyIds(rawDependencies);
+  const allowedRecipeIds = new Set([
+    ...dependencyIds,
+    ...installedRecipes.map((installedRecipe) => installedRecipe.id),
+  ]);
+  const dependencies = parseImportedDependencies(rawDependencies, allowedRecipeIds);
+  const importedState = normalizeParsedLayoutState(
+    parseLayoutState(JSON.stringify(state), { allowedRecipeIds }),
+  );
   const importedLayout = importedState.layouts[0] ?? null;
 
-  return importedLayout && importedLayout.entries.length ? importedLayout : null;
+  return importedLayout && importedLayout.entries.length
+    ? { dependencies, layout: importedLayout }
+    : null;
+}
+
+function parseImportedDependencyIds(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seenRecipeIds = new Set<string>();
+  const recipeIds: string[] = [];
+
+  for (const rawDependency of value) {
+    if (!isRecord(rawDependency)) {
+      continue;
+    }
+
+    const { id } = rawDependency as SerializedLayoutExportDependency;
+
+    if (
+      typeof id !== "string" ||
+      !isCompositeRecipeId(id) ||
+      seenRecipeIds.has(id)
+    ) {
+      continue;
+    }
+
+    seenRecipeIds.add(id);
+    recipeIds.push(id);
+  }
+
+  return recipeIds;
+}
+
+function parseImportedDependencies(
+  value: unknown,
+  allowedRecipeIds: ReadonlySet<string>,
+): InstalledLayoutRecipe[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seenRecipeIds = new Set<string>();
+  const dependencies: InstalledLayoutRecipe[] = [];
+
+  for (const rawDependency of value) {
+    if (!isRecord(rawDependency)) {
+      continue;
+    }
+
+    const { id, name, state } = rawDependency as SerializedLayoutExportDependency;
+
+    if (
+      typeof id !== "string" ||
+      !isCompositeRecipeId(id) ||
+      seenRecipeIds.has(id) ||
+      !isRecord(state)
+    ) {
+      continue;
+    }
+
+    const parsedState = normalizeParsedLayoutState(
+      parseLayoutState(JSON.stringify(state), { allowedRecipeIds }),
+    );
+    const layout = parsedState.layouts[0] ?? null;
+
+    if (!layout || !layout.entries.length) {
+      continue;
+    }
+
+    seenRecipeIds.add(id);
+    dependencies.push({
+      id,
+      layout,
+      name: typeof name === "string" ? name : layout.name,
+    });
+  }
+
+  return dependencies;
 }
 
 function parseLayout(
   rawLayout: unknown,
   index: number,
   seenLayoutIds: Set<string>,
+  options: ParseLayoutStateOptions = {},
 ): RecipeLayout[] {
   if (!isRecord(rawLayout)) {
     return [];
@@ -1589,7 +1754,7 @@ function parseLayout(
   const seenEntryIds = new Set<string>();
   const entries = Array.isArray(rawEntries)
     ? rawEntries.flatMap((rawEntry, entryIndex) =>
-        parseLayoutEntry(rawEntry, entryIndex, seenEntryIds),
+        parseLayoutEntry(rawEntry, entryIndex, seenEntryIds, options),
       )
     : [];
   const seenNodeIds = new Set(entries.map((entry) => entry.id));
@@ -1843,6 +2008,7 @@ function parseLayoutEntry(
   rawEntry: unknown,
   index: number,
   seenEntryIds: Set<string>,
+  options: ParseLayoutStateOptions = {},
 ): RecipeLayoutEntry[] {
   let rawId: unknown;
   let rawMachineId: unknown;
@@ -1873,7 +2039,11 @@ function parseLayoutEntry(
     rawProductionSize = entry.s;
   }
 
-  if (typeof rawRecipeId !== "string" || !explorerData.recipeById.has(rawRecipeId)) {
+  if (
+    typeof rawRecipeId !== "string" ||
+    (!explorerData.recipeById.has(rawRecipeId) &&
+      !options.allowedRecipeIds?.has(rawRecipeId))
+  ) {
     return [];
   }
 
@@ -2020,6 +2190,149 @@ function serializeLayoutState(layouts: RecipeLayout[], focusedLayoutId: string):
       x: serializeGraphExternalItems(layout),
     })),
   });
+}
+
+function serializeLayoutForExport(layout: RecipeLayout): unknown {
+  return JSON.parse(serializeLayoutState([layout], layout.id)) as unknown;
+}
+
+function serializeInstalledRecipeDependency(
+  installedRecipe: InstalledLayoutRecipe,
+): {
+  id: string;
+  name: string;
+  state: unknown;
+} {
+  return {
+    id: installedRecipe.id,
+    name: installedRecipe.name,
+    state: serializeLayoutForExport(installedRecipe.layout),
+  };
+}
+
+function getInstalledRecipeDependencies(
+  layout: RecipeLayout,
+  installedRecipes: readonly InstalledLayoutRecipe[],
+): InstalledLayoutRecipe[] {
+  const installedRecipeById = new Map(
+    installedRecipes.map((installedRecipe) => [installedRecipe.id, installedRecipe]),
+  );
+  const dependencies: InstalledLayoutRecipe[] = [];
+  const visitedRecipeIds = new Set<string>();
+
+  function visitLayout(candidate: RecipeLayout) {
+    for (const entry of candidate.entries) {
+      visitRecipe(entry.recipeId);
+    }
+  }
+
+  function visitRecipe(recipeId: string) {
+    if (!isCompositeRecipeId(recipeId) || visitedRecipeIds.has(recipeId)) {
+      return;
+    }
+
+    const installedRecipe = installedRecipeById.get(recipeId);
+
+    if (!installedRecipe) {
+      return;
+    }
+
+    visitedRecipeIds.add(recipeId);
+    visitLayout(installedRecipe.layout);
+    dependencies.push(installedRecipe);
+  }
+
+  visitLayout(layout);
+
+  return dependencies;
+}
+
+function resolveImportedLayoutBundle(
+  bundle: ParsedImportedLayoutBundle,
+  installedRecipes: readonly InstalledLayoutRecipe[],
+): ParsedImportedLayoutBundle {
+  const installedRecipeById = new Map(
+    installedRecipes.map((installedRecipe) => [installedRecipe.id, installedRecipe]),
+  );
+  const claimedRecipeIds = new Set(installedRecipeById.keys());
+  const recipeIdMap = new Map<string, string>();
+  const dependencyActions: Array<{
+    dependency: InstalledLayoutRecipe;
+    id: string;
+    shouldInstall: boolean;
+  }> = [];
+
+  for (const dependency of bundle.dependencies) {
+    const remappedDependency: InstalledLayoutRecipe = {
+      ...dependency,
+      layout: remapRecipeLayoutRecipeIds(dependency.layout, recipeIdMap),
+    };
+    const existingRecipe = installedRecipeById.get(dependency.id);
+
+    if (existingRecipe && areInstalledRecipesEquivalent(existingRecipe, remappedDependency)) {
+      recipeIdMap.set(dependency.id, dependency.id);
+      dependencyActions.push({
+        dependency,
+        id: dependency.id,
+        shouldInstall: false,
+      });
+      continue;
+    }
+
+    const id = claimedRecipeIds.has(dependency.id)
+      ? createUniqueInstalledRecipeId(claimedRecipeIds)
+      : dependency.id;
+
+    claimedRecipeIds.add(id);
+    recipeIdMap.set(dependency.id, id);
+    dependencyActions.push({
+      dependency,
+      id,
+      shouldInstall: true,
+    });
+  }
+
+  return {
+    dependencies: dependencyActions
+      .filter((action) => action.shouldInstall)
+      .map((action) => ({
+        id: action.id,
+        name: action.dependency.name,
+        layout: remapRecipeLayoutRecipeIds(action.dependency.layout, recipeIdMap),
+      })),
+    layout: remapRecipeLayoutRecipeIds(bundle.layout, recipeIdMap),
+  };
+}
+
+function areInstalledRecipesEquivalent(
+  left: InstalledLayoutRecipe,
+  right: InstalledLayoutRecipe,
+): boolean {
+  return (
+    left.name === right.name &&
+    JSON.stringify(serializeLayoutForExport(left.layout)) ===
+      JSON.stringify(serializeLayoutForExport(right.layout))
+  );
+}
+
+function remapRecipeLayoutRecipeIds(
+  layout: RecipeLayout,
+  recipeIdMap: ReadonlyMap<string, string>,
+): RecipeLayout {
+  const clonedLayout = cloneRecipeLayout(layout);
+
+  if (!recipeIdMap.size) {
+    return clonedLayout;
+  }
+
+  return {
+    ...clonedLayout,
+    entries: clonedLayout.entries.map((entry) => {
+      const recipeId = recipeIdMap.get(entry.recipeId);
+
+      return recipeId ? { ...entry, recipeId } : entry;
+    }),
+  };
 }
 
 function serializeGraphRelays(layout: RecipeLayout): Array<[string, string[]]> | undefined {
@@ -2379,7 +2692,12 @@ function createLayoutEntryId(): string {
 function createInstalledRecipeId(
   installedRecipes: readonly InstalledLayoutRecipe[],
 ): string {
-  const existingRecipeIds = new Set(installedRecipes.map((recipe) => recipe.id));
+  return createUniqueInstalledRecipeId(
+    new Set(installedRecipes.map((recipe) => recipe.id)),
+  );
+}
+
+function createUniqueInstalledRecipeId(existingRecipeIds: ReadonlySet<string>): string {
   let recipeId = `${compositeRecipeIdPrefix}${Date.now().toString(36)}-${nextInstalledRecipeSequence++}`;
 
   while (existingRecipeIds.has(recipeId)) {
@@ -2387,6 +2705,15 @@ function createInstalledRecipeId(
   }
 
   return recipeId;
+}
+
+function createImportedLayoutId(
+  preferredLayoutId: string,
+  layouts: readonly RecipeLayout[],
+): string {
+  return preferredLayoutId && !layouts.some((layout) => layout.id === preferredLayoutId)
+    ? preferredLayoutId
+    : createLayoutId();
 }
 
 function createUnloadedLayoutId(
