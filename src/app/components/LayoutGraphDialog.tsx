@@ -83,6 +83,10 @@ import type {
 } from "../types";
 import { IconSprite } from "./IconSprite";
 import { LayoutExportDialog } from "./LayoutStringDialogs";
+import {
+  LayoutWorkbenchHeader,
+  LayoutWorkbenchTitle,
+} from "./LayoutWorkbenchHeader";
 import { CompositeRecipeIcon, RecipeIcon } from "./RecipeIcon";
 
 const graphColumnGap = 310;
@@ -792,162 +796,172 @@ export function LayoutGraphDialog({
         } ${!isWorkspace && isFullscreen ? "popup-dialog--fullscreen" : ""}`}
         role={isWorkspace ? undefined : "dialog"}
       >
-        <header className="layout-graph-dialog__header">
-          <div className="layout-graph-title">
-            <CompositeRecipeIcon
-              atlas={data.atlas}
-              icons={compositeIconEntries}
-              label={`${title} icon`}
-              size={42}
-            />
-            <div className="layout-graph-title__text">
-              <h2 id="layout-graph-title">{title}</h2>
-              <span className="layout-graph-title__meta">
-                {layout.entries.length ? (
-                  <span>
-                    {compositeBoundary.ingredients.length} in /{" "}
-                    {compositeBoundary.results.length} out
-                  </span>
-                ) : null}
-                <span className="layout-workspace__count">
-                  {layout.entries.length}{" "}
-                  {layout.entries.length === 1 ? "recipe" : "recipes"}
-                </span>
-              </span>
-            </div>
-          </div>
-          <GraphHeaderToolbar
-            connectingFromNodeId={connectingFromNodeId}
-            data={data}
-            edge={selectedEdge}
-            edges={selectedEdges}
-            node={selectedNode}
-            nodeHasTerminalOverrides={
-              selectedNode ? hasNodeTerminalOverrides(layout, selectedNode.id) : false
-            }
-            pendingCandidate={pendingConnectionCandidate}
-            pendingConnection={pendingConnection}
-            terminal={selectedTerminal}
-            onCancelPendingConnection={() => setPendingConnection(null)}
-            onConfirmPendingConnection={confirmPendingConnection}
-            onApplyEdgeItems={changeEdgeItems}
-            onCreateRelayFromTerminal={createRelayFromTerminal}
-            onCreateRelayFromEdges={createRelayFromSelectedEdges}
-            onApplyNodeChanges={applyNodeToolbarChanges}
-            onDeleteRelay={deleteRelay}
-            onResetEdgeItems={resetEdgeItems}
-            onSmartLinkNode={smartLinkNode}
-            onSmartLinkPreviewNodeChange={setSmartLinkPreviewNodeId}
-            onToggleConnectMode={toggleConnectMode}
-            onTogglePendingConnectionItem={togglePendingConnectionItem}
-          />
-          <div className="popup-header-actions">
-            <button
-              aria-label="Export layout"
-              className="icon-button"
-              data-tooltip="Export layout"
-              type="button"
-              onClick={openExportDialog}
-            >
-              <ExternalLink size={18} aria-hidden="true" />
-            </button>
-            <button
-              aria-label="Undo layout graph change"
-              className="icon-button"
-              data-tooltip="Undo graph change"
-              disabled={!canUndoGraph}
-              type="button"
-              onClick={() => {
-                setIsResetConfirming(false);
-                onGraphUndo();
-              }}
-            >
-              <Undo2 size={18} aria-hidden="true" />
-            </button>
-            <button
-              aria-label="Redo layout graph change"
-              className="icon-button"
-              data-tooltip="Redo graph change"
-              disabled={!canRedoGraph}
-              type="button"
-              onClick={() => {
-                setIsResetConfirming(false);
-                onGraphRedo();
-              }}
-            >
-              <Redo2 size={18} aria-hidden="true" />
-            </button>
-            {isResetConfirming ? (
-              <div
-                aria-label="Confirm graph reset"
-                className="layout-graph-reset-confirm"
-                role="group"
+        <LayoutWorkbenchHeader
+          className="layout-graph-dialog__header"
+          actions={
+            <>
+              <button
+                aria-label="Export layout"
+                className="icon-button"
+                data-tooltip="Export layout"
+                type="button"
+                onClick={openExportDialog}
               >
-                <span className="layout-graph-reset-confirm__label">Reset?</span>
-                <button
+                <ExternalLink size={18} aria-hidden="true" />
+              </button>
+              <button
+                aria-label="Undo layout graph change"
+                className="icon-button"
+                data-tooltip="Undo graph change"
+                disabled={!canUndoGraph}
+                type="button"
+                onClick={() => {
+                  setIsResetConfirming(false);
+                  onGraphUndo();
+                }}
+              >
+                <Undo2 size={18} aria-hidden="true" />
+              </button>
+              <button
+                aria-label="Redo layout graph change"
+                className="icon-button"
+                data-tooltip="Redo graph change"
+                disabled={!canRedoGraph}
+                type="button"
+                onClick={() => {
+                  setIsResetConfirming(false);
+                  onGraphRedo();
+                }}
+              >
+                <Redo2 size={18} aria-hidden="true" />
+              </button>
+              {isResetConfirming ? (
+                <div
                   aria-label="Confirm graph reset"
-                  className="icon-button layout-graph-reset-confirm__button"
-                  data-tooltip="Confirm reset"
-                  type="button"
-                  onClick={() => {
-                    onGraphEditStart();
-                    onResetGraphPositions();
-                    setIsResetConfirming(false);
-                  }}
+                  className="layout-graph-reset-confirm"
+                  role="group"
                 >
-                  <Check size={16} aria-hidden="true" />
-                </button>
+                  <span className="layout-graph-reset-confirm__label">Reset?</span>
+                  <button
+                    aria-label="Confirm graph reset"
+                    className="icon-button layout-graph-reset-confirm__button"
+                    data-tooltip="Confirm reset"
+                    type="button"
+                    onClick={() => {
+                      onGraphEditStart();
+                      onResetGraphPositions();
+                      setIsResetConfirming(false);
+                    }}
+                  >
+                    <Check size={16} aria-hidden="true" />
+                  </button>
+                  <button
+                    aria-label="Cancel graph reset"
+                    className="icon-button layout-graph-reset-confirm__button"
+                    data-tooltip="Cancel reset"
+                    type="button"
+                    onClick={() => setIsResetConfirming(false)}
+                  >
+                    <X size={16} aria-hidden="true" />
+                  </button>
+                </div>
+              ) : (
                 <button
-                  aria-label="Cancel graph reset"
-                  className="icon-button layout-graph-reset-confirm__button"
-                  data-tooltip="Cancel reset"
+                  aria-label="Reset layout graph"
+                  className="icon-button"
+                  data-tooltip="Reset graph"
+                  disabled={!hasSavedGraphState}
                   type="button"
-                  onClick={() => setIsResetConfirming(false)}
+                  onClick={() => setIsResetConfirming(true)}
                 >
-                  <X size={16} aria-hidden="true" />
+                  <RotateCcw size={18} aria-hidden="true" />
                 </button>
-              </div>
-            ) : (
+              )}
+              {!isWorkspace ? (
+                <button
+                  aria-label={
+                    isFullscreen ? "Exit fullscreen layout graph" : "Fullscreen layout graph"
+                  }
+                  aria-pressed={isFullscreen}
+                  className="icon-button"
+                  data-tooltip={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                  type="button"
+                  onClick={() => setIsFullscreen((current) => !current)}
+                >
+                  {isFullscreen ? (
+                    <Minimize2 size={18} aria-hidden="true" />
+                  ) : (
+                    <Maximize2 size={18} aria-hidden="true" />
+                  )}
+                </button>
+              ) : null}
               <button
-                aria-label="Reset layout graph"
+                aria-label={isWorkspace ? "Close graph view" : "Close layout graph"}
                 className="icon-button"
-                data-tooltip="Reset graph"
-                disabled={!hasSavedGraphState}
+                data-tooltip={isWorkspace ? "Layouts" : "Close"}
                 type="button"
-                onClick={() => setIsResetConfirming(true)}
+                onClick={onClose}
               >
-                <RotateCcw size={18} aria-hidden="true" />
+                <X size={18} aria-hidden="true" />
               </button>
-            )}
-            {!isWorkspace ? (
-              <button
-                aria-label={
-                  isFullscreen ? "Exit fullscreen layout graph" : "Fullscreen layout graph"
-                }
-                aria-pressed={isFullscreen}
-                className="icon-button"
-                data-tooltip={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-                type="button"
-                onClick={() => setIsFullscreen((current) => !current)}
-              >
-                {isFullscreen ? (
-                  <Minimize2 size={18} aria-hidden="true" />
-                ) : (
-                  <Maximize2 size={18} aria-hidden="true" />
-                )}
-              </button>
-            ) : null}
-            <button
-              aria-label={isWorkspace ? "Close graph view" : "Close layout graph"}
-              className="icon-button"
-              data-tooltip={isWorkspace ? "Layouts" : "Close"}
-              type="button"
-              onClick={onClose}
-            >
-              <X size={18} aria-hidden="true" />
-            </button>
-          </div>
-        </header>
+            </>
+          }
+          title={
+            <LayoutWorkbenchTitle
+              icon={
+                <CompositeRecipeIcon
+                  atlas={data.atlas}
+                  icons={compositeIconEntries}
+                  label={`${title} icon`}
+                  size={42}
+                />
+              }
+              meta={
+                <>
+                  {layout.entries.length ? (
+                    <span>
+                      {compositeBoundary.ingredients.length} in /{" "}
+                      {compositeBoundary.results.length} out
+                    </span>
+                  ) : null}
+                  <span className="layout-workbench-title__count">
+                    {layout.entries.length}{" "}
+                    {layout.entries.length === 1 ? "recipe" : "recipes"}
+                  </span>
+                </>
+              }
+              title={title}
+              titleId="layout-graph-title"
+            />
+          }
+          toolbar={
+            <GraphHeaderToolbar
+              connectingFromNodeId={connectingFromNodeId}
+              data={data}
+              edge={selectedEdge}
+              edges={selectedEdges}
+              node={selectedNode}
+              nodeHasTerminalOverrides={
+                selectedNode ? hasNodeTerminalOverrides(layout, selectedNode.id) : false
+              }
+              pendingCandidate={pendingConnectionCandidate}
+              pendingConnection={pendingConnection}
+              terminal={selectedTerminal}
+              onCancelPendingConnection={() => setPendingConnection(null)}
+              onConfirmPendingConnection={confirmPendingConnection}
+              onApplyEdgeItems={changeEdgeItems}
+              onCreateRelayFromTerminal={createRelayFromTerminal}
+              onCreateRelayFromEdges={createRelayFromSelectedEdges}
+              onApplyNodeChanges={applyNodeToolbarChanges}
+              onDeleteRelay={deleteRelay}
+              onResetEdgeItems={resetEdgeItems}
+              onSmartLinkNode={smartLinkNode}
+              onSmartLinkPreviewNodeChange={setSmartLinkPreviewNodeId}
+              onToggleConnectMode={toggleConnectMode}
+              onTogglePendingConnectionItem={togglePendingConnectionItem}
+            />
+          }
+        />
 
         {nodes.length ? (
           <div className="layout-graph-flow-shell">

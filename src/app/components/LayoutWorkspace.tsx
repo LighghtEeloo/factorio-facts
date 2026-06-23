@@ -72,6 +72,10 @@ import {
   LayoutExportDialog,
   LayoutImportDialog,
 } from "./LayoutStringDialogs";
+import {
+  LayoutWorkbenchHeader,
+  LayoutWorkbenchTitle,
+} from "./LayoutWorkbenchHeader";
 import { RecipeMetaPills } from "./RecipeMetaPills";
 
 interface LayoutWorkspaceProps {
@@ -367,51 +371,10 @@ export function LayoutWorkspace({
 
   return (
     <section className="layout-workspace">
-      <header className="layout-workspace__header app-panel">
-        <div className="layout-workspace__title">
-          {focusedLayout.entries.length ? (
-            <CompositeIconEditor
-              customIconIds={focusedLayout.iconIds}
-              data={data}
-              hiddenIconIds={focusedLayout.hiddenIconIds}
-              icons={compositeIconEntries}
-              orderedIcons={compositeOrderedIconEntries}
-              title={title}
-              visibleIconCount={compositeVisibleIconIds.length}
-              onChange={(iconIds, hiddenIconIds) =>
-                onLayoutIconSettingsChange(
-                  focusedLayout.id,
-                  iconIds,
-                  hiddenIconIds,
-                )
-              }
-            />
-          ) : (
-            <Boxes size={42} aria-hidden="true" />
-          )}
-          <label className="layout-title-field">
-            <input
-              aria-label="Layout name"
-              placeholder={title}
-              value={focusedLayout.name}
-              onChange={(event) => onRenameLayout(focusedLayout.id, event.target.value)}
-            />
-            <span className="layout-title-field__meta">
-              {focusedLayout.entries.length ? (
-                <span>
-                  {compositeBoundary.ingredients.length} in /{" "}
-                  {compositeBoundary.results.length} out
-                </span>
-              ) : null}
-              <span className="layout-workspace__count">
-                {focusedLayout.entries.length}{" "}
-                {focusedLayout.entries.length === 1 ? "recipe" : "recipes"}
-              </span>
-            </span>
-          </label>
-        </div>
-        <div className="layout-workspace__actions">
-          {!focusedLayout.entries.length ? (
+      <LayoutWorkbenchHeader
+        panel
+        actions={
+          !focusedLayout.entries.length ? (
             renderDeleteControl()
           ) : (
             <>
@@ -444,9 +407,52 @@ export function LayoutWorkspace({
               </button>
               {renderDeleteControl()}
             </>
-          )}
-        </div>
-      </header>
+          )
+        }
+        title={
+          <LayoutWorkbenchTitle
+            icon={
+              focusedLayout.entries.length ? (
+                <CompositeIconEditor
+                  customIconIds={focusedLayout.iconIds}
+                  data={data}
+                  hiddenIconIds={focusedLayout.hiddenIconIds}
+                  icons={compositeIconEntries}
+                  orderedIcons={compositeOrderedIconEntries}
+                  title={title}
+                  visibleIconCount={compositeVisibleIconIds.length}
+                  onChange={(iconIds, hiddenIconIds) =>
+                    onLayoutIconSettingsChange(
+                      focusedLayout.id,
+                      iconIds,
+                      hiddenIconIds,
+                    )
+                  }
+                />
+              ) : (
+                <Boxes size={42} aria-hidden="true" />
+              )
+            }
+            meta={
+              <>
+                {focusedLayout.entries.length ? (
+                  <span>
+                    {compositeBoundary.ingredients.length} in /{" "}
+                    {compositeBoundary.results.length} out
+                  </span>
+                ) : null}
+                <span className="layout-workbench-title__count">
+                  {focusedLayout.entries.length}{" "}
+                  {focusedLayout.entries.length === 1 ? "recipe" : "recipes"}
+                </span>
+              </>
+            }
+            name={focusedLayout.name}
+            title={title}
+            onNameChange={(name) => onRenameLayout(focusedLayout.id, name)}
+          />
+        }
+      />
 
       <div className="layout-workspace__body">
         <section
