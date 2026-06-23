@@ -38,6 +38,7 @@ import {
   getCompositeRecipeIconIds,
   getCompositeRecipeOrderedIconIds,
   getCompositeRecipeVisibleIconIds,
+  getRecipeLayoutTitle,
   inferLayoutCompositeBoundary,
   isCompositeRecipe,
 } from "../composite-recipes";
@@ -149,10 +150,12 @@ export function LayoutWorkspace({
   const selectedRecipe = selectedEntry
     ? data.recipeById.get(selectedEntry.recipeId) ?? null
     : null;
-  const title = focusedLayout?.name.trim() || "Untitled layout";
   const compositeBoundary = focusedLayout
     ? inferLayoutCompositeBoundary(focusedLayout, data.recipeById)
     : { ingredients: [], results: [] };
+  const title = focusedLayout
+    ? getRecipeLayoutTitle(data, focusedLayout, compositeBoundary.results)
+    : "Untitled layout";
   const compositeOrderedIconIds = getCompositeRecipeOrderedIconIds(
     data,
     compositeBoundary.results,
@@ -339,7 +342,7 @@ export function LayoutWorkspace({
           <label className="layout-title-field">
             <input
               aria-label="Layout name"
-              placeholder="Untitled layout"
+              placeholder={title}
               value={focusedLayout.name}
               onChange={(event) => onRenameLayout(focusedLayout.id, event.target.value)}
             />

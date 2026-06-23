@@ -122,7 +122,7 @@ export function createCompositeRecipePrototype(
     installedRecipe.layout.iconIds,
     installedRecipe.layout.hiddenIconIds,
   );
-  const name = getInstalledRecipeName(installedRecipe);
+  const name = getInstalledRecipeName(data, installedRecipe, boundary.results);
   const metadata: FactorioLabRecipeMetadata = {
     source: "composite",
     id: installedRecipe.id,
@@ -277,11 +277,60 @@ export function getCompositeRecipeOutputIconIds(
   return iconIds;
 }
 
-export function getInstalledRecipeName(installedRecipe: InstalledLayoutRecipe): string {
+export function getRecipeLayoutTitle(
+  data: RecipeExplorerData,
+  layout: RecipeLayout,
+  results?: readonly ProductPrototype[],
+): string {
+  return (
+    layout.name.trim() ||
+    getRecipeLayoutInferredTitle(data, layout, results) ||
+    "Untitled layout"
+  );
+}
+
+export function getRecipeLayoutInferredTitle(
+  data: RecipeExplorerData,
+  layout: RecipeLayout,
+  results?: readonly ProductPrototype[],
+): string | null {
+  const boundaryResults =
+    results ?? inferLayoutCompositeBoundary(layout, data.recipeById).results;
+  const visibleIconIds = getCompositeRecipeIconIds(
+    data,
+    boundaryResults,
+    layout.iconIds,
+    layout.hiddenIconIds,
+  );
+
+  if (visibleIconIds.length !== 1) {
+    return null;
+  }
+
+  const [visibleIconId] = visibleIconIds;
+  const matchingProducts = uniqueProducts(
+    boundaryResults.filter(
+      (result) => getIconIdForItemId(data, result.name) === visibleIconId,
+    ),
+  );
+
+  if (matchingProducts.length !== 1) {
+    return null;
+  }
+
+  const [product] = matchingProducts;
+
+  return product ? data.itemById.get(product.name)?.name ?? product.name : null;
+}
+
+export function getInstalledRecipeName(
+  data: RecipeExplorerData,
+  installedRecipe: InstalledLayoutRecipe,
+  results?: readonly ProductPrototype[],
+): string {
   return (
     installedRecipe.name.trim() ||
-    installedRecipe.layout.name.trim() ||
-    "Untitled layout"
+    getRecipeLayoutTitle(data, installedRecipe.layout, results)
   );
 }
 

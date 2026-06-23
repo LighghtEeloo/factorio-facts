@@ -25,6 +25,7 @@ import type {
 import type { RecipePrototype } from "../../factorio/prototypes";
 import {
   getCompositeRecipeIconIds,
+  getRecipeLayoutTitle,
   inferLayoutCompositeBoundary,
 } from "../composite-recipes";
 import {
@@ -347,7 +348,7 @@ export function AppSidebar({
 
         <div className="sidebar-layout-list">
           {layouts.map((layout) => {
-            const layoutTitle = layout.name.trim() || "Untitled layout";
+            const layoutTitle = getRecipeLayoutTitle(data, layout);
             const iconEntries = getLayoutCompositeIconEntries(data, layout);
 
             return (

@@ -60,6 +60,7 @@ import {
   getRecipeMetadata,
   type RecipeExplorerData,
 } from "../data/factoriolab";
+import { getRecipeLayoutTitle } from "../composite-recipes";
 import {
   getCompatibleGraphConnections,
   getGraphEdgeId,
@@ -493,7 +494,7 @@ export function LayoutGraphDialog({
     Object.keys(layout.edgeItems).length > 0 ||
     Object.keys(layout.externalItems).length > 0 ||
     Object.keys(layout.terminalSides).length > 0;
-  const title = layout.name.trim() || "Untitled layout";
+  const title = getRecipeLayoutTitle(data, layout);
 
   useEffect(() => {
     setNodes(graph.nodes);
