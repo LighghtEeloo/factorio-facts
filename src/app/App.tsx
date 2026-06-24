@@ -308,11 +308,11 @@ export function App() {
     setActiveView(view);
   }
 
-  function addRecipeToFocusedLayout(recipeId: string) {
+  function addRecipeToFocusedLayout(recipeId: string): string | null {
     const recipe = recipeData.recipeById.get(recipeId);
 
     if (!focusedLayout || !recipe) {
-      return;
+      return null;
     }
 
     const entry = createLayoutEntry(recipeId);
@@ -338,6 +338,8 @@ export function App() {
           : layout,
       ),
     );
+
+    return entry.id;
   }
 
   function removeRecipeFromLayout(layoutId: string, entryId: string) {

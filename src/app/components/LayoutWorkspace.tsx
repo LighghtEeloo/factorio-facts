@@ -66,7 +66,7 @@ interface LayoutWorkspaceProps {
   layouts: RecipeLayout[];
   getFocusedLayoutRecipeCount(recipeId: string): number;
   onCreateLayout(): void;
-  onAddRecipeToLayout(recipeId: string): void;
+  onAddRecipeToLayout(recipeId: string): string | null | void;
   onDeleteLayout(layoutId: string): void;
   onExportLayout(layoutId: string): string | null;
   onImportLayout(layoutId: string, value: string): boolean;
@@ -284,6 +284,18 @@ export function LayoutWorkspace({
 
     if (value) {
       setExportText(value);
+    }
+  }
+
+  function addRecipeToLayoutAndSelect(recipeId: string) {
+    if (readOnly) {
+      return;
+    }
+
+    const entryId = onAddRecipeToLayout(recipeId);
+
+    if (typeof entryId === "string") {
+      setSelectedEntryId(entryId);
     }
   }
 
@@ -551,7 +563,9 @@ export function LayoutWorkspace({
           data={data}
           entry={selectedEntry}
           getFocusedLayoutRecipeCount={getFocusedLayoutRecipeCount}
-          onAddRecipeToLayout={onAddRecipeToLayout}
+          {...(readOnly
+            ? {}
+            : { onAddRecipeToLayout: addRecipeToLayoutAndSelect })}
           recipe={selectedRecipe}
           onOpenRecipeContext={onSelectItem}
         />
@@ -1066,7 +1080,7 @@ interface LayoutRecipeInspectorProps {
   data: RecipeExplorerData;
   entry: RecipeLayoutEntry | null;
   getFocusedLayoutRecipeCount(recipeId: string): number;
-  onAddRecipeToLayout(recipeId: string): void;
+  onAddRecipeToLayout?(recipeId: string): void;
   recipe: RecipePrototype | null;
   onOpenRecipeContext(itemId: string): void;
 }
@@ -1171,8 +1185,7 @@ function LayoutRecipeInspector({
           context={relatedRecipeContext}
           data={data}
           getFocusedLayoutRecipeCount={getFocusedLayoutRecipeCount}
-          onAddRecipeToLayout={onAddRecipeToLayout}
-          onOpenRecipeContext={onOpenRecipeContext}
+          {...(onAddRecipeToLayout ? { onAddRecipeToLayout } : {})}
         />
       </aside>
     );
@@ -1259,8 +1272,7 @@ function LayoutRecipeInspector({
         context={relatedRecipeContext}
         data={data}
         getFocusedLayoutRecipeCount={getFocusedLayoutRecipeCount}
-        onAddRecipeToLayout={onAddRecipeToLayout}
-        onOpenRecipeContext={onOpenRecipeContext}
+        {...(onAddRecipeToLayout ? { onAddRecipeToLayout } : {})}
       />
     </aside>
   );
@@ -1381,8 +1393,7 @@ interface InspectorRelatedRecipesProps {
   context: InspectorRelatedRecipeContext | null;
   data: RecipeExplorerData;
   getFocusedLayoutRecipeCount(recipeId: string): number;
-  onAddRecipeToLayout(recipeId: string): void;
-  onOpenRecipeContext(itemId: string): void;
+  onAddRecipeToLayout?(recipeId: string): void;
 }
 
 function InspectorRelatedRecipes({
@@ -1390,7 +1401,6 @@ function InspectorRelatedRecipes({
   data,
   getFocusedLayoutRecipeCount,
   onAddRecipeToLayout,
-  onOpenRecipeContext,
 }: InspectorRelatedRecipesProps) {
   if (!context) {
     return null;
@@ -1410,12 +1420,11 @@ function InspectorRelatedRecipes({
       <RecipeColumn
         data={data}
         getFocusedLayoutRecipeCount={getFocusedLayoutRecipeCount}
-        onAddRecipeToLayout={onAddRecipeToLayout}
-        onSelectItem={onOpenRecipeContext}
         recipes={recipes}
         selectedItemId={context.itemId}
         title={title}
         variant={context.variant}
+        {...(onAddRecipeToLayout ? { onAddRecipeToLayout } : {})}
       />
     </div>
   );

@@ -7,7 +7,7 @@ interface ItemChipProps {
   data: RecipeExplorerData;
   item: FactorioLabItem;
   isSelected?: boolean;
-  onSelect(itemId: string): void;
+  onSelect?(itemId: string): void;
 }
 
 export function ItemChip({
@@ -21,15 +21,11 @@ export function ItemChip({
   const amountText = amount === undefined ? undefined : formatAmount(amount);
   const isIconOnly = amountText === undefined;
   const title = amountText === undefined ? item.name : `${amountText}x ${item.name}`;
-
-  return (
-    <button
-      aria-label={`${title} (${item.id})`}
-      className={`item-chip ${isIconOnly ? "item-chip--icon-only" : ""} ${isSelected ? "item-chip--selected" : ""}`}
-      data-tooltip={`${title} (${item.id})`}
-      type="button"
-      onClick={() => onSelect(item.id)}
-    >
+  const className = `item-chip ${isIconOnly ? "item-chip--icon-only" : ""} ${
+    isSelected ? "item-chip--selected" : ""
+  } ${onSelect ? "" : "item-chip--static"}`;
+  const content = (
+    <>
       <IconSprite
         atlas={data.atlas}
         icon={icon}
@@ -46,6 +42,30 @@ export function ItemChip({
           {amountText}
         </span>
       ) : null}
+    </>
+  );
+
+  if (!onSelect) {
+    return (
+      <span
+        aria-label={`${title} (${item.id})`}
+        className={className}
+        data-tooltip={`${title} (${item.id})`}
+      >
+        {content}
+      </span>
+    );
+  }
+
+  return (
+    <button
+      aria-label={`${title} (${item.id})`}
+      className={className}
+      data-tooltip={`${title} (${item.id})`}
+      type="button"
+      onClick={() => onSelect(item.id)}
+    >
+      {content}
     </button>
   );
 }

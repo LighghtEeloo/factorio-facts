@@ -14,7 +14,7 @@ interface RecipeCardProps {
   selectedItemId: string;
   focusedLayoutRecipeCount?: number;
   onAddToLayout?(recipeId: string): void;
-  onSelectItem(itemId: string): void;
+  onSelectItem?(itemId: string): void;
 }
 
 export function RecipeCard({
@@ -77,14 +77,14 @@ export function RecipeCard({
           data={data}
           entries={recipe.ingredients ?? []}
           selectedItemId={selectedItemId}
-          onSelectItem={onSelectItem}
+          {...(onSelectItem ? { onSelectItem } : {})}
         />
         <ArrowRight className="recipe-equation__arrow" size={18} aria-hidden="true" />
         <ItemGroup
           data={data}
           entries={recipe.results ?? []}
           selectedItemId={selectedItemId}
-          onSelectItem={onSelectItem}
+          {...(onSelectItem ? { onSelectItem } : {})}
         />
       </div>
     </article>
@@ -95,7 +95,7 @@ interface ItemGroupProps {
   data: RecipeExplorerData;
   entries: readonly { name: string; amount?: number }[];
   selectedItemId: string;
-  onSelectItem(itemId: string): void;
+  onSelectItem?(itemId: string): void;
 }
 
 function ItemGroup({
@@ -121,7 +121,7 @@ function ItemGroup({
               isSelected={entry.name === selectedItemId}
               item={item}
               key={entry.name}
-              onSelect={onSelectItem}
+              {...(onSelectItem ? { onSelect: onSelectItem } : {})}
             />
           );
         })

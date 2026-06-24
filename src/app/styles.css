@@ -2268,10 +2268,14 @@ button {
   border-radius: 999px;
 }
 
-.item-chip:hover,
+button.item-chip:hover,
 .item-chip--selected {
   border-color: #e0a649;
   background: #302a1b;
+}
+
+.item-chip--static {
+  cursor: default;
 }
 
 .item-chip__amount {
