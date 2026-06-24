@@ -1234,21 +1234,14 @@ function LayoutRecipeInspector({
           aria-label={`${relatedRecipeContext.itemName} related recipes`}
           tabIndex={-1}
         >
-          <button
-            className="layout-inspector__open primary-action-button"
-            type="button"
-            onClick={() => onOpenRecipeContext(relatedRecipeContext.itemId)}
-          >
-            <ExternalLink size={17} aria-hidden="true" />
-            Open in Recipes
-          </button>
-          <InspectorRelatedRecipes
+          <InspectorRelatedRecipePanel
             context={relatedRecipeContext}
             data={data}
             filters={relatedRecipeFlagFilters}
             getFocusedLayoutRecipeCount={getFocusedLayoutRecipeCount}
-            showFilters={false}
+            openItemId={relatedRecipeContext.itemId}
             onFiltersChange={onRelatedRecipeFlagFiltersChange}
+            onOpenRecipeContext={onOpenRecipeContext}
             {...(onAddRecipeToLayout ? { onAddRecipeToLayout } : {})}
           />
         </aside>
@@ -1322,25 +1315,14 @@ function LayoutRecipeInspector({
           />
         </div>
 
-        <button
-          className="layout-inspector__open primary-action-button"
-          disabled={!openContextItemId}
-          type="button"
-          onClick={() => {
-            if (openContextItemId) {
-              onOpenRecipeContext(openContextItemId);
-            }
-          }}
-        >
-          <ExternalLink size={17} aria-hidden="true" />
-          Open in Recipes
-        </button>
-        <InspectorRelatedRecipes
+        <InspectorRelatedRecipePanel
           context={relatedRecipeContext}
           data={data}
           filters={relatedRecipeFlagFilters}
           getFocusedLayoutRecipeCount={getFocusedLayoutRecipeCount}
+          openItemId={openContextItemId}
           onFiltersChange={onRelatedRecipeFlagFiltersChange}
+          onOpenRecipeContext={onOpenRecipeContext}
           {...(onAddRecipeToLayout ? { onAddRecipeToLayout } : {})}
         />
       </aside>
@@ -1411,25 +1393,14 @@ function LayoutRecipeInspector({
         </div>
       ) : null}
 
-      <button
-        className="layout-inspector__open primary-action-button"
-        disabled={!openContextItemId}
-        type="button"
-        onClick={() => {
-          if (openContextItemId) {
-            onOpenRecipeContext(openContextItemId);
-          }
-        }}
-      >
-        <ExternalLink size={17} aria-hidden="true" />
-        Open in Recipes
-      </button>
-      <InspectorRelatedRecipes
+      <InspectorRelatedRecipePanel
         context={relatedRecipeContext}
         data={data}
         filters={relatedRecipeFlagFilters}
         getFocusedLayoutRecipeCount={getFocusedLayoutRecipeCount}
+        openItemId={openContextItemId}
         onFiltersChange={onRelatedRecipeFlagFiltersChange}
+        onOpenRecipeContext={onOpenRecipeContext}
         {...(onAddRecipeToLayout ? { onAddRecipeToLayout } : {})}
       />
     </aside>
@@ -1571,9 +1542,50 @@ interface InspectorRelatedRecipesProps {
   data: RecipeExplorerData;
   filters: InspectorRecipeFlagFilters;
   getFocusedLayoutRecipeCount(recipeId: string): number;
-  showFilters?: boolean;
   onFiltersChange(filters: InspectorRecipeFlagFilters): void;
   onAddRecipeToLayout?(recipeId: string): void;
+}
+
+interface InspectorRelatedRecipePanelProps extends InspectorRelatedRecipesProps {
+  openItemId: string | null;
+  onOpenRecipeContext(itemId: string): void;
+}
+
+function InspectorRelatedRecipePanel({
+  context,
+  data,
+  filters,
+  getFocusedLayoutRecipeCount,
+  openItemId,
+  onAddRecipeToLayout,
+  onFiltersChange,
+  onOpenRecipeContext,
+}: InspectorRelatedRecipePanelProps) {
+  return (
+    <>
+      <button
+        className="layout-inspector__open primary-action-button"
+        disabled={!openItemId}
+        type="button"
+        onClick={() => {
+          if (openItemId) {
+            onOpenRecipeContext(openItemId);
+          }
+        }}
+      >
+        <ExternalLink size={17} aria-hidden="true" />
+        Open in Recipes
+      </button>
+      <InspectorRelatedRecipes
+        context={context}
+        data={data}
+        filters={filters}
+        getFocusedLayoutRecipeCount={getFocusedLayoutRecipeCount}
+        onFiltersChange={onFiltersChange}
+        {...(onAddRecipeToLayout ? { onAddRecipeToLayout } : {})}
+      />
+    </>
+  );
 }
 
 function InspectorRelatedRecipes({
@@ -1581,7 +1593,6 @@ function InspectorRelatedRecipes({
   data,
   filters,
   getFocusedLayoutRecipeCount,
-  showFilters = true,
   onFiltersChange,
   onAddRecipeToLayout,
 }: InspectorRelatedRecipesProps) {
@@ -1593,11 +1604,9 @@ function InspectorRelatedRecipes({
     context.variant === "made-by"
       ? data.madeBy(context.itemId)
       : data.usedIn(context.itemId);
-  const recipes = showFilters
-    ? relatedRecipes.filter((recipe) =>
-        recipeMatchesInspectorFlagFilters(recipe, filters),
-      )
-    : relatedRecipes;
+  const recipes = relatedRecipes.filter((recipe) =>
+    recipeMatchesInspectorFlagFilters(recipe, filters),
+  );
   const emptyMessage =
     relatedRecipes.length && recipes.length === 0
       ? "No related recipes match these filters"
@@ -1609,12 +1618,10 @@ function InspectorRelatedRecipes({
       className="layout-inspector__related"
       aria-label={`${title} recipes for ${context.itemName}`}
     >
-      {showFilters ? (
-        <InspectorRecipeFlagFilterControls
-          filters={filters}
-          onChange={onFiltersChange}
-        />
-      ) : null}
+      <InspectorRecipeFlagFilterControls
+        filters={filters}
+        onChange={onFiltersChange}
+      />
       <RecipeColumn
         data={data}
         emptyMessage={emptyMessage}
