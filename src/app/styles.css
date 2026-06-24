@@ -1755,6 +1755,11 @@ button {
   list-style: none;
 }
 
+.layout-inspector__material-item {
+  display: block;
+  min-width: 0;
+}
+
 .layout-inspector__material {
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr) auto;
@@ -1766,6 +1771,29 @@ button {
   border-radius: 6px;
   background: #151710;
   padding: 4px 8px 4px 4px;
+}
+
+.layout-inspector__material--button {
+  width: 100%;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.layout-inspector__material--button:hover,
+.layout-inspector__material--button:focus-visible,
+.layout-inspector__material--selected {
+  border-color: #6d674b;
+  background: #22231b;
+}
+
+.layout-inspector__material--button:focus-visible {
+  outline: 0;
+}
+
+.layout-inspector__material--selected {
+  border-color: #d7b65f;
 }
 
 .layout-inspector__material span {
@@ -1810,6 +1838,34 @@ button {
 
 .layout-inspector__open {
   justify-self: stretch;
+}
+
+.layout-inspector__related {
+  display: grid;
+  min-width: 0;
+}
+
+.layout-inspector__related .recipe-column {
+  min-height: auto;
+}
+
+.layout-inspector__related .recipe-column__header {
+  min-height: 30px;
+  padding: 0;
+}
+
+.layout-inspector__related .recipe-column__list {
+  overflow: visible;
+  padding-right: 0;
+}
+
+.layout-inspector__related .recipe-card {
+  padding: 7px;
+}
+
+.layout-inspector__related .recipe-card__identity {
+  flex-basis: 126px;
+  min-width: 118px;
 }
 
 .layout-inspector__empty {

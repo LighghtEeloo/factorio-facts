@@ -1189,8 +1189,10 @@ export function App() {
           <LayoutWorkspace
             data={recipeData}
             focusedLayoutId={focusedLayout?.id ?? defaultLayoutId}
+            getFocusedLayoutRecipeCount={getFocusedLayoutRecipeCount}
             layoutOverride={viewedInstalledRecipe?.layout ?? null}
             layouts={layouts}
+            onAddRecipeToLayout={addRecipeToFocusedLayout}
             onCreateLayout={createLayout}
             onDeleteLayout={deleteLayout}
             onExportLayout={exportLayout}

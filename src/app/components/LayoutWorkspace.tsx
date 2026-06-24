@@ -56,6 +56,7 @@ import {
   LayoutWorkbenchHeader,
   LayoutWorkbenchTitle,
 } from "./LayoutWorkbenchHeader";
+import { RecipeColumn } from "./RecipeColumn";
 import { RecipeMetaPills } from "./RecipeMetaPills";
 
 interface LayoutWorkspaceProps {
@@ -63,7 +64,9 @@ interface LayoutWorkspaceProps {
   focusedLayoutId: string;
   layoutOverride?: RecipeLayout | null;
   layouts: RecipeLayout[];
+  getFocusedLayoutRecipeCount(recipeId: string): number;
   onCreateLayout(): void;
+  onAddRecipeToLayout(recipeId: string): void;
   onDeleteLayout(layoutId: string): void;
   onExportLayout(layoutId: string): string | null;
   onImportLayout(layoutId: string, value: string): boolean;
@@ -96,8 +99,10 @@ interface LayoutWorkspaceProps {
 export function LayoutWorkspace({
   data,
   focusedLayoutId,
+  getFocusedLayoutRecipeCount,
   layoutOverride = null,
   layouts,
+  onAddRecipeToLayout,
   onCreateLayout,
   onDeleteLayout,
   onExportLayout,
@@ -545,6 +550,8 @@ export function LayoutWorkspace({
         <LayoutRecipeInspector
           data={data}
           entry={selectedEntry}
+          getFocusedLayoutRecipeCount={getFocusedLayoutRecipeCount}
+          onAddRecipeToLayout={onAddRecipeToLayout}
           recipe={selectedRecipe}
           onOpenRecipeContext={onSelectItem}
         />
@@ -1058,6 +1065,8 @@ function LayoutEditorRecipeRow({
 interface LayoutRecipeInspectorProps {
   data: RecipeExplorerData;
   entry: RecipeLayoutEntry | null;
+  getFocusedLayoutRecipeCount(recipeId: string): number;
+  onAddRecipeToLayout(recipeId: string): void;
   recipe: RecipePrototype | null;
   onOpenRecipeContext(itemId: string): void;
 }
@@ -1065,9 +1074,18 @@ interface LayoutRecipeInspectorProps {
 function LayoutRecipeInspector({
   data,
   entry,
+  getFocusedLayoutRecipeCount,
+  onAddRecipeToLayout,
   onOpenRecipeContext,
   recipe,
 }: LayoutRecipeInspectorProps) {
+  const [relatedRecipeContext, setRelatedRecipeContext] =
+    useState<InspectorRelatedRecipeContext | null>(null);
+
+  useEffect(() => {
+    setRelatedRecipeContext(null);
+  }, [entry?.id, recipe?.name]);
+
   if (!entry || !recipe) {
     return (
       <aside
@@ -1088,6 +1106,7 @@ function LayoutRecipeInspector({
 
   const metadata = getRecipeMetadata(recipe);
   const contextItemId = getRecipeContextItemId(data, recipe);
+  const openContextItemId = relatedRecipeContext?.itemId ?? contextItemId;
   const tags = [
     ...metadata.flags,
     ...metadata.disallowedEffects.map((effect) => `no ${effect}`),
@@ -1120,28 +1139,41 @@ function LayoutRecipeInspector({
             data={data}
             entries={recipe.ingredients ?? []}
             label="Inputs"
+            relatedRecipeContext={relatedRecipeContext}
+            relatedVariant="made-by"
+            onSelectRelatedRecipeContext={setRelatedRecipeContext}
           />
           <ArrowRight size={18} aria-hidden="true" />
           <InspectorMaterialGroup
             data={data}
             entries={recipe.results ?? []}
             label="Outputs"
+            relatedRecipeContext={relatedRecipeContext}
+            relatedVariant="used-in"
+            onSelectRelatedRecipeContext={setRelatedRecipeContext}
           />
         </div>
 
         <button
           className="layout-inspector__open primary-action-button"
-          disabled={!contextItemId}
+          disabled={!openContextItemId}
           type="button"
           onClick={() => {
-            if (contextItemId) {
-              onOpenRecipeContext(contextItemId);
+            if (openContextItemId) {
+              onOpenRecipeContext(openContextItemId);
             }
           }}
         >
           <ExternalLink size={17} aria-hidden="true" />
           Open in Recipes
         </button>
+        <InspectorRelatedRecipes
+          context={relatedRecipeContext}
+          data={data}
+          getFocusedLayoutRecipeCount={getFocusedLayoutRecipeCount}
+          onAddRecipeToLayout={onAddRecipeToLayout}
+          onOpenRecipeContext={onOpenRecipeContext}
+        />
       </aside>
     );
   }
@@ -1187,12 +1219,18 @@ function LayoutRecipeInspector({
           data={data}
           entries={recipe.ingredients ?? []}
           label="Ingredients"
+          relatedRecipeContext={relatedRecipeContext}
+          relatedVariant="made-by"
+          onSelectRelatedRecipeContext={setRelatedRecipeContext}
         />
         <ArrowRight size={18} aria-hidden="true" />
         <InspectorMaterialGroup
           data={data}
           entries={recipe.results ?? []}
           label="Results"
+          relatedRecipeContext={relatedRecipeContext}
+          relatedVariant="used-in"
+          onSelectRelatedRecipeContext={setRelatedRecipeContext}
         />
       </div>
 
@@ -1206,31 +1244,52 @@ function LayoutRecipeInspector({
 
       <button
         className="layout-inspector__open primary-action-button"
-        disabled={!contextItemId}
+        disabled={!openContextItemId}
         type="button"
         onClick={() => {
-          if (contextItemId) {
-            onOpenRecipeContext(contextItemId);
+          if (openContextItemId) {
+            onOpenRecipeContext(openContextItemId);
           }
         }}
       >
         <ExternalLink size={17} aria-hidden="true" />
         Open in Recipes
       </button>
+      <InspectorRelatedRecipes
+        context={relatedRecipeContext}
+        data={data}
+        getFocusedLayoutRecipeCount={getFocusedLayoutRecipeCount}
+        onAddRecipeToLayout={onAddRecipeToLayout}
+        onOpenRecipeContext={onOpenRecipeContext}
+      />
     </aside>
   );
+}
+
+type InspectorRelatedRecipeVariant = "made-by" | "used-in";
+
+interface InspectorRelatedRecipeContext {
+  itemId: string;
+  itemName: string;
+  variant: InspectorRelatedRecipeVariant;
 }
 
 interface InspectorMaterialGroupProps {
   data: RecipeExplorerData;
   entries: readonly (IngredientPrototype | ProductPrototype)[];
   label: string;
+  relatedRecipeContext?: InspectorRelatedRecipeContext | null;
+  relatedVariant?: InspectorRelatedRecipeVariant;
+  onSelectRelatedRecipeContext?(context: InspectorRelatedRecipeContext): void;
 }
 
 function InspectorMaterialGroup({
   data,
   entries,
   label,
+  onSelectRelatedRecipeContext,
+  relatedRecipeContext,
+  relatedVariant,
 }: InspectorMaterialGroupProps) {
   return (
     <section className="layout-inspector__section">
@@ -1241,7 +1300,17 @@ function InspectorMaterialGroup({
             <InspectorMaterial
               data={data}
               entry={entry}
+              isSelected={
+                relatedRecipeContext?.itemId === entry.name &&
+                relatedRecipeContext.variant === relatedVariant
+              }
               key={`${materialKey(entry)}:${index}`}
+              {...(relatedVariant && onSelectRelatedRecipeContext
+                ? {
+                    relatedVariant,
+                    onSelectRelatedRecipeContext,
+                  }
+                : {})}
             />
           ))}
         </ul>
@@ -1255,22 +1324,100 @@ function InspectorMaterialGroup({
 interface InspectorMaterialProps {
   data: RecipeExplorerData;
   entry: IngredientPrototype | ProductPrototype;
+  isSelected: boolean;
+  relatedVariant?: InspectorRelatedRecipeVariant;
+  onSelectRelatedRecipeContext?(context: InspectorRelatedRecipeContext): void;
 }
 
-function InspectorMaterial({ data, entry }: InspectorMaterialProps) {
+function InspectorMaterial({
+  data,
+  entry,
+  isSelected,
+  onSelectRelatedRecipeContext,
+  relatedVariant,
+}: InspectorMaterialProps) {
   const item = data.itemById.get(entry.name);
   const icon = data.iconById.get(item ? getIconIdForItem(item) : entry.name);
   const label = item?.name ?? formatId(entry.name);
-
-  return (
-    <li className="layout-inspector__material">
+  const content = (
+    <>
       <IconSprite atlas={data.atlas} icon={icon} label={label} size={24} />
       <span>
         <strong>{label}</strong>
         <small>{entry.name}</small>
       </span>
       <em>{formatMaterialAmount(entry)}</em>
+    </>
+  );
+
+  if (!item || !relatedVariant || !onSelectRelatedRecipeContext) {
+    return <li className="layout-inspector__material">{content}</li>;
+  }
+
+  return (
+    <li className="layout-inspector__material-item">
+      <button
+        aria-label={`${relatedVariant === "made-by" ? "Show producers for" : "Show consumers for"} ${label}`}
+        aria-pressed={isSelected}
+        className={`layout-inspector__material layout-inspector__material--button ${
+          isSelected ? "layout-inspector__material--selected" : ""
+        }`}
+        type="button"
+        onClick={() =>
+          onSelectRelatedRecipeContext({
+            itemId: item.id,
+            itemName: item.name,
+            variant: relatedVariant,
+          })
+        }
+      >
+        {content}
+      </button>
     </li>
+  );
+}
+
+interface InspectorRelatedRecipesProps {
+  context: InspectorRelatedRecipeContext | null;
+  data: RecipeExplorerData;
+  getFocusedLayoutRecipeCount(recipeId: string): number;
+  onAddRecipeToLayout(recipeId: string): void;
+  onOpenRecipeContext(itemId: string): void;
+}
+
+function InspectorRelatedRecipes({
+  context,
+  data,
+  getFocusedLayoutRecipeCount,
+  onAddRecipeToLayout,
+  onOpenRecipeContext,
+}: InspectorRelatedRecipesProps) {
+  if (!context) {
+    return null;
+  }
+
+  const recipes =
+    context.variant === "made-by"
+      ? data.madeBy(context.itemId)
+      : data.usedIn(context.itemId);
+  const title = context.variant === "made-by" ? "Made by" : "Used in";
+
+  return (
+    <div
+      className="layout-inspector__related"
+      aria-label={`${title} recipes for ${context.itemName}`}
+    >
+      <RecipeColumn
+        data={data}
+        getFocusedLayoutRecipeCount={getFocusedLayoutRecipeCount}
+        onAddRecipeToLayout={onAddRecipeToLayout}
+        onSelectItem={onOpenRecipeContext}
+        recipes={recipes}
+        selectedItemId={context.itemId}
+        title={title}
+        variant={context.variant}
+      />
+    </div>
   );
 }
 

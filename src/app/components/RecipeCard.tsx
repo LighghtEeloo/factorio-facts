@@ -12,8 +12,8 @@ interface RecipeCardProps {
   data: RecipeExplorerData;
   recipe: RecipePrototype;
   selectedItemId: string;
-  focusedLayoutRecipeCount: number;
-  onAddToLayout(recipeId: string): void;
+  focusedLayoutRecipeCount?: number;
+  onAddToLayout?(recipeId: string): void;
   onSelectItem(itemId: string): void;
 }
 
@@ -26,6 +26,7 @@ export function RecipeCard({
   onSelectItem,
 }: RecipeCardProps) {
   const metadata = getRecipeMetadata(recipe);
+  const showLayoutAction = Boolean(onAddToLayout);
 
   return (
     <article className="recipe-card" data-recipe-id={recipe.name}>
@@ -38,24 +39,30 @@ export function RecipeCard({
         </div>
 
         <div className="recipe-card__side">
-          <button
-            aria-label="Add recipe to focused layout"
-            className={`icon-button recipe-card__layout-button ${focusedLayoutRecipeCount > 0 ? "recipe-card__layout-button--duplicate" : ""}`}
-            data-tooltip={
-              focusedLayoutRecipeCount > 0
-                ? `Add another copy (${focusedLayoutRecipeCount} in layout)`
-                : "Add to focused layout"
-            }
-            type="button"
-            onClick={() => onAddToLayout(recipe.name)}
-          >
-            <ListPlus size={16} aria-hidden="true" />
-            {focusedLayoutRecipeCount > 0 ? (
-              <span className="recipe-card__layout-count" aria-hidden="true">
-                {focusedLayoutRecipeCount}
-              </span>
-            ) : null}
-          </button>
+          {showLayoutAction ? (
+            <button
+              aria-label="Add recipe to focused layout"
+              className={`icon-button recipe-card__layout-button ${
+                (focusedLayoutRecipeCount ?? 0) > 0
+                  ? "recipe-card__layout-button--duplicate"
+                  : ""
+              }`}
+              data-tooltip={
+                (focusedLayoutRecipeCount ?? 0) > 0
+                  ? `Add another copy (${focusedLayoutRecipeCount} in layout)`
+                  : "Add to focused layout"
+              }
+              type="button"
+              onClick={() => onAddToLayout?.(recipe.name)}
+            >
+              <ListPlus size={16} aria-hidden="true" />
+              {(focusedLayoutRecipeCount ?? 0) > 0 ? (
+                <span className="recipe-card__layout-count" aria-hidden="true">
+                  {focusedLayoutRecipeCount}
+                </span>
+              ) : null}
+            </button>
+          ) : null}
 
           <RecipeMetaPills
             data={data}
