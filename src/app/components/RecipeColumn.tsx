@@ -5,6 +5,7 @@ import { RecipeCard } from "./RecipeCard";
 
 interface RecipeColumnProps {
   data: RecipeExplorerData;
+  emptyMessage?: string;
   recipes: RecipePrototype[];
   selectedItemId: string;
   title: string;
@@ -16,6 +17,7 @@ interface RecipeColumnProps {
 
 export function RecipeColumn({
   data,
+  emptyMessage = "No matching recipes",
   recipes,
   selectedItemId,
   title,
@@ -54,7 +56,7 @@ export function RecipeColumn({
             />
           ))
         ) : (
-          <div className="empty-state">No matching recipes</div>
+          <div className="empty-state">{emptyMessage}</div>
         )}
       </div>
     </section>

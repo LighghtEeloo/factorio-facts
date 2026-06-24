@@ -1900,6 +1900,14 @@ button {
   padding-right: 0;
 }
 
+.layout-inspector__related .empty-state {
+  min-height: 42px;
+  border: 0;
+  background: transparent;
+  color: #8f8a79;
+  font-size: 0.76rem;
+}
+
 .layout-inspector__related .recipe-card {
   padding: 7px;
 }
