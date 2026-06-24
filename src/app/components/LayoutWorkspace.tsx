@@ -89,7 +89,7 @@ interface LayoutWorkspaceProps {
     productionSize: number,
   ): void;
   onRemoveRecipeFromLayout(layoutId: string, entryId: string): void;
-  onResetLayout(layoutId: string): void;
+  onResetLayoutGraph(layoutId: string): void;
   onRenameLayout(layoutId: string, name: string): void;
   onReorderRecipeInLayout(
     layoutId: string,
@@ -119,7 +119,7 @@ export function LayoutWorkspace({
   onOpenLayoutGraph,
   onRecipeProductionSizeChange,
   onRemoveRecipeFromLayout,
-  onResetLayout,
+  onResetLayoutGraph,
   onRenameLayout,
   onReorderRecipeInLayout,
   onSelectItem,
@@ -178,6 +178,9 @@ export function LayoutWorkspace({
     data,
     compositeOrderedIconIds,
   );
+  const hasSavedGraphState = focusedLayout
+    ? hasLayoutGraphState(focusedLayout)
+    : false;
 
   useEffect(() => {
     if (!focusedLayout?.entries.length) {
@@ -202,6 +205,12 @@ export function LayoutWorkspace({
     setIsDeleteConfirming(false);
     setIsResetConfirming(false);
   }, [focusedLayout?.id]);
+
+  useEffect(() => {
+    if (!hasSavedGraphState) {
+      setIsResetConfirming(false);
+    }
+  }, [hasSavedGraphState]);
 
   useEffect(() => {
     setRelatedRecipeContext(null);
@@ -345,14 +354,12 @@ export function LayoutWorkspace({
     setIsDeleteConfirming(false);
   }
 
-  function confirmResetLayout() {
+  function confirmResetGraph() {
     if (readOnly || !focusedLayout) {
       return;
     }
 
-    onResetLayout(focusedLayout.id);
-    setSelectedEntryId(null);
-    setRelatedRecipeContext(null);
+    onResetLayoutGraph(focusedLayout.id);
     setIsResetConfirming(false);
   }
 
@@ -363,22 +370,22 @@ export function LayoutWorkspace({
 
     return isResetConfirming ? (
       <div
-        aria-label="Confirm layout reset"
+        aria-label="Confirm graph reset"
         className="layout-inline-confirm"
         role="group"
       >
-        <span className="layout-inline-confirm__label">Reset?</span>
+        <span className="layout-inline-confirm__label">Reset graph?</span>
         <button
-          aria-label="Confirm layout reset"
+          aria-label="Confirm graph reset"
           className="icon-button layout-inline-confirm__button"
           data-tooltip="Confirm reset"
           type="button"
-          onClick={confirmResetLayout}
+          onClick={confirmResetGraph}
         >
           <Check size={16} aria-hidden="true" />
         </button>
         <button
-          aria-label="Cancel layout reset"
+          aria-label="Cancel graph reset"
           className="icon-button layout-inline-confirm__button"
           data-tooltip="Cancel reset"
           type="button"
@@ -389,9 +396,10 @@ export function LayoutWorkspace({
       </div>
     ) : (
       <button
-        aria-label="Reset layout"
+        aria-label="Reset layout graph"
         className="icon-button"
-        data-tooltip="Reset layout"
+        data-tooltip="Reset graph"
+        disabled={!hasSavedGraphState}
         type="button"
         onClick={() => {
           setIsDeleteConfirming(false);
@@ -1713,6 +1721,18 @@ function recipeMatchesInspectorFlagFilters(
   }
 
   return true;
+}
+
+function hasLayoutGraphState(layout: RecipeLayout): boolean {
+  return (
+    layout.relays.length > 0 ||
+    Object.keys(layout.graphPositions).length > 0 ||
+    Object.keys(layout.edgePorts).length > 0 ||
+    Object.keys(layout.edgeRoutes).length > 0 ||
+    Object.keys(layout.edgeItems).length > 0 ||
+    Object.keys(layout.externalItems).length > 0 ||
+    Object.keys(layout.terminalSides).length > 0
+  );
 }
 
 function formatProductionSize(value: number): string {

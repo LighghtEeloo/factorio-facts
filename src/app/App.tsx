@@ -380,29 +380,6 @@ export function App() {
     );
   }
 
-  function resetLayout(layoutId: string) {
-    clearGraphHistory(layoutId);
-    setLayouts((currentLayouts) =>
-      currentLayouts.map((layout) =>
-        layout.id === layoutId
-          ? {
-              ...layout,
-              iconIds: [],
-              hiddenIconIds: [],
-              entries: [],
-              relays: [],
-              graphPositions: {},
-              edgePorts: {},
-              edgeRoutes: {},
-              edgeItems: {},
-              externalItems: {},
-              terminalSides: {},
-            }
-          : layout,
-      ),
-    );
-  }
-
   function updateRecipeProductionSize(
     layoutId: string,
     entryId: string,
@@ -1106,6 +1083,11 @@ export function App() {
     );
   }
 
+  function resetLayoutGraphWithHistory(layoutId: string) {
+    captureGraphHistory(layoutId);
+    resetLayoutGraph(layoutId);
+  }
+
   return (
     <main className={`app-shell app-shell--${activeView}`}>
       <AppSidebar
@@ -1231,7 +1213,7 @@ export function App() {
             }
             onRecipeProductionSizeChange={updateRecipeProductionSize}
             onRemoveRecipeFromLayout={removeRecipeFromLayout}
-            onResetLayout={resetLayout}
+            onResetLayoutGraph={resetLayoutGraphWithHistory}
             onLayoutIconSettingsChange={updateLayoutIconSettings}
             onRenameLayout={renameLayout}
             onReorderRecipeInLayout={reorderRecipeInLayout}
