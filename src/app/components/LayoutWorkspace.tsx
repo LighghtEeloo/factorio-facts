@@ -133,6 +133,10 @@ export function LayoutWorkspace({
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [exportText, setExportText] = useState<string | null>(null);
   const [isDeleteConfirming, setIsDeleteConfirming] = useState(false);
+  const [relatedRecipeContext, setRelatedRecipeContext] =
+    useState<InspectorRelatedRecipeContext | null>(null);
+  const [relatedRecipeFlagFilters, setRelatedRecipeFlagFilters] =
+    useState<InspectorRecipeFlagFilters>(defaultInspectorRecipeFlagFilters);
   const focusedLayout =
     layoutOverride ??
     layouts.find((layout) => layout.id === focusedLayoutId) ??
@@ -188,6 +192,10 @@ export function LayoutWorkspace({
   useEffect(() => {
     setIsDeleteConfirming(false);
   }, [focusedLayout?.id]);
+
+  useEffect(() => {
+    setRelatedRecipeContext(null);
+  }, [focusedLayout?.id, selectedEntry?.id, selectedRecipe?.name]);
 
   useEffect(() => {
     if (!readOnly) {
@@ -476,58 +484,60 @@ export function LayoutWorkspace({
           className="layout-editor app-panel"
           aria-label={`${title} recipes`}
         >
-          {focusedLayout.entries.length ? (
-            <LayoutCompositeDetails
-              boundary={compositeBoundary}
-              data={data}
-              title={title}
-            />
-          ) : null}
           <div className="layout-editor__recipes">
             {focusedLayout.entries.length ? (
-              focusedLayout.entries.map((entry, index) => {
-                const recipe = data.recipeById.get(entry.recipeId);
+              <>
+                <LayoutCompositeDetails
+                  boundary={compositeBoundary}
+                  data={data}
+                  relatedRecipeContext={relatedRecipeContext}
+                  title={title}
+                  onSelectRelatedRecipeContext={setRelatedRecipeContext}
+                />
+                {focusedLayout.entries.map((entry, index) => {
+                  const recipe = data.recipeById.get(entry.recipeId);
 
-                if (!recipe) {
-                  return null;
-                }
+                  if (!recipe) {
+                    return null;
+                  }
 
-                return (
-                  <LayoutEditorRecipeRow
-                    data={data}
-                    dragging={draggedEntryId === entry.id}
-                    dropPlacement={
-                      entryDropTarget?.entryId === entry.id
-                        ? entryDropTarget.placement
-                        : null
-                    }
-                    entry={entry}
-                    index={index}
-                    key={entry.id}
-                    recipe={recipe}
-                    readOnly={readOnly}
-                    selected={selectedEntry?.id === entry.id}
-                    onDragStart={() => {
-                      if (readOnly) {
-                        return;
+                  return (
+                    <LayoutEditorRecipeRow
+                      data={data}
+                      dragging={draggedEntryId === entry.id}
+                      dropPlacement={
+                        entryDropTarget?.entryId === entry.id
+                          ? entryDropTarget.placement
+                          : null
                       }
+                      entry={entry}
+                      index={index}
+                      key={entry.id}
+                      recipe={recipe}
+                      readOnly={readOnly}
+                      selected={selectedEntry?.id === entry.id}
+                      onDragStart={() => {
+                        if (readOnly) {
+                          return;
+                        }
 
-                      setDraggedEntryId(entry.id);
-                      setEntryDropTarget(null);
-                    }}
-                    onProductionSizeChange={(productionSize) =>
-                      onRecipeProductionSizeChange(
-                        focusedLayout.id,
-                        entry.id,
-                        productionSize,
-                      )
-                    }
-                    onRemove={() => onRemoveRecipeFromLayout(focusedLayout.id, entry.id)}
-                    onSelect={() => setSelectedEntryId(entry.id)}
-                    onOpenRecipeContext={onSelectItem}
-                  />
-                );
-              })
+                        setDraggedEntryId(entry.id);
+                        setEntryDropTarget(null);
+                      }}
+                      onProductionSizeChange={(productionSize) =>
+                        onRecipeProductionSizeChange(
+                          focusedLayout.id,
+                          entry.id,
+                          productionSize,
+                        )
+                      }
+                      onRemove={() => onRemoveRecipeFromLayout(focusedLayout.id, entry.id)}
+                      onSelect={() => setSelectedEntryId(entry.id)}
+                      onOpenRecipeContext={onSelectItem}
+                    />
+                  );
+                })}
+              </>
             ) : (
               <div className="layout-editor__empty">
                 <PackageOpen size={34} aria-hidden="true" />
@@ -568,6 +578,10 @@ export function LayoutWorkspace({
           data={data}
           entry={selectedEntry}
           getFocusedLayoutRecipeCount={getFocusedLayoutRecipeCount}
+          relatedRecipeContext={relatedRecipeContext}
+          relatedRecipeFlagFilters={relatedRecipeFlagFilters}
+          onRelatedRecipeContextChange={setRelatedRecipeContext}
+          onRelatedRecipeFlagFiltersChange={setRelatedRecipeFlagFilters}
           {...(readOnly
             ? {}
             : { onAddRecipeToLayout: addRecipeToLayoutAndSelect })}
@@ -596,13 +610,17 @@ export function LayoutWorkspace({
 interface LayoutCompositeDetailsProps {
   boundary: LayoutCompositeBoundary;
   data: RecipeExplorerData;
+  relatedRecipeContext: InspectorRelatedRecipeContext | null;
   title: string;
+  onSelectRelatedRecipeContext(context: InspectorRelatedRecipeContext): void;
 }
 
 function LayoutCompositeDetails({
   boundary,
   data,
+  relatedRecipeContext,
   title,
+  onSelectRelatedRecipeContext,
 }: LayoutCompositeDetailsProps) {
   return (
     <section className="layout-composite-details" aria-label={`${title} composite recipe`}>
@@ -611,12 +629,18 @@ function LayoutCompositeDetails({
           data={data}
           entries={boundary.ingredients}
           label="Inputs"
+          relatedRecipeContext={relatedRecipeContext}
+          relatedVariant="made-by"
+          onSelectRelatedRecipeContext={onSelectRelatedRecipeContext}
         />
         <ArrowRight size={18} aria-hidden="true" />
         <InspectorMaterialGroup
           data={data}
           entries={boundary.results}
           label="Outputs"
+          relatedRecipeContext={relatedRecipeContext}
+          relatedVariant="used-in"
+          onSelectRelatedRecipeContext={onSelectRelatedRecipeContext}
         />
       </div>
     </section>
@@ -1086,7 +1110,11 @@ interface LayoutRecipeInspectorProps {
   entry: RecipeLayoutEntry | null;
   getFocusedLayoutRecipeCount(recipeId: string): number;
   onAddRecipeToLayout?(recipeId: string): void;
+  relatedRecipeContext: InspectorRelatedRecipeContext | null;
+  relatedRecipeFlagFilters: InspectorRecipeFlagFilters;
   recipe: RecipePrototype | null;
+  onRelatedRecipeContextChange(context: InspectorRelatedRecipeContext): void;
+  onRelatedRecipeFlagFiltersChange(filters: InspectorRecipeFlagFilters): void;
   onOpenRecipeContext(itemId: string): void;
 }
 
@@ -1095,18 +1123,13 @@ function LayoutRecipeInspector({
   entry,
   getFocusedLayoutRecipeCount,
   onAddRecipeToLayout,
+  onRelatedRecipeContextChange,
+  onRelatedRecipeFlagFiltersChange,
   onOpenRecipeContext,
+  relatedRecipeContext,
+  relatedRecipeFlagFilters,
   recipe,
 }: LayoutRecipeInspectorProps) {
-  const [relatedRecipeContext, setRelatedRecipeContext] =
-    useState<InspectorRelatedRecipeContext | null>(null);
-  const [relatedRecipeFlagFilters, setRelatedRecipeFlagFilters] =
-    useState<InspectorRecipeFlagFilters>(defaultInspectorRecipeFlagFilters);
-
-  useEffect(() => {
-    setRelatedRecipeContext(null);
-  }, [entry?.id, recipe?.name]);
-
   if (!entry || !recipe) {
     return (
       <aside
@@ -1162,7 +1185,7 @@ function LayoutRecipeInspector({
             label="Inputs"
             relatedRecipeContext={relatedRecipeContext}
             relatedVariant="made-by"
-            onSelectRelatedRecipeContext={setRelatedRecipeContext}
+            onSelectRelatedRecipeContext={onRelatedRecipeContextChange}
           />
           <ArrowRight size={18} aria-hidden="true" />
           <InspectorMaterialGroup
@@ -1171,7 +1194,7 @@ function LayoutRecipeInspector({
             label="Outputs"
             relatedRecipeContext={relatedRecipeContext}
             relatedVariant="used-in"
-            onSelectRelatedRecipeContext={setRelatedRecipeContext}
+            onSelectRelatedRecipeContext={onRelatedRecipeContextChange}
           />
         </div>
 
@@ -1193,7 +1216,7 @@ function LayoutRecipeInspector({
           data={data}
           filters={relatedRecipeFlagFilters}
           getFocusedLayoutRecipeCount={getFocusedLayoutRecipeCount}
-          onFiltersChange={setRelatedRecipeFlagFilters}
+          onFiltersChange={onRelatedRecipeFlagFiltersChange}
           {...(onAddRecipeToLayout ? { onAddRecipeToLayout } : {})}
         />
       </aside>
@@ -1243,7 +1266,7 @@ function LayoutRecipeInspector({
           label="Ingredients"
           relatedRecipeContext={relatedRecipeContext}
           relatedVariant="made-by"
-          onSelectRelatedRecipeContext={setRelatedRecipeContext}
+          onSelectRelatedRecipeContext={onRelatedRecipeContextChange}
         />
         <ArrowRight size={18} aria-hidden="true" />
         <InspectorMaterialGroup
@@ -1252,7 +1275,7 @@ function LayoutRecipeInspector({
           label="Results"
           relatedRecipeContext={relatedRecipeContext}
           relatedVariant="used-in"
-          onSelectRelatedRecipeContext={setRelatedRecipeContext}
+          onSelectRelatedRecipeContext={onRelatedRecipeContextChange}
         />
       </div>
 
@@ -1282,7 +1305,7 @@ function LayoutRecipeInspector({
         data={data}
         filters={relatedRecipeFlagFilters}
         getFocusedLayoutRecipeCount={getFocusedLayoutRecipeCount}
-        onFiltersChange={setRelatedRecipeFlagFilters}
+        onFiltersChange={onRelatedRecipeFlagFiltersChange}
         {...(onAddRecipeToLayout ? { onAddRecipeToLayout } : {})}
       />
     </aside>
