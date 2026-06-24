@@ -89,6 +89,7 @@ interface LayoutWorkspaceProps {
     productionSize: number,
   ): void;
   onRemoveRecipeFromLayout(layoutId: string, entryId: string): void;
+  onResetLayout(layoutId: string): void;
   onRenameLayout(layoutId: string, name: string): void;
   onReorderRecipeInLayout(
     layoutId: string,
@@ -118,6 +119,7 @@ export function LayoutWorkspace({
   onOpenLayoutGraph,
   onRecipeProductionSizeChange,
   onRemoveRecipeFromLayout,
+  onResetLayout,
   onRenameLayout,
   onReorderRecipeInLayout,
   onSelectItem,
@@ -133,6 +135,7 @@ export function LayoutWorkspace({
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [exportText, setExportText] = useState<string | null>(null);
   const [isDeleteConfirming, setIsDeleteConfirming] = useState(false);
+  const [isResetConfirming, setIsResetConfirming] = useState(false);
   const [relatedRecipeContext, setRelatedRecipeContext] =
     useState<InspectorRelatedRecipeContext | null>(null);
   const [relatedRecipeFlagFilters, setRelatedRecipeFlagFilters] =
@@ -191,6 +194,7 @@ export function LayoutWorkspace({
 
   useEffect(() => {
     setIsDeleteConfirming(false);
+    setIsResetConfirming(false);
   }, [focusedLayout?.id]);
 
   useEffect(() => {
@@ -205,6 +209,7 @@ export function LayoutWorkspace({
     setDraggedEntryId(null);
     setEntryDropTarget(null);
     setIsDeleteConfirming(false);
+    setIsResetConfirming(false);
     setIsImportDialogOpen(false);
     setExportText(null);
   }, [focusedLayout?.id, readOnly]);
@@ -321,6 +326,64 @@ export function LayoutWorkspace({
     setIsDeleteConfirming(false);
   }
 
+  function confirmResetLayout() {
+    if (readOnly || !focusedLayout) {
+      return;
+    }
+
+    onResetLayout(focusedLayout.id);
+    setSelectedEntryId(null);
+    setRelatedRecipeContext(null);
+    setIsResetConfirming(false);
+  }
+
+  function renderResetControl() {
+    if (readOnly || !focusedLayout || !focusedLayout.entries.length) {
+      return null;
+    }
+
+    return isResetConfirming ? (
+      <div
+        aria-label="Confirm layout reset"
+        className="layout-inline-confirm"
+        role="group"
+      >
+        <span className="layout-inline-confirm__label">Reset?</span>
+        <button
+          aria-label="Confirm layout reset"
+          className="icon-button layout-inline-confirm__button"
+          data-tooltip="Confirm reset"
+          type="button"
+          onClick={confirmResetLayout}
+        >
+          <Check size={16} aria-hidden="true" />
+        </button>
+        <button
+          aria-label="Cancel layout reset"
+          className="icon-button layout-inline-confirm__button"
+          data-tooltip="Cancel reset"
+          type="button"
+          onClick={() => setIsResetConfirming(false)}
+        >
+          <X size={16} aria-hidden="true" />
+        </button>
+      </div>
+    ) : (
+      <button
+        aria-label="Reset layout"
+        className="icon-button"
+        data-tooltip="Reset layout"
+        type="button"
+        onClick={() => {
+          setIsDeleteConfirming(false);
+          setIsResetConfirming(true);
+        }}
+      >
+        <RotateCcw size={18} aria-hidden="true" />
+      </button>
+    );
+  }
+
   function renderDeleteControl() {
     if (readOnly) {
       return null;
@@ -358,7 +421,10 @@ export function LayoutWorkspace({
         className="icon-button"
         data-tooltip="Delete layout"
         type="button"
-        onClick={() => setIsDeleteConfirming(true)}
+        onClick={() => {
+          setIsResetConfirming(false);
+          setIsDeleteConfirming(true);
+        }}
       >
         <Trash2 size={18} aria-hidden="true" />
       </button>
@@ -416,6 +482,7 @@ export function LayoutWorkspace({
               >
                 <BookmarkPlus size={18} aria-hidden="true" />
               </button>
+              {renderResetControl()}
               {renderDeleteControl()}
             </>
           )

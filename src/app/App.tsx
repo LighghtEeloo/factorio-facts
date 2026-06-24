@@ -380,6 +380,29 @@ export function App() {
     );
   }
 
+  function resetLayout(layoutId: string) {
+    clearGraphHistory(layoutId);
+    setLayouts((currentLayouts) =>
+      currentLayouts.map((layout) =>
+        layout.id === layoutId
+          ? {
+              ...layout,
+              iconIds: [],
+              hiddenIconIds: [],
+              entries: [],
+              relays: [],
+              graphPositions: {},
+              edgePorts: {},
+              edgeRoutes: {},
+              edgeItems: {},
+              externalItems: {},
+              terminalSides: {},
+            }
+          : layout,
+      ),
+    );
+  }
+
   function updateRecipeProductionSize(
     layoutId: string,
     entryId: string,
@@ -1208,6 +1231,7 @@ export function App() {
             }
             onRecipeProductionSizeChange={updateRecipeProductionSize}
             onRemoveRecipeFromLayout={removeRecipeFromLayout}
+            onResetLayout={resetLayout}
             onLayoutIconSettingsChange={updateLayoutIconSettings}
             onRenameLayout={renameLayout}
             onReorderRecipeInLayout={reorderRecipeInLayout}
