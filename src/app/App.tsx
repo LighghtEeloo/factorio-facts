@@ -130,13 +130,16 @@ export function App() {
     ? recipeData.itemById.get(selectedItemId) ?? null
     : null;
   const focusedLayout = layouts.find((layout) => layout.id === focusedLayoutId) ?? layouts[0];
-  const graphLayout =
-    (graphLayoutId ? layouts.find((layout) => layout.id === graphLayoutId) : null) ??
-    (activeView === "graph" ? focusedLayout ?? null : null);
-  const graphHistory = graphLayout ? graphHistories[graphLayout.id] : undefined;
   const viewedInstalledRecipe = viewedInstalledRecipeId
     ? installedRecipes.find((recipe) => recipe.id === viewedInstalledRecipeId) ?? null
     : null;
+  const graphInstalledRecipe = activeView === "graph" ? viewedInstalledRecipe : null;
+  const graphLayout =
+    graphInstalledRecipe?.layout ??
+    (graphLayoutId ? layouts.find((layout) => layout.id === graphLayoutId) : null) ??
+    (activeView === "graph" ? focusedLayout ?? null : null);
+  const graphHistory =
+    graphLayout && !graphInstalledRecipe ? graphHistories[graphLayout.id] : undefined;
 
   if (!explorerData.items.length) {
     throw new Error("FactorioLab data did not include any items");
@@ -277,6 +280,16 @@ export function App() {
     setActiveView("graph");
   }
 
+  function openInstalledRecipeGraph(recipeId: string) {
+    if (!installedRecipes.some((recipe) => recipe.id === recipeId)) {
+      return;
+    }
+
+    setViewedInstalledRecipeId(recipeId);
+    setGraphLayoutId(null);
+    setActiveView("graph");
+  }
+
   function openInstalledRecipe(recipeId: string) {
     if (!installedRecipes.some((recipe) => recipe.id === recipeId)) {
       return;
@@ -288,7 +301,7 @@ export function App() {
   }
 
   function changeView(view: AppView) {
-    if (view !== "layouts") {
+    if (view !== "layouts" && view !== "graph") {
       setViewedInstalledRecipeId(null);
     }
 
@@ -1084,6 +1097,7 @@ export function App() {
         onImportLayout={importLayoutAsNew}
         onInstalledRecipeUnload={unloadInstalledRecipe}
         onOpenInstalledRecipe={openInstalledRecipe}
+        onOpenInstalledRecipeGraph={openInstalledRecipeGraph}
         onOpenLayoutGraph={openLayoutGraph}
         onReorderLayout={reorderLayout}
         onSelectItem={selectItem}
@@ -1183,7 +1197,11 @@ export function App() {
             onImportLayout={importLayout}
             onInstallLayout={installLayout}
             onOpenItemSelector={openItemSelector}
-            onOpenLayoutGraph={openLayoutGraph}
+            onOpenLayoutGraph={
+              viewedInstalledRecipe
+                ? () => openInstalledRecipeGraph(viewedInstalledRecipe.id)
+                : openLayoutGraph
+            }
             onRecipeProductionSizeChange={updateRecipeProductionSize}
             onRemoveRecipeFromLayout={removeRecipeFromLayout}
             onLayoutIconSettingsChange={updateLayoutIconSettings}
@@ -1206,6 +1224,8 @@ export function App() {
                 canUndoGraph={Boolean(graphHistory?.undo.length)}
                 data={recipeData}
                 layout={graphLayout}
+                readOnly={Boolean(graphInstalledRecipe)}
+                readOnlyLabel="Installed layout"
                 variant="workspace"
                 onClose={() => setActiveView("layouts")}
                 onEdgePortsChange={(edgeId, ports) =>
@@ -1226,7 +1246,14 @@ export function App() {
                 onExternalItemsChange={(terminalId, itemKeys) =>
                   updateLayoutGraphExternalItems(graphLayout.id, terminalId, itemKeys)
                 }
-                onExportLayout={() => exportLayout(graphLayout.id)}
+                onExportLayout={() =>
+                  graphInstalledRecipe
+                    ? createLayoutExportString(
+                        graphInstalledRecipe.layout,
+                        installedRecipes,
+                      )
+                    : exportLayout(graphLayout.id)
+                }
                 onRelayCreate={(relay, position) =>
                   createLayoutGraphRelay(graphLayout.id, relay, position)
                 }

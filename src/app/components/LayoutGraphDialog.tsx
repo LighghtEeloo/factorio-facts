@@ -123,6 +123,8 @@ interface LayoutGraphDialogProps {
   canUndoGraph: boolean;
   data: RecipeExplorerData;
   layout: RecipeLayout;
+  readOnly?: boolean;
+  readOnlyLabel?: string;
   variant?: "dialog" | "workspace";
   onClose(): void;
   onEdgeItemsChange(edgeId: string, itemKeys: string[]): void;
@@ -149,6 +151,8 @@ export function LayoutGraphDialog({
   canUndoGraph,
   data,
   layout,
+  readOnly = false,
+  readOnlyLabel = "Read only",
   variant = "dialog",
   onClose,
   onEdgeItemsChange,
@@ -206,48 +210,78 @@ export function LayoutGraphDialog({
   }, []);
   const changeEdgeItems = useCallback(
     (edgeId: string, itemKeys: string[]) => {
+      if (readOnly) {
+        return;
+      }
+
       onGraphEditStart();
       onEdgeItemsChange(edgeId, itemKeys);
     },
-    [onEdgeItemsChange, onGraphEditStart],
+    [onEdgeItemsChange, onGraphEditStart, readOnly],
   );
   const resetEdgeItems = useCallback(
     (edgeId: string) => {
+      if (readOnly) {
+        return;
+      }
+
       onGraphEditStart();
       onEdgeItemsReset(edgeId);
     },
-    [onEdgeItemsReset, onGraphEditStart],
+    [onEdgeItemsReset, onGraphEditStart, readOnly],
   );
   const changeEdgePorts = useCallback(
     (edgeId: string, ports: GraphEdgePorts) => {
+      if (readOnly) {
+        return;
+      }
+
       onGraphEditStart();
       onEdgePortsChange(edgeId, ports);
     },
-    [onEdgePortsChange, onGraphEditStart],
+    [onEdgePortsChange, onGraphEditStart, readOnly],
   );
   const changeEdgeRoute = useCallback(
     (edgeId: string, route: GraphEdgeRoute) => {
+      if (readOnly) {
+        return;
+      }
+
       onGraphEditStart();
       onEdgeRouteChange(edgeId, route);
     },
-    [onEdgeRouteChange, onGraphEditStart],
+    [onEdgeRouteChange, onGraphEditStart, readOnly],
   );
   const resetEdgeRoute = useCallback(
     (edgeId: string) => {
+      if (readOnly) {
+        return;
+      }
+
       onGraphEditStart();
       onEdgeRouteReset(edgeId);
     },
-    [onEdgeRouteReset, onGraphEditStart],
+    [onEdgeRouteReset, onGraphEditStart, readOnly],
   );
   const changeTerminalSide = useCallback(
     (terminalId: string, side: GraphSide) => {
+      if (readOnly) {
+        return;
+      }
+
       onGraphEditStart();
       onTerminalSideChange(terminalId, side);
     },
-    [onGraphEditStart, onTerminalSideChange],
+    [onGraphEditStart, onTerminalSideChange, readOnly],
   );
   const beginPendingConnection = useCallback(
     (firstNodeId: string, secondNodeId: string) => {
+      if (readOnly) {
+        setConnectingFromNodeId(null);
+        setPendingConnection(null);
+        return;
+      }
+
       const candidate = getConnectionCandidateBetween(
         connectionCandidatesRef.current,
         firstNodeId,
@@ -266,7 +300,7 @@ export function LayoutGraphDialog({
       setConnectingFromNodeId(null);
       setPendingConnection(createPendingGraphConnection(candidate, layout.edgeItems));
     },
-    [layout.edgeItems],
+    [layout.edgeItems, readOnly],
   );
   const selectConnectableNode = useCallback<GraphNodeSelectHandler>(
     (nodeId, event) => {
@@ -292,6 +326,10 @@ export function LayoutGraphDialog({
   );
   const createRelayFromTerminal = useCallback(
     (terminal: SelectedGraphTerminal) => {
+      if (readOnly) {
+        return;
+      }
+
       const itemKeys = uniqueStringItems(
         terminal.entries.map((entry) => getEntityKey(entry)),
       );
@@ -361,6 +399,7 @@ export function LayoutGraphDialog({
       onGraphEditStart,
       onRelayCreate,
       onTerminalSideChange,
+      readOnly,
     ],
   );
   const graph = useMemo(
@@ -368,6 +407,7 @@ export function LayoutGraphDialog({
       buildLayoutGraph(
         data,
         layout,
+        readOnly,
         onSelectItem,
         focusEdge,
         changeEdgeRoute,
@@ -384,6 +424,7 @@ export function LayoutGraphDialog({
       focusTerminal,
       layout,
       onSelectItem,
+      readOnly,
       selectConnectableNode,
       selectedTerminalId,
     ],
@@ -445,6 +486,7 @@ export function LayoutGraphDialog({
       nodes.map((node): GraphFlowNode => {
         const endpointSelector = getEndpointSelectorForNode(
           node.id,
+          readOnly,
           selectedEdge,
           changeEdgePorts,
           selectedTerminal,
@@ -486,6 +528,7 @@ export function LayoutGraphDialog({
       selectedEdge,
       selectedNodeId,
       selectedTerminal,
+      readOnly,
       smartLinkPreview.inputItemKeysByNodeId,
       smartLinkPreview.relationByNodeId,
       smartLinkPreview.outputItemKeysByNodeId,
@@ -572,6 +615,17 @@ export function LayoutGraphDialog({
   }, [hasSavedGraphState]);
 
   useEffect(() => {
+    if (!readOnly) {
+      return;
+    }
+
+    setConnectingFromNodeId(null);
+    setPendingConnection(null);
+    setSmartLinkPreviewNodeId(null);
+    setIsResetConfirming(false);
+  }, [layout.id, readOnly]);
+
+  useEffect(() => {
     if (isWorkspace) {
       return;
     }
@@ -592,10 +646,14 @@ export function LayoutGraphDialog({
 
   const handleNodeDragStop = useCallback<OnNodeDrag<GraphFlowNode>>(
     (_event, node) => {
+      if (readOnly) {
+        return;
+      }
+
       onGraphEditStart();
       onNodePositionChange(node.id, node.position);
     },
-    [onGraphEditStart, onNodePositionChange],
+    [onGraphEditStart, onNodePositionChange, readOnly],
   );
 
   function clearGraphFocus() {
@@ -614,6 +672,10 @@ export function LayoutGraphDialog({
   }
 
   function toggleConnectMode(nodeId: string) {
+    if (readOnly) {
+      return;
+    }
+
     setSelectedEdgeIds([]);
     setSelectedTerminalId(null);
     setPendingConnection(null);
@@ -626,6 +688,10 @@ export function LayoutGraphDialog({
     node: GraphFlowNode,
     changes: GraphNodeToolbarChanges,
   ) {
+    if (readOnly) {
+      return;
+    }
+
     onGraphEditStart();
 
     if (node.data.kind === "relay" && changes.relayItemKeys) {
@@ -664,7 +730,7 @@ export function LayoutGraphDialog({
   }
 
   function confirmPendingConnection() {
-    if (!pendingConnection || !pendingConnection.itemKeys.length) {
+    if (readOnly || !pendingConnection || !pendingConnection.itemKeys.length) {
       return;
     }
 
@@ -677,6 +743,10 @@ export function LayoutGraphDialog({
   }
 
   function smartLinkNode(node: GraphFlowNode) {
+    if (readOnly) {
+      return;
+    }
+
     const edgeItems = getSmartLinkEdgeItems(node, graph.nodes);
 
     if (!edgeItems.length) {
@@ -690,6 +760,10 @@ export function LayoutGraphDialog({
   }
 
   function createRelayFromSelectedEdges() {
+    if (readOnly) {
+      return;
+    }
+
     const relayEdges = selectedEdges.filter((edge) => Boolean(edge.data));
     const itemKeys = uniqueStringItems(
       relayEdges.flatMap((edge) =>
@@ -756,6 +830,10 @@ export function LayoutGraphDialog({
   }
 
   function deleteRelay(relayId: string) {
+    if (readOnly) {
+      return;
+    }
+
     onGraphEditStart();
     onRelayDelete(relayId);
     clearGraphFocus();
@@ -809,73 +887,79 @@ export function LayoutGraphDialog({
               >
                 <ExternalLink size={18} aria-hidden="true" />
               </button>
-              <button
-                aria-label="Undo layout graph change"
-                className="icon-button"
-                data-tooltip="Undo graph change"
-                disabled={!canUndoGraph}
-                type="button"
-                onClick={() => {
-                  setIsResetConfirming(false);
-                  onGraphUndo();
-                }}
-              >
-                <Undo2 size={18} aria-hidden="true" />
-              </button>
-              <button
-                aria-label="Redo layout graph change"
-                className="icon-button"
-                data-tooltip="Redo graph change"
-                disabled={!canRedoGraph}
-                type="button"
-                onClick={() => {
-                  setIsResetConfirming(false);
-                  onGraphRedo();
-                }}
-              >
-                <Redo2 size={18} aria-hidden="true" />
-              </button>
-              {isResetConfirming ? (
-                <div
-                  aria-label="Confirm graph reset"
-                  className="layout-graph-reset-confirm"
-                  role="group"
-                >
-                  <span className="layout-graph-reset-confirm__label">Reset?</span>
+              {readOnly ? (
+                <span className="layout-readonly-badge">{readOnlyLabel}</span>
+              ) : (
+                <>
                   <button
-                    aria-label="Confirm graph reset"
-                    className="icon-button layout-graph-reset-confirm__button"
-                    data-tooltip="Confirm reset"
+                    aria-label="Undo layout graph change"
+                    className="icon-button"
+                    data-tooltip="Undo graph change"
+                    disabled={!canUndoGraph}
                     type="button"
                     onClick={() => {
-                      onGraphEditStart();
-                      onResetGraphPositions();
                       setIsResetConfirming(false);
+                      onGraphUndo();
                     }}
                   >
-                    <Check size={16} aria-hidden="true" />
+                    <Undo2 size={18} aria-hidden="true" />
                   </button>
                   <button
-                    aria-label="Cancel graph reset"
-                    className="icon-button layout-graph-reset-confirm__button"
-                    data-tooltip="Cancel reset"
+                    aria-label="Redo layout graph change"
+                    className="icon-button"
+                    data-tooltip="Redo graph change"
+                    disabled={!canRedoGraph}
                     type="button"
-                    onClick={() => setIsResetConfirming(false)}
+                    onClick={() => {
+                      setIsResetConfirming(false);
+                      onGraphRedo();
+                    }}
                   >
-                    <X size={16} aria-hidden="true" />
+                    <Redo2 size={18} aria-hidden="true" />
                   </button>
-                </div>
-              ) : (
-                <button
-                  aria-label="Reset layout graph"
-                  className="icon-button"
-                  data-tooltip="Reset graph"
-                  disabled={!hasSavedGraphState}
-                  type="button"
-                  onClick={() => setIsResetConfirming(true)}
-                >
-                  <RotateCcw size={18} aria-hidden="true" />
-                </button>
+                  {isResetConfirming ? (
+                    <div
+                      aria-label="Confirm graph reset"
+                      className="layout-graph-reset-confirm"
+                      role="group"
+                    >
+                      <span className="layout-graph-reset-confirm__label">Reset?</span>
+                      <button
+                        aria-label="Confirm graph reset"
+                        className="icon-button layout-graph-reset-confirm__button"
+                        data-tooltip="Confirm reset"
+                        type="button"
+                        onClick={() => {
+                          onGraphEditStart();
+                          onResetGraphPositions();
+                          setIsResetConfirming(false);
+                        }}
+                      >
+                        <Check size={16} aria-hidden="true" />
+                      </button>
+                      <button
+                        aria-label="Cancel graph reset"
+                        className="icon-button layout-graph-reset-confirm__button"
+                        data-tooltip="Cancel reset"
+                        type="button"
+                        onClick={() => setIsResetConfirming(false)}
+                      >
+                        <X size={16} aria-hidden="true" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      aria-label="Reset layout graph"
+                      className="icon-button"
+                      data-tooltip="Reset graph"
+                      disabled={!hasSavedGraphState}
+                      type="button"
+                      onClick={() => setIsResetConfirming(true)}
+                    >
+                      <RotateCcw size={18} aria-hidden="true" />
+                    </button>
+                  )}
+                </>
               )}
               {!isWorkspace ? (
                 <button
@@ -950,6 +1034,8 @@ export function LayoutGraphDialog({
               onCancelPendingConnection={() => setPendingConnection(null)}
               onConfirmPendingConnection={confirmPendingConnection}
               onApplyEdgeItems={changeEdgeItems}
+              readOnly={readOnly}
+              readOnlyLabel={readOnlyLabel}
               onCreateRelayFromTerminal={createRelayFromTerminal}
               onCreateRelayFromEdges={createRelayFromSelectedEdges}
               onApplyNodeChanges={applyNodeToolbarChanges}
@@ -979,14 +1065,15 @@ export function LayoutGraphDialog({
               nodes={graphNodes}
               nodeTypes={nodeTypes}
               nodesConnectable={false}
+              nodesDraggable={!readOnly}
               onEdgeClick={(event, edge) =>
                 focusEdge(edge.id, event.shiftKey)
               }
               onNodeClick={handleNodeClick}
-              onNodeDragStop={handleNodeDragStop}
               onNodesChange={handleNodesChange}
               onPaneClick={clearGraphFocus}
               proOptions={{ hideAttribution: true }}
+              {...(readOnly ? {} : { onNodeDragStop: handleNodeDragStop })}
             >
               <GraphOpenAutoSizer layoutId={layout.id} nodeCount={graphNodes.length} />
               <Background color="#4b4735" gap={34} />
@@ -1091,6 +1178,8 @@ interface GraphHeaderToolbarProps {
   nodeHasTerminalOverrides: boolean;
   pendingCandidate: GraphConnectionCandidate | null;
   pendingConnection: PendingGraphConnection | null;
+  readOnly: boolean;
+  readOnlyLabel: string;
   terminal: SelectedGraphTerminal | null;
   onApplyNodeChanges(node: GraphFlowNode, changes: GraphNodeToolbarChanges): void;
   onApplyEdgeItems(edgeId: string, itemKeys: string[]): void;
@@ -1115,6 +1204,8 @@ function GraphHeaderToolbar({
   nodeHasTerminalOverrides,
   pendingCandidate,
   pendingConnection,
+  readOnly,
+  readOnlyLabel,
   terminal,
   onApplyNodeChanges,
   onApplyEdgeItems,
@@ -1129,6 +1220,14 @@ function GraphHeaderToolbar({
   onToggleConnectMode,
   onTogglePendingConnectionItem,
 }: GraphHeaderToolbarProps) {
+  if (readOnly) {
+    return (
+      <div className="layout-graph-toolbar layout-graph-toolbar--readonly">
+        <span className="layout-readonly-badge">{readOnlyLabel}</span>
+      </div>
+    );
+  }
+
   if (pendingConnection && pendingCandidate) {
     const selectedItemKeys = new Set(pendingConnection.itemKeys);
 
@@ -2249,6 +2348,7 @@ interface ItemFlowEdgeData extends Record<string, unknown> {
   onRouteChange(edgeId: string, route: GraphEdgeRoute): void;
   onRouteReset(edgeId: string): void;
   ports: GraphEdgePorts;
+  readOnly: boolean;
   route: GraphEdgeRoute | null;
   smartLinkPreviewKind?: GraphRelation;
   sourceName: string;
@@ -2314,11 +2414,16 @@ function addGraphRelation(
 
 function getEndpointSelectorForNode(
   nodeId: string,
+  readOnly: boolean,
   edge: ItemFlowEdgeType | null,
   onEdgePortsChange: (edgeId: string, ports: GraphEdgePorts) => void,
   terminal: SelectedGraphTerminal | null,
   onTerminalSideChange: (terminalId: string, side: GraphSide) => void,
 ): GraphEndpointSelector | null {
+  if (readOnly) {
+    return null;
+  }
+
   if (terminal && terminal.nodeId === nodeId) {
     return {
       activeSide: terminal.side,
@@ -2545,7 +2650,7 @@ function ItemFlowEdge({
   }
 
   function startRouteDrag(event: ReactPointerEvent<HTMLButtonElement>) {
-    if (!edgeData || edgeData.isPreview) {
+    if (!edgeData || edgeData.isPreview || edgeData.readOnly) {
       return;
     }
 
@@ -2599,7 +2704,13 @@ function ItemFlowEdge({
             } ${focusLabelClassName} ${
               isRouteDragging ? "layout-graph-edge-label--dragging" : ""
             }`}
-            data-tooltip={selected ? "Drag to bend edge" : "Focus or drag edge"}
+            data-tooltip={
+              edgeData.readOnly
+                ? "Focus edge"
+                : selected
+                  ? "Drag to bend edge"
+                  : "Focus or drag edge"
+            }
             style={{
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
             }}
@@ -2622,7 +2733,7 @@ function ItemFlowEdge({
               <span className="layout-graph-more">+{edgeData.items.length - 3}</span>
             ) : null}
           </button>
-          {selected && edgeData.route ? (
+          {selected && edgeData.route && !edgeData.readOnly ? (
             <button
               aria-label={`Reset edge route from ${edgeData.sourceName} to ${edgeData.targetName}`}
               className="layout-graph-edge-route-reset nodrag nopan"
@@ -2841,6 +2952,7 @@ interface LayoutGraphModel {
 function buildLayoutGraph(
   data: RecipeExplorerData,
   layout: RecipeLayout,
+  readOnly: boolean,
   onSelectItem: (itemId: string) => void,
   onFocusEdge: (edgeId: string, additive?: boolean) => void,
   onEdgeRouteChange: (edgeId: string, route: GraphEdgeRoute) => void,
@@ -2871,6 +2983,7 @@ function buildLayoutGraph(
       onFocusEdge,
       onEdgeRouteChange,
       onEdgeRouteReset,
+      readOnly,
     ),
     nodes: graphNodes.map((node) =>
       buildFlowNode(
@@ -3247,6 +3360,7 @@ function buildFlowEdges(
   onFocusEdge: (edgeId: string, additive?: boolean) => void,
   onEdgeRouteChange: (edgeId: string, route: GraphEdgeRoute) => void,
   onEdgeRouteReset: (edgeId: string) => void,
+  readOnly: boolean,
 ): ItemFlowEdgeType[] {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
 
@@ -3260,6 +3374,7 @@ function buildFlowEdges(
       onFocusEdge,
       onEdgeRouteChange,
       onEdgeRouteReset,
+      readOnly,
     ),
   }));
 }
@@ -3273,6 +3388,7 @@ function buildFlowEdge(
   onFocusEdge: (edgeId: string, additive?: boolean) => void,
   onEdgeRouteChange: (edgeId: string, route: GraphEdgeRoute) => void,
   onEdgeRouteReset: (edgeId: string) => void,
+  readOnly: boolean,
 ): ItemFlowEdgeType {
   return {
     id: edge.id,
@@ -3294,6 +3410,7 @@ function buildFlowEdge(
       onRouteChange: onEdgeRouteChange,
       onRouteReset: onEdgeRouteReset,
       ports,
+      readOnly,
       route,
       sourceName: getGraphNodeName(nodeById.get(edge.sourceId)),
       targetName: getGraphNodeName(nodeById.get(edge.targetId)),
@@ -3662,6 +3779,7 @@ function buildSmartLinkPreview(
           onRouteChange: noopRouteChange,
           onRouteReset: noopRouteReset,
           ports,
+          readOnly: true,
           route: edgeRoutes[connection.id] ?? null,
           smartLinkPreviewKind: previewRelation,
           sourceName: sourceNode.data.label,

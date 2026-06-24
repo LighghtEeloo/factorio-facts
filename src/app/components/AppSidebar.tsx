@@ -59,6 +59,7 @@ interface AppSidebarProps {
   onImportLayout(value: string): boolean;
   onInstalledRecipeUnload(recipeId: string): void;
   onOpenInstalledRecipe(recipeId: string): void;
+  onOpenInstalledRecipeGraph(recipeId: string): void;
   onOpenLayoutGraph(layoutId: string): void;
   onReorderLayout(
     sourceLayoutId: string,
@@ -84,6 +85,7 @@ export function AppSidebar({
   onImportLayout,
   onInstalledRecipeUnload,
   onOpenInstalledRecipe,
+  onOpenInstalledRecipeGraph,
   onOpenLayoutGraph,
   onReorderLayout,
   onSelectItem,
@@ -314,6 +316,15 @@ export function AppSidebar({
                     onClick={() => onAddInstalledRecipeToLayout(installedRecipe.id)}
                   >
                     <ListPlus size={15} aria-hidden="true" />
+                  </button>
+                  <button
+                    aria-label={`Open ${metadata.name} graph`}
+                    className="layout-action-button"
+                    data-tooltip="Open graph"
+                    type="button"
+                    onClick={() => onOpenInstalledRecipeGraph(installedRecipe.id)}
+                  >
+                    <Network size={15} aria-hidden="true" />
                   </button>
                   <button
                     aria-label={`Unload ${metadata.name}`}

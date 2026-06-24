@@ -341,7 +341,20 @@ export function LayoutWorkspace({
         panel
         actions={
           readOnly ? (
-            <span className="layout-readonly-badge">{readOnlyLabel}</span>
+            <>
+              {focusedLayout.entries.length ? (
+                <button
+                  aria-label="Open installed layout graph"
+                  className="icon-button"
+                  data-tooltip="Open graph"
+                  type="button"
+                  onClick={() => onOpenLayoutGraph(focusedLayout.id)}
+                >
+                  <Network size={18} aria-hidden="true" />
+                </button>
+              ) : null}
+              <span className="layout-readonly-badge">{readOnlyLabel}</span>
+            </>
           ) : !focusedLayout.entries.length ? (
             renderDeleteControl()
           ) : (

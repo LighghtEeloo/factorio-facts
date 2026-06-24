@@ -217,7 +217,7 @@ button {
 
 .sidebar-installed-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 24px 24px;
+  grid-template-columns: minmax(0, 1fr) repeat(3, 24px);
   align-items: center;
   gap: 5px;
   min-width: 0;
@@ -2528,6 +2528,13 @@ button {
 
 .layout-graph-toolbar--empty {
   width: min(420px, 100%);
+  border-color: transparent;
+  background: transparent;
+}
+
+.layout-graph-toolbar--readonly {
+  justify-content: center;
+  width: min(240px, 100%);
   border-color: transparent;
   background: transparent;
 }
