@@ -369,14 +369,25 @@ export function LayoutGraphDialog({
       onGraphEditStart();
       onRelayCreate(relay, position);
       onEdgePortsChange(edgeId, ports);
+      onEdgeItemsChange(edgeId, itemKeys);
       onTerminalSideChange(getGraphTerminalId(relay.id, terminal.kind), terminal.side);
 
-      if (terminal.kind === "output") {
-        for (const egressEdge of getRelayEgressEdges(
-          relay.id,
-          itemKeys,
-          graphNodesRef.current,
-        )) {
+      for (const ingressEdge of getRelayIngressEdges(
+        relay.id,
+        itemKeys,
+        graphNodesRef.current,
+      )) {
+        if (ingressEdge.edgeId !== edgeId) {
+          onEdgeItemsChange(ingressEdge.edgeId, []);
+        }
+      }
+
+      for (const egressEdge of getRelayEgressEdges(
+        relay.id,
+        itemKeys,
+        graphNodesRef.current,
+      )) {
+        if (egressEdge.edgeId !== edgeId) {
           onEdgeItemsChange(egressEdge.edgeId, []);
         }
       }
@@ -3685,25 +3696,53 @@ function getRelayEgressEdges(
   itemKeys: string[],
   nodes: GraphFlowNode[],
 ): Array<{ edgeId: string; itemKeys: string[] }> {
-  const relayProducts = uniqueProducts(
-    itemKeys.flatMap((itemKey) => productFromEntityKey(itemKey) ?? []),
-  );
+  const relayNode = createRelayConnectionNode(relayId, itemKeys);
 
-  if (!relayProducts.length) {
+  if (!relayNode) {
     return [];
   }
-
-  const relayNode: GraphConnectionNode = {
-    id: relayId,
-    ingredients: relayProducts.map(productToIngredient),
-    label: "Relay",
-    results: relayProducts,
-  };
 
   return getCompatibleGraphConnections(
     [relayNode],
     nodes.map(getGraphFlowConnectionNode),
   ).map(graphConnectionToEdgeItems);
+}
+
+function getRelayIngressEdges(
+  relayId: string,
+  itemKeys: string[],
+  nodes: GraphFlowNode[],
+): Array<{ edgeId: string; itemKeys: string[] }> {
+  const relayNode = createRelayConnectionNode(relayId, itemKeys);
+
+  if (!relayNode) {
+    return [];
+  }
+
+  return getCompatibleGraphConnections(
+    nodes.map(getGraphFlowConnectionNode),
+    [relayNode],
+  ).map(graphConnectionToEdgeItems);
+}
+
+function createRelayConnectionNode(
+  relayId: string,
+  itemKeys: string[],
+): GraphConnectionNode | null {
+  const relayProducts = uniqueProducts(
+    itemKeys.flatMap((itemKey) => productFromEntityKey(itemKey) ?? []),
+  );
+
+  if (!relayProducts.length) {
+    return null;
+  }
+
+  return {
+    id: relayId,
+    ingredients: relayProducts.map(productToIngredient),
+    label: "Relay",
+    results: relayProducts,
+  };
 }
 
 interface SmartLinkPreview {
