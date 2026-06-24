@@ -4,18 +4,23 @@ import {
   BookmarkPlus,
   Check,
   ExternalLink,
+  FlaskConical,
   GripVertical,
   Import,
+  Lock,
   Network,
   Package,
   PackageOpen,
+  Pickaxe,
   Plus,
+  Recycle,
   RotateCcw,
   Timer,
   Trash2,
   X,
 } from "lucide-react";
 import {
+  type ReactNode,
   type DragEvent,
   useEffect,
   useRef,
@@ -1095,6 +1100,8 @@ function LayoutRecipeInspector({
 }: LayoutRecipeInspectorProps) {
   const [relatedRecipeContext, setRelatedRecipeContext] =
     useState<InspectorRelatedRecipeContext | null>(null);
+  const [relatedRecipeFlagFilters, setRelatedRecipeFlagFilters] =
+    useState<InspectorRecipeFlagFilters>(defaultInspectorRecipeFlagFilters);
 
   useEffect(() => {
     setRelatedRecipeContext(null);
@@ -1184,7 +1191,9 @@ function LayoutRecipeInspector({
         <InspectorRelatedRecipes
           context={relatedRecipeContext}
           data={data}
+          filters={relatedRecipeFlagFilters}
           getFocusedLayoutRecipeCount={getFocusedLayoutRecipeCount}
+          onFiltersChange={setRelatedRecipeFlagFilters}
           {...(onAddRecipeToLayout ? { onAddRecipeToLayout } : {})}
         />
       </aside>
@@ -1271,7 +1280,9 @@ function LayoutRecipeInspector({
       <InspectorRelatedRecipes
         context={relatedRecipeContext}
         data={data}
+        filters={relatedRecipeFlagFilters}
         getFocusedLayoutRecipeCount={getFocusedLayoutRecipeCount}
+        onFiltersChange={setRelatedRecipeFlagFilters}
         {...(onAddRecipeToLayout ? { onAddRecipeToLayout } : {})}
       />
     </aside>
@@ -1285,6 +1296,20 @@ interface InspectorRelatedRecipeContext {
   itemName: string;
   variant: InspectorRelatedRecipeVariant;
 }
+
+interface InspectorRecipeFlagFilters {
+  includeLocked: boolean;
+  includeMining: boolean;
+  includeRecycling: boolean;
+  includeTechnology: boolean;
+}
+
+const defaultInspectorRecipeFlagFilters: InspectorRecipeFlagFilters = {
+  includeLocked: true,
+  includeMining: true,
+  includeRecycling: false,
+  includeTechnology: false,
+};
 
 interface InspectorMaterialGroupProps {
   data: RecipeExplorerData;
@@ -1392,24 +1417,29 @@ function InspectorMaterial({
 interface InspectorRelatedRecipesProps {
   context: InspectorRelatedRecipeContext | null;
   data: RecipeExplorerData;
+  filters: InspectorRecipeFlagFilters;
   getFocusedLayoutRecipeCount(recipeId: string): number;
+  onFiltersChange(filters: InspectorRecipeFlagFilters): void;
   onAddRecipeToLayout?(recipeId: string): void;
 }
 
 function InspectorRelatedRecipes({
   context,
   data,
+  filters,
   getFocusedLayoutRecipeCount,
+  onFiltersChange,
   onAddRecipeToLayout,
 }: InspectorRelatedRecipesProps) {
   if (!context) {
     return null;
   }
 
-  const recipes =
+  const recipes = (
     context.variant === "made-by"
       ? data.madeBy(context.itemId)
-      : data.usedIn(context.itemId);
+      : data.usedIn(context.itemId)
+  ).filter((recipe) => recipeMatchesInspectorFlagFilters(recipe, filters));
   const title = context.variant === "made-by" ? "Made by" : "Used in";
 
   return (
@@ -1417,6 +1447,10 @@ function InspectorRelatedRecipes({
       className="layout-inspector__related"
       aria-label={`${title} recipes for ${context.itemName}`}
     >
+      <InspectorRecipeFlagFilterControls
+        filters={filters}
+        onChange={onFiltersChange}
+      />
       <RecipeColumn
         data={data}
         getFocusedLayoutRecipeCount={getFocusedLayoutRecipeCount}
@@ -1428,6 +1462,100 @@ function InspectorRelatedRecipes({
       />
     </div>
   );
+}
+
+interface InspectorRecipeFlagFiltersProps {
+  filters: InspectorRecipeFlagFilters;
+  onChange(filters: InspectorRecipeFlagFilters): void;
+}
+
+function InspectorRecipeFlagFilterControls({
+  filters,
+  onChange,
+}: InspectorRecipeFlagFiltersProps) {
+  return (
+    <div
+      className="layout-inspector__flag-filters"
+      role="group"
+      aria-label="Related recipe flag filters"
+    >
+      <InspectorRecipeFlagToggle
+        checked={filters.includeLocked}
+        icon={<Lock size={15} aria-hidden="true" />}
+        label="Locked"
+        onChange={(includeLocked) => onChange({ ...filters, includeLocked })}
+      />
+      <InspectorRecipeFlagToggle
+        checked={filters.includeMining}
+        icon={<Pickaxe size={15} aria-hidden="true" />}
+        label="Mining"
+        onChange={(includeMining) => onChange({ ...filters, includeMining })}
+      />
+      <InspectorRecipeFlagToggle
+        checked={filters.includeRecycling}
+        icon={<Recycle size={15} aria-hidden="true" />}
+        label="Recycling"
+        onChange={(includeRecycling) => onChange({ ...filters, includeRecycling })}
+      />
+      <InspectorRecipeFlagToggle
+        checked={filters.includeTechnology}
+        icon={<FlaskConical size={15} aria-hidden="true" />}
+        label="Technology"
+        onChange={(includeTechnology) => onChange({ ...filters, includeTechnology })}
+      />
+    </div>
+  );
+}
+
+interface InspectorRecipeFlagToggleProps {
+  checked: boolean;
+  icon: ReactNode;
+  label: string;
+  onChange(checked: boolean): void;
+}
+
+function InspectorRecipeFlagToggle({
+  checked,
+  icon,
+  label,
+  onChange,
+}: InspectorRecipeFlagToggleProps) {
+  return (
+    <label className="layout-inspector__flag-toggle">
+      <input
+        checked={checked}
+        type="checkbox"
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span className="layout-inspector__flag-toggle-icon">{icon}</span>
+      <span>{label}</span>
+    </label>
+  );
+}
+
+function recipeMatchesInspectorFlagFilters(
+  recipe: RecipePrototype,
+  filters: InspectorRecipeFlagFilters,
+): boolean {
+  const metadata = getRecipeMetadata(recipe);
+
+  if (!filters.includeMining && metadata.flags.includes("mining")) {
+    return false;
+  }
+
+  if (!filters.includeRecycling && metadata.flags.includes("recycling")) {
+    return false;
+  }
+
+  if (!filters.includeTechnology && metadata.flags.includes("technology")) {
+    return false;
+  }
+
+  if (!filters.includeLocked && metadata.flags.includes("locked")) {
+    return false;
+  }
+
+  return true;
 }
 
 function formatProductionSize(value: number): string {

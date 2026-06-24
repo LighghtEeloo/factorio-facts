@@ -1842,7 +1842,48 @@ button {
 
 .layout-inspector__related {
   display: grid;
+  gap: 8px;
   min-width: 0;
+}
+
+.layout-inspector__flag-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 0;
+}
+
+.layout-inspector__flag-toggle {
+  display: grid;
+  grid-template-columns: 15px 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 28px;
+  border: 1px solid #3f4235;
+  border-radius: 6px;
+  background: #151710;
+  color: #ddd7c4;
+  font-size: 0.72rem;
+  padding: 0 7px;
+}
+
+.layout-inspector__flag-toggle input {
+  width: 13px;
+  height: 13px;
+  accent-color: #d89b38;
+}
+
+.layout-inspector__flag-toggle span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layout-inspector__flag-toggle-icon {
+  display: grid;
+  place-items: center;
+  color: #8aa477;
 }
 
 .layout-inspector__related .recipe-column {
