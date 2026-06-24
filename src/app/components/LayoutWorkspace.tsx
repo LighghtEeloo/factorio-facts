@@ -492,15 +492,6 @@ export function LayoutWorkspace({
                 <ExternalLink size={18} aria-hidden="true" />
               </button>
               <button
-                aria-label="Open layout graph"
-                className="icon-button"
-                data-tooltip="Open graph"
-                type="button"
-                onClick={() => onOpenLayoutGraph(focusedLayout.id)}
-              >
-                <Network size={18} aria-hidden="true" />
-              </button>
-              <button
                 aria-label="Install as recipe"
                 className="icon-button"
                 data-tooltip="Install as recipe"
@@ -508,6 +499,15 @@ export function LayoutWorkspace({
                 onClick={() => onInstallLayout(focusedLayout.id)}
               >
                 <BookmarkPlus size={18} aria-hidden="true" />
+              </button>
+              <button
+                aria-label="Open layout graph"
+                className="icon-button"
+                data-tooltip="Open graph"
+                type="button"
+                onClick={() => onOpenLayoutGraph(focusedLayout.id)}
+              >
+                <Network size={18} aria-hidden="true" />
               </button>
               {renderResetControl()}
               {renderDeleteControl()}
